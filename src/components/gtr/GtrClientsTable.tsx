@@ -81,14 +81,14 @@ const clients = [
   { 
     id: 3, 
     fecha: '09/09/2025', 
-    cliente: '965887043', 
-    nombre: '',
-    dni: '',
-    email: '',
+    cliente: '956887643', 
+    nombre: 'Carlos López',
+    dni: '45612378',
+    email: 'carlos@email.com',
     campania: 'LEADS', 
     canal: 'WSP 4',
-    estado: 'Solo números', 
-    asesor: 'Sin asignar',
+    estado: 'Nuevo', 
+    asesor: 'MIA',
     comentarios: 'Cliente registrado solo con número de teléfono',
     fechaCreacion: '09/09/2025',
     historial: [
@@ -102,54 +102,42 @@ const clients = [
   },
   { 
     id: 4, 
-    fecha: '10/09/2025', 
-    cliente: '976543210', 
-    nombre: 'Ana Torres',
-    dni: '98765432',
-    email: 'ana.torres@email.com',
+    fecha: '08/09/2025', 
+    cliente: '923456789', 
+    nombre: 'Ana Rodríguez',
+    dni: '78945612',
+    email: 'ana@email.com',
     campania: 'MASIVO', 
-    canal: 'WSP 2',
+    canal: 'MEDIOS',
     estado: 'En gestión', 
-    asesor: 'MIA',
+    asesor: 'JUAN',
     comentarios: 'Información completa proporcionada por el asesor',
-    fechaCreacion: '10/09/2025',
+    fechaCreacion: '08/09/2025',
     historial: [
       {
-        fecha: '10/09/2025 14:20',
-        asesor: 'MIA',
+        fecha: '08/09/2025 14:20',
+        asesor: 'JUAN',
         accion: 'Datos Completados',
         comentarios: 'Asesor ingresó todos los datos del cliente después del contacto'
-      },
-      {
-        fecha: '10/09/2025 14:00',
-        asesor: 'MIA',
-        accion: 'Contacto',
-        comentarios: 'Cliente atendido y datos recolectados'
-      },
-      {
-        fecha: '10/09/2025 13:45',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Cliente registrado desde campaña MASIVO'
       }
     ]
   },
   { 
     id: 5, 
-    fecha: '10/09/2025', 
-    cliente: '912876543', 
-    nombre: '',
-    dni: '',
-    email: '',
+    fecha: '08/09/2025', 
+    cliente: '987123456', 
+    nombre: 'Luis Martínez',
+    dni: '32165498',
+    email: 'luis@email.com',
     campania: 'LEADS', 
-    canal: 'WSP 3',
-    estado: 'Solo números', 
-    asesor: 'Sin asignar',
+    canal: 'CREATIVA',
+    estado: 'Perdido', 
+    asesor: 'SASKYA',
     comentarios: 'Pendiente de contacto para obtener datos',
-    fechaCreacion: '10/09/2025',
+    fechaCreacion: '08/09/2025',
     historial: [
       {
-        fecha: '10/09/2025 16:30',
+        fecha: '08/09/2025 16:30',
         asesor: 'Sistema',
         accion: 'Creación',
         comentarios: 'Lead automático desde campaña LEADS - Requiere contacto para datos'
@@ -158,26 +146,70 @@ const clients = [
   },
   { 
     id: 6, 
-    fecha: '10/09/2025', 
-    cliente: '998877665', 
-    nombre: '',
-    dni: '',
-    email: '',
-    campania: 'MASIVO', 
-    canal: 'WSP 1',
-    estado: 'Solo números', 
-    asesor: 'Sin asignar',
+    fecha: '07/09/2025', 
+    cliente: '945678123', 
+    nombre: 'Carmen Vega',
+    dni: '65432187',
+    email: 'carmen@email.com',
+    campania: 'REFERIDOS', 
+    canal: 'WSP 2',
+    estado: 'Vendido', 
+    asesor: 'MIA',
     comentarios: 'Lead sin información adicional',
-    fechaCreacion: '10/09/2025',
+    fechaCreacion: '07/09/2025',
     historial: [
       {
-        fecha: '10/09/2025 17:15',
+        fecha: '07/09/2025 17:15',
         asesor: 'Sistema',
         accion: 'Creación',
         comentarios: 'Número capturado automáticamente - Sin datos adicionales'
       }
     ]
   },
+  { 
+    id: 7, 
+    fecha: '07/09/2025', 
+    cliente: '912345678', 
+    nombre: 'Roberto Silva',
+    dni: '98765432',
+    email: 'roberto@email.com',
+    campania: 'MASIVO', 
+    canal: 'ALAS',
+    estado: 'Nuevo', 
+    asesor: 'JUAN',
+    comentarios: 'Cliente nuevo con datos completos',
+    fechaCreacion: '07/09/2025',
+    historial: [
+      {
+        fecha: '07/09/2025 10:30',
+        asesor: 'Sistema',
+        accion: 'Creación',
+        comentarios: 'Cliente registrado desde campaña MASIVO'
+      }
+    ]
+  },
+  { 
+    id: 8, 
+    fecha: '06/09/2025', 
+    cliente: '934567891', 
+    nombre: 'Patricia Morales',
+    dni: '15975348',
+    email: 'patricia@email.com',
+    campania: 'LEADS', 
+    canal: 'WSP 1',
+    estado: 'En gestión', 
+    asesor: 'SASKYA',
+    comentarios: 'Cliente en proceso de gestión',
+    fechaCreacion: '06/09/2025',
+    historial: [
+      {
+        fecha: '06/09/2025 11:45',
+        asesor: 'Sistema',
+        accion: 'Creación',
+        comentarios: 'Cliente registrado desde campaña LEADS'
+      }
+    ]
+  }
 ];
 
 const statusColors: Record<string, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
@@ -186,6 +218,8 @@ const statusColors: Record<string, 'default' | 'primary' | 'success' | 'warning'
   'No contactado': 'warning',
   'Lista negra': 'error',
   'Solo números': 'warning',
+  'Nuevo': 'warning',
+  'Perdido': 'error'
 };
 
 const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) => {
@@ -212,7 +246,30 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
 
   const handleReassignConfirm = (newAdvisor: string) => {
     if (clientToReassign) {
+      const previousAdvisor = clientToReassign.asesor;
+      const currentDate = new Date();
+      const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
+      const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
+      
+      // Actualizar el asesor
       clientToReassign.asesor = newAdvisor;
+      
+      // Agregar entrada al historial
+      const reassignmentEntry = {
+        fecha: formattedDateTime,
+        asesor: 'Sistema',
+        accion: 'Reasignación',
+        estadoAnterior: previousAdvisor,
+        estadoNuevo: newAdvisor,
+        comentarios: `Cliente reasignado de ${previousAdvisor} a ${newAdvisor}`
+      };
+      
+      // Agregar al inicio del historial (más reciente primero)
+      if (!clientToReassign.historial) {
+        clientToReassign.historial = [];
+      }
+      clientToReassign.historial.unshift(reassignmentEntry);
+      
       setReassignDialogOpen(false);
       setClientToReassign(null);
     }
@@ -226,85 +283,50 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
       width: '100%',
       flex: 1
     }}>
-      <Box sx={{ p: 3, borderBottom: '1px solid #e5e7eb' }}>
-        <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937' }}>
-          Gestión de Clientes
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {filtered.length} clientes {statusFilter !== 'Todos' ? `con estado "${statusFilter}"` : 'totales'}
+      <Box sx={{ p: 2, borderBottom: '1px solid #e5e7eb' }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: '#22223b' }}>
+          Clientes
         </Typography>
       </Box>
       <TableContainer>
         <Table>
           <TableHead>
-            <TableRow sx={{ '& .MuiTableCell-head': { backgroundColor: '#f8fafc', fontWeight: 600, color: '#374151' } }}>
-              <TableCell>Cliente</TableCell>
-              <TableCell>Contacto</TableCell>
-              <TableCell>Canal</TableCell>
-              <TableCell>Campaña</TableCell>
-              <TableCell>Asesor</TableCell>
-              <TableCell>Estado</TableCell>
-              <TableCell>Acciones</TableCell>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Cliente</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Nombre</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>DNI</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Email</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Campaña</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Canal</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estado</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Asesor</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filtered.map(client => (
-              <TableRow 
-                key={client.id}
-                sx={{ 
-                  '&:hover': { backgroundColor: '#f9fafb' },
-                  '& .MuiTableCell-body': { borderBottom: '1px solid #f3f4f6' }
-                }}
-              >
-                <TableCell>
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#1f2937' }}>
-                      {client.nombre || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin nombre</span>}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Tel: {client.cliente}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      {client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin email</span>}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      DNI: {client.dni || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin DNI</span>}
-                    </Typography>
-                  </Box>
-                </TableCell>
+              <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
+                <TableCell>{client.fecha}</TableCell>
+                <TableCell>{client.cliente}</TableCell>
+                <TableCell>{client.nombre || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin nombre</span>}</TableCell>
+                <TableCell>{client.dni || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin DNI</span>}</TableCell>
+                <TableCell>{client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin email</span>}</TableCell>
+                <TableCell>{client.campania}</TableCell>
+                <TableCell>{client.canal}</TableCell>
                 <TableCell>
                   <Chip 
-                    label={client.canal} 
-                    size="small" 
-                    sx={{ 
-                      backgroundColor: '#eff6ff',
-                      color: '#1e40af',
-                      fontWeight: 500
+                    label={client.estado}
+                    size="small"
+                    sx={{
+                      fontWeight: 700,
+                      color: client.estado === 'Vendido' ? '#059669' : client.estado === 'En gestión' ? '#2563eb' : client.estado === 'Nuevo' ? '#f59e0b' : client.estado === 'Perdido' ? '#dc2626' : '#374151',
+                      background: client.estado === 'Vendido' ? '#d1fae5' : client.estado === 'En gestión' ? '#dbeafe' : client.estado === 'Nuevo' ? '#fef3c7' : client.estado === 'Perdido' ? '#fee2e2' : '#f3f4f6',
+                      borderRadius: 1
                     }}
                   />
                 </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {client.campania}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">
-                    {client.asesor}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip 
-                    label={client.estado} 
-                    color={statusColors[client.estado] || 'default'}
-                    size="small"
-                    sx={{ fontWeight: 500 }}
-                  />
-                </TableCell>
+                <TableCell>{client.asesor}</TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button 
@@ -313,39 +335,33 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
                       onClick={() => handleViewHistory(client)}
                       sx={{ 
                         textTransform: 'none',
-                        color: '#6b7280',
+                        color: '#22223b',
+                        border: '1px solid #e5e7eb',
+                        background: '#fff',
+                        fontWeight: 700,
+                        borderRadius: 1,
+                        px: 2,
                         '&:hover': { backgroundColor: '#f3f4f6' }
                       }}
                     >
-                      Ver
+                      VER
                     </Button>
-                    {client.estado === 'Cliente escribió' ? (
-                      <Button 
-                        size="small" 
-                        startIcon={<ReplyIcon />}
-                        variant="contained"
-                        sx={{ 
-                          textTransform: 'none',
-                          backgroundColor: '#f59e0b',
-                          '&:hover': { backgroundColor: '#d97706' }
-                        }}
-                      >
-                        Responder
-                      </Button>
-                    ) : (
-                      <Button 
-                        size="small" 
-                        startIcon={<SwapHorizIcon />}
-                        onClick={() => handleReassign(client)}
-                        sx={{ 
-                          textTransform: 'none',
-                          color: '#6b7280',
-                          '&:hover': { backgroundColor: '#f3f4f6' }
-                        }}
-                      >
-                        Reasignar
-                      </Button>
-                    )}
+                    <Button 
+                      size="small" 
+                      startIcon={<SwapHorizIcon />}
+                      onClick={() => handleReassign(client)}
+                      sx={{ 
+                        textTransform: 'none',
+                        color: '#fff',
+                        backgroundColor: '#111827',
+                        fontWeight: 700,
+                        borderRadius: 1,
+                        px: 2,
+                        '&:hover': { backgroundColor: '#374151' }
+                      }}
+                    >
+                      REASIGNAR
+                    </Button>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -359,6 +375,7 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
         onClose={() => setHistoryDialogOpen(false)}
         clientData={selectedClient}
       />
+      
       <ReassignDialog
         open={reassignDialogOpen}
         onClose={() => setReassignDialogOpen(false)}
