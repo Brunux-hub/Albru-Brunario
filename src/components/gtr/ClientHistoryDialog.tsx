@@ -88,7 +88,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
                 {clientData.nombre}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{ color: '#64748b', fontSize: 15, fontWeight: 400, mt: 0.5 }}>
                 Cliente desde: {clientData.fechaCreacion}
               </Typography>
             </Box>
@@ -104,7 +104,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
               <Typography variant="body2">{clientData.dni}</Typography>
             </Box>
             <Box>
-              <Typography variant="caption" color="text.secondary">Email</Typography>
+              <Typography variant="caption" color="text.secondary">Coordenadas</Typography>
               <Typography variant="body2">{clientData.email}</Typography>
             </Box>
             <Box>
@@ -169,6 +169,11 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                   
                   <Typography variant="body2" sx={{ mb: 1 }}>
                     <strong>Asesor:</strong> {evento.asesor}
+                    {evento.accion === 'Creación' && (
+                      <span style={{ marginLeft: 8, color: '#64748b', fontWeight: 500 }}>
+                        (Creado por: GTR)
+                      </span>
+                    )}
                   </Typography>
                   
                   {evento.estadoAnterior && evento.estadoNuevo && (

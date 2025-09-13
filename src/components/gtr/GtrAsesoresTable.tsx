@@ -43,10 +43,10 @@ interface Asesor {
   eficiencia: number;
   ultimaActividad: string;
   avatar?: string;
-  especialidad: string;
+  sala: 'Sala 1' | 'Sala 2' | 'Sala 3' | 'Sala 4';
 }
 
-const asesores: Asesor[] = [
+const initialAsesores: Asesor[] = [
   {
     id: 1,
     nombre: 'Juan Carlos Mendez',
@@ -60,7 +60,7 @@ const asesores: Asesor[] = [
     metaMensual: 50,
     eficiencia: 92,
     ultimaActividad: 'Hace 5 min',
-    especialidad: 'Premium'
+  sala: 'Sala 1'
   },
   {
     id: 2,
@@ -75,7 +75,7 @@ const asesores: Asesor[] = [
     metaMensual: 50,
     eficiencia: 95,
     ultimaActividad: 'Hace 2 min',
-    especialidad: 'Referidos'
+  sala: 'Sala 2'
   },
   {
     id: 3,
@@ -90,7 +90,7 @@ const asesores: Asesor[] = [
     metaMensual: 40,
     eficiencia: 88,
     ultimaActividad: 'En llamada',
-    especialidad: 'Leads'
+  sala: 'Sala 2'
   },
   {
     id: 4,
@@ -105,7 +105,7 @@ const asesores: Asesor[] = [
     metaMensual: 45,
     eficiencia: 85,
     ultimaActividad: 'Hace 10 min',
-    especialidad: 'Masivo'
+  sala: 'Sala 2'
   },
   {
     id: 5,
@@ -120,7 +120,7 @@ const asesores: Asesor[] = [
     metaMensual: 45,
     eficiencia: 90,
     ultimaActividad: 'Hace 3 min',
-    especialidad: 'Premium'
+  sala: 'Sala 2'
   },
   {
     id: 6,
@@ -135,7 +135,7 @@ const asesores: Asesor[] = [
     metaMensual: 40,
     eficiencia: 78,
     ultimaActividad: 'Hace 30 min',
-    especialidad: 'Leads'
+  sala: 'Sala 2'
   },
   {
     id: 7,
@@ -150,7 +150,7 @@ const asesores: Asesor[] = [
     metaMensual: 42,
     eficiencia: 87,
     ultimaActividad: 'Hace 7 min',
-    especialidad: 'Referidos'
+  sala: 'Sala 2'
   },
   {
     id: 8,
@@ -165,7 +165,7 @@ const asesores: Asesor[] = [
     metaMensual: 50,
     eficiencia: 91,
     ultimaActividad: 'En llamada',
-    especialidad: 'Premium'
+  sala: 'Sala 2'
   },
   {
     id: 9,
@@ -180,7 +180,7 @@ const asesores: Asesor[] = [
     metaMensual: 40,
     eficiencia: 83,
     ultimaActividad: 'Hace 15 min',
-    especialidad: 'Masivo'
+  sala: 'Sala 2'
   },
   {
     id: 10,
@@ -195,7 +195,7 @@ const asesores: Asesor[] = [
     metaMensual: 50,
     eficiencia: 94,
     ultimaActividad: 'Hace 1 min',
-    especialidad: 'Premium'
+  sala: 'Sala 1'
   },
   {
     id: 11,
@@ -210,7 +210,7 @@ const asesores: Asesor[] = [
     metaMensual: 35,
     eficiencia: 75,
     ultimaActividad: 'Hace 2 horas',
-    especialidad: 'Leads'
+  sala: 'Sala 2'
   },
   {
     id: 12,
@@ -225,7 +225,7 @@ const asesores: Asesor[] = [
     metaMensual: 45,
     eficiencia: 86,
     ultimaActividad: 'Hace 8 min',
-    especialidad: 'Referidos'
+  sala: 'Sala 2'
   },
   {
     id: 13,
@@ -240,7 +240,7 @@ const asesores: Asesor[] = [
     metaMensual: 38,
     eficiencia: 81,
     ultimaActividad: 'En llamada',
-    especialidad: 'Masivo'
+  sala: 'Sala 2'
   },
   {
     id: 14,
@@ -255,12 +255,18 @@ const asesores: Asesor[] = [
     metaMensual: 48,
     eficiencia: 89,
     ultimaActividad: 'Hace 4 min',
-    especialidad: 'Premium'
+  sala: 'Sala 2'
   }
 ];
 
-const GtrAsesoresTable: React.FC = () => {
+
+interface GtrAsesoresTableProps {
+  asesores: Asesor[];
+}
+
+const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  // Las funciones de asignar/atender cliente se eliminan porque la actualización será automática por reasignación.
 
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -290,8 +296,8 @@ const GtrAsesoresTable: React.FC = () => {
     }
   };
 
-  const getEspecialidadColor = (especialidad: string) => {
-    switch (especialidad) {
+  const getSalaColor = (sala: string) => {
+    switch (sala) {
       case 'Premium': return '#8b5cf6';
       case 'Referidos': return '#06b6d4';
       case 'Leads': return '#10b981';
@@ -385,7 +391,7 @@ const GtrAsesoresTable: React.FC = () => {
                 <TableRow sx={{ backgroundColor: '#f8fafc' }}>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Asesor</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Estado</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Especialidad</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Sala</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Clientes</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Ventas Hoy</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Meta Mensual</TableCell>
@@ -443,10 +449,10 @@ const GtrAsesoresTable: React.FC = () => {
                     
                     <TableCell>
                       <Chip
-                        label={asesor.especialidad}
+                        label={asesor.sala}
                         size="small"
                         sx={{
-                          backgroundColor: getEspecialidadColor(asesor.especialidad),
+                          backgroundColor: getSalaColor(asesor.sala),
                           color: 'white',
                           fontWeight: 'medium'
                         }}

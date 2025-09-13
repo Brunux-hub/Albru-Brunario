@@ -5,17 +5,37 @@ import GtrSummary from '../components/gtr/GtrSummary';
 import GtrStatusMenu from '../components/gtr/GtrStatusMenu';
 import GtrClientsTable from '../components/gtr/GtrClientsTable';
 import GtrAsesoresTable from '../components/gtr/GtrAsesoresTable';
+import initialAsesores from '../components/gtr/initialAsesores';
 import AddClientDialog from '../components/gtr/AddClientDialog';
 
 const GtrDashboard: React.FC = () => {
   const [section, setSection] = useState('Clientes');
   const [status, setStatus] = useState('Todos');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [newClient, setNewClient] = useState<any>(null);
+  // Estado centralizado de asesores
+  const [asesores, setAsesores] = useState(
+    initialAsesores.map(a => ({
+      ...a,
+      clientesAsignados: 0,
+      clientesAtendidos: 0,
+      estado: a.estado as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
+      sala: a.sala as 'Sala 1' | 'Sala 2' | 'Sala 3' | 'Sala 4'
+    }))
+  );
 
   const handleSaveClient = (clientData: any) => {
-    console.log('Nuevo cliente:', clientData);
-    // Aquí se guardaría el cliente en la base de datos
-    alert(`Cliente ${clientData.nombre} agregado exitosamente`);
+    setNewClient(clientData);
+    setDialogOpen(false);
+  };
+
+  // Función para incrementar asignados de un asesor por nombre
+  const incrementarAsignados = (asesorNombre: string) => {
+    setAsesores(prev => prev.map(a =>
+      a.nombre.toUpperCase().includes(asesorNombre.toUpperCase())
+        ? { ...a, clientesAsignados: a.clientesAsignados + 1 }
+        : a
+    ));
   };
 
   return (
@@ -32,6 +52,8 @@ const GtrDashboard: React.FC = () => {
         overflow: 'auto',
         marginLeft: '220px'
       }}>
+
+
         {section === 'Clientes' && (
           <Box sx={{ 
             display: 'flex', 
@@ -46,7 +68,11 @@ const GtrDashboard: React.FC = () => {
               onAddClient={() => setDialogOpen(true)}
             />
             <Box sx={{ flex: 1, display: 'flex' }}>
-              <GtrClientsTable statusFilter={status} />
+              <GtrClientsTable 
+                statusFilter={status} 
+                newClient={newClient} 
+                incrementarAsignados={incrementarAsignados}
+              />
             </Box>
           </Box>
         )}
@@ -72,7 +98,7 @@ const GtrDashboard: React.FC = () => {
                   Aquí se muestran todos los asesores disponibles y su rendimiento en tiempo real.
                 </p>
               </Box>
-              <GtrAsesoresTable />
+              <GtrAsesoresTable asesores={asesores} />
             </Box>
           </Box>
         )}

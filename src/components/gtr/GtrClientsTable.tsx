@@ -2,19 +2,19 @@ import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-import ReplyIcon from '@mui/icons-material/Reply';
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
 
 // Datos simulados expandidos con historial
-const clients = [
+// Se debe migrar a un estado para permitir agregar desde el formulario
+const initialClients = [
   { 
     id: 1, 
     fecha: '09/09/2025', 
     cliente: '914118863', 
     nombre: 'Juan Pérez',
     dni: '12345678',
-    email: 'juan@email.com',
+    email: '-12.0464,-77.0428',
     campania: 'MASIVO', 
     canal: 'WSP 1',
     estado: 'En gestión', 
@@ -48,7 +48,7 @@ const clients = [
     cliente: '987654321', 
     nombre: 'María García',
     dni: '87654321',
-    email: 'maria@email.com',
+    email: '-12.0453,-77.0311',
     campania: 'REFERIDOS', 
     canal: 'REFERIDO',
     estado: 'Vendido', 
@@ -84,7 +84,7 @@ const clients = [
     cliente: '956887643', 
     nombre: 'Carlos López',
     dni: '45612378',
-    email: 'carlos@email.com',
+    email: '-12.0432,-77.0283',
     campania: 'LEADS', 
     canal: 'WSP 4',
     estado: 'Nuevo', 
@@ -106,7 +106,7 @@ const clients = [
     cliente: '923456789', 
     nombre: 'Ana Rodríguez',
     dni: '78945612',
-    email: 'ana@email.com',
+    email: '-12.0482,-77.0301',
     campania: 'MASIVO', 
     canal: 'MEDIOS',
     estado: 'En gestión', 
@@ -128,7 +128,7 @@ const clients = [
     cliente: '987123456', 
     nombre: 'Luis Martínez',
     dni: '32165498',
-    email: 'luis@email.com',
+    email: '-12.0500,-77.0400',
     campania: 'LEADS', 
     canal: 'CREATIVA',
     estado: 'Perdido', 
@@ -150,7 +150,7 @@ const clients = [
     cliente: '945678123', 
     nombre: 'Carmen Vega',
     dni: '65432187',
-    email: 'carmen@email.com',
+    email: '-12.0499,-77.0350',
     campania: 'REFERIDOS', 
     canal: 'WSP 2',
     estado: 'Vendido', 
@@ -172,7 +172,7 @@ const clients = [
     cliente: '912345678', 
     nombre: 'Roberto Silva',
     dni: '98765432',
-    email: 'roberto@email.com',
+    email: '-12.0477,-77.0388',
     campania: 'MASIVO', 
     canal: 'ALAS',
     estado: 'Nuevo', 
@@ -194,7 +194,7 @@ const clients = [
     cliente: '934567891', 
     nombre: 'Patricia Morales',
     dni: '15975348',
-    email: 'patricia@email.com',
+    email: '-12.0444,-77.0366',
     campania: 'LEADS', 
     canal: 'WSP 1',
     estado: 'En gestión', 
@@ -212,24 +212,57 @@ const clients = [
   }
 ];
 
-const statusColors: Record<string, 'default' | 'primary' | 'success' | 'warning' | 'error' | 'info'> = {
-  'En gestión': 'primary',
-  'Vendido': 'success',
-  'No contactado': 'warning',
-  'Lista negra': 'error',
-  'Solo números': 'warning',
-  'Nuevo': 'warning',
-  'Perdido': 'error'
-};
 
-const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) => {
+interface GtrClientsTableProps {
+  statusFilter: string;
+  newClient?: any;
+  incrementarAsignados: (asesorNombre: string) => void;
+}
+
+const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClient, incrementarAsignados }) => {
+  const [clients, setClients] = useState<any[]>(initialClients);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [clientToReassign, setClientToReassign] = useState<any>(null);
-  
+
+  // Si llega un nuevo cliente, agregarlo
+  React.useEffect(() => {
+    if (newClient) {
+      const isSoloNumero = !newClient.nombre && !newClient.dni && !newClient.email;
+      const now = new Date();
+      const fecha = now.toLocaleDateString('es-PE');
+      const fechaHora = now.toLocaleString('es-PE');
+      setClients(prev => [
+        {
+          ...newClient,
+          id: Date.now(),
+          fecha,
+          fechaCreacion: fecha,
+          estado: isSoloNumero ? 'Nuevo' : 'En gestión',
+          asesor: '-',
+          comentarios: isSoloNumero ? 'Solo número' : (newClient.comentarios || ''),
+          historial: [
+            {
+              fecha: fechaHora,
+              asesor: 'Sistema',
+              accion: 'Creación',
+              comentarios: isSoloNumero ? 'Cliente registrado solo con número' : 'Cliente registrado con datos completos'
+            }
+          ]
+        },
+        ...prev
+      ]);
+    }
+  }, [newClient]);
+
   const sortedClients = [...clients].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
-  const filtered = statusFilter === 'Todos' ? sortedClients : sortedClients.filter(c => c.estado === statusFilter);
+  let filtered = sortedClients;
+  if (statusFilter === 'Solo números') {
+    filtered = sortedClients.filter(c => !c.nombre && !c.dni && !c.email);
+  } else if (statusFilter !== 'Todos') {
+    filtered = sortedClients.filter(c => c.estado === statusFilter);
+  }
   
   const handleViewHistory = (client: any) => {
     setSelectedClient({
@@ -250,10 +283,10 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
       const currentDate = new Date();
       const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
       const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
-      
+
       // Actualizar el asesor
       clientToReassign.asesor = newAdvisor;
-      
+
       // Agregar entrada al historial
       const reassignmentEntry = {
         fecha: formattedDateTime,
@@ -263,13 +296,16 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
         estadoNuevo: newAdvisor,
         comentarios: `Cliente reasignado de ${previousAdvisor} a ${newAdvisor}`
       };
-      
+
       // Agregar al inicio del historial (más reciente primero)
       if (!clientToReassign.historial) {
         clientToReassign.historial = [];
       }
       clientToReassign.historial.unshift(reassignmentEntry);
-      
+
+      // Incrementar asignados del nuevo asesor
+      incrementarAsignados(newAdvisor);
+
       setReassignDialogOpen(false);
       setClientToReassign(null);
     }
@@ -296,7 +332,7 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Cliente</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Nombre</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>DNI</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Email</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Coordenadas</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Campaña</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Canal</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estado</TableCell>
@@ -311,7 +347,7 @@ const GtrClientsTable: React.FC<{ statusFilter: string }> = ({ statusFilter }) =
                 <TableCell>{client.cliente}</TableCell>
                 <TableCell>{client.nombre || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin nombre</span>}</TableCell>
                 <TableCell>{client.dni || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin DNI</span>}</TableCell>
-                <TableCell>{client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin email</span>}</TableCell>
+                <TableCell>{client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin coordenadas</span>}</TableCell>
                 <TableCell>{client.campania}</TableCell>
                 <TableCell>{client.canal}</TableCell>
                 <TableCell>
