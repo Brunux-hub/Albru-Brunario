@@ -46,7 +46,8 @@ interface Asesor {
   sala: 'Sala 1' | 'Sala 2' | 'Sala 3' | 'Sala 4';
 }
 
-const initialAsesores: Asesor[] = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _initialAsesores: Asesor[] = [
   {
     id: 1,
     nombre: 'Juan Carlos Mendez',

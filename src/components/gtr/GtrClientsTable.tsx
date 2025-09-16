@@ -4,6 +4,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
+import { useClientes } from '../../context/ClientesContext';
 
 // Datos simulados expandidos con historial
 // Se debe migrar a un estado para permitir agregar desde el formulario
@@ -220,11 +221,17 @@ interface GtrClientsTableProps {
 }
 
 const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClient, incrementarAsignados }) => {
+  const { reasignarCliente } = useClientes();
   const [clients, setClients] = useState<any[]>(initialClients);
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [clientToReassign, setClientToReassign] = useState<any>(null);
+
+  // Debug: Verificar si el contexto está disponible
+  React.useEffect(() => {
+    console.log('GTR - Contexto reasignarCliente disponible:', typeof reasignarCliente);
+  }, [reasignarCliente]);
 
   // Si llega un nuevo cliente, agregarlo
   React.useEffect(() => {
@@ -305,6 +312,31 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
 
       // Incrementar asignados del nuevo asesor
       incrementarAsignados(newAdvisor);
+
+      // Enviar cliente al asesor usando el contexto
+      const clienteParaAsesor = {
+        fecha: formattedDate,
+        nombre: clientToReassign.nombre || clientToReassign.cliente,
+        telefono: clientToReassign.cliente,
+        dni: clientToReassign.dni || 'Sin DNI',
+        servicio: clientToReassign.campania,
+        estado: 'Nuevo',
+        gestion: 'Pendiente',
+        seguimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16), // Mañana
+        coordenadas: clientToReassign.email || 'Sin coordenadas',
+        campania: clientToReassign.campania,
+        canal: clientToReassign.canal,
+        comentariosIniciales: `Cliente reasignado desde GTR a ${newAdvisor}`,
+        direccion: '',
+        tipoCasa: '',
+        tipoVia: ''
+      };
+
+      console.log('GTR - Antes de llamar reasignarCliente:', clienteParaAsesor);
+      reasignarCliente(clienteParaAsesor);
+      
+      console.log('Cliente enviado al asesor:', clienteParaAsesor);
+      console.log('Nuevo asesor:', newAdvisor);
 
       setReassignDialogOpen(false);
       setClientToReassign(null);

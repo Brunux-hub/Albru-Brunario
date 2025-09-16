@@ -24,11 +24,12 @@ interface ClienteData {
   gestion: string;
   seguimiento: string;
   coordenadas?: string;
-  email?: string;
   direccion?: string;
   campania?: string;
   canal?: string;
   comentariosIniciales?: string;
+  tipoCasa?: string;
+  tipoVia?: string;
 }
 
 interface GestionData {
@@ -58,7 +59,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     gestion: '',
     seguimiento: '',
     coordenadas: '',
-    email: '',
     direccion: '',
     campania: '',
     canal: '',
@@ -129,14 +129,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
               />
               <TextField
                 fullWidth
-                label="Email"
-                value={clienteData.email}
-                onChange={(e) => setClienteData({ ...clienteData, email: e.target.value })}
-                variant="outlined"
-                size="small"
-              />
-              <TextField
-                fullWidth
                 label="Dirección"
                 value={clienteData.direccion}
                 onChange={(e) => setClienteData({ ...clienteData, direccion: e.target.value })}
@@ -162,6 +154,32 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
                   <MenuItem value="Combo">Combo</MenuItem>
                   <MenuItem value="Internet">Internet</MenuItem>
                   <MenuItem value="Cable TV">Cable TV</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl fullWidth size="small">
+                <InputLabel>Tipo de casa</InputLabel>
+                <Select
+                  value={clienteData.tipoCasa || ''}
+                  label="Tipo de casa"
+                  onChange={(e) => setClienteData({ ...clienteData, tipoCasa: e.target.value })}
+                >
+                  <MenuItem value="Casa">Casa</MenuItem>
+                  <MenuItem value="Departamento">Departamento</MenuItem>
+                  <MenuItem value="Otro">Otro</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl fullWidth size="small">
+                <InputLabel>Tipo de vía</InputLabel>
+                <Select
+                  value={clienteData.tipoVia || ''}
+                  label="Tipo de vía"
+                  onChange={(e) => setClienteData({ ...clienteData, tipoVia: e.target.value })}
+                >
+                  <MenuItem value="Avenida">Avenida</MenuItem>
+                  <MenuItem value="Calle">Calle</MenuItem>
+                  <MenuItem value="Jirón">Jirón</MenuItem>
+                  <MenuItem value="Pasaje">Pasaje</MenuItem>
+                  <MenuItem value="Carretera">Carretera</MenuItem>
                 </Select>
               </FormControl>
               {clienteData.comentariosIniciales && (
@@ -223,22 +241,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
                   <MenuItem value="Venta realizada">Venta realizada</MenuItem>
                 </Select>
               </FormControl>
-              <FormControl fullWidth size="small">
-                <InputLabel>Nuevo estado</InputLabel>
-                <Select
-                  value={gestionData.nuevoEstado}
-                  label="Nuevo estado"
-                  onChange={(e) => setGestionData({ ...gestionData, nuevoEstado: e.target.value })}
-                >
-                  <MenuItem value="Nuevo">Nuevo</MenuItem>
-                  <MenuItem value="En gestión">En gestión</MenuItem>
-                  <MenuItem value="En seguimiento">En seguimiento</MenuItem>
-                  <MenuItem value="Interesado">Interesado</MenuItem>
-                  <MenuItem value="No interesado">No interesado</MenuItem>
-                  <MenuItem value="Venta realizada">Venta realizada</MenuItem>
-                  <MenuItem value="No contactado">No contactado</MenuItem>
-                </Select>
-              </FormControl>
               <TextField
                 fullWidth
                 label="Próximo seguimiento"
@@ -270,7 +272,13 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
           onClick={handleSave} 
           variant="contained" 
           color="primary"
-          disabled={!gestionData.tipoContacto || !gestionData.resultado || !gestionData.nuevoEstado}
+          disabled={
+            !gestionData.tipoContacto || 
+            !gestionData.resultado || 
+            !gestionData.nuevoEstado || 
+            !gestionData.fechaContacto || 
+            !gestionData.proximoSeguimiento
+          }
         >
           Guardar Gestión
         </Button>
