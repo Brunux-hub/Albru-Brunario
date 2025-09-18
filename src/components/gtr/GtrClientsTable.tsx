@@ -5,7 +5,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
 import { useClientes } from '../../context/ClientesContext';
-import axios from 'axios';
+import apiClient from '../../config/axios';
 
 // Datos simulados expandidos con historial
 // Se debe migrar a un estado para permitir agregar desde el formulario
@@ -294,7 +294,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
 
         try {
             // Enviar solicitud al backend para actualizar la asignación
-            await axios.put('/api/clientes/reasignar', {
+            await apiClient.put('/clientes/reasignar', {
                 clientId: clientToReassign.id,
                 previousAdvisor,
                 newAdvisor
