@@ -5,6 +5,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
 import { useClientes } from '../../context/ClientesContext';
+import axios from 'axios';
 
 // Datos simulados expandidos con historial
 // Se debe migrar a un estado para permitir agregar desde el formulario
@@ -284,64 +285,50 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     setReassignDialogOpen(true);
   };
 
-  const handleReassignConfirm = (newAdvisor: string) => {
+  const handleReassignConfirm = async (newAdvisor: string) => {
     if (clientToReassign) {
-      const previousAdvisor = clientToReassign.asesor;
-      const currentDate = new Date();
-      const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
-      const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
+        const previousAdvisor = clientToReassign.asesor;
+        const currentDate = new Date();
+        const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
+        const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
 
-      // Actualizar el asesor
-      clientToReassign.asesor = newAdvisor;
+        try {
+            // Enviar solicitud al backend para actualizar la asignación
+            await axios.put('/api/clientes/reasignar', {
+                clientId: clientToReassign.id,
+                previousAdvisor,
+                newAdvisor
+            });
 
-      // Agregar entrada al historial
-      const reassignmentEntry = {
-        fecha: formattedDateTime,
-        asesor: 'Sistema',
-        accion: 'Reasignación',
-        estadoAnterior: previousAdvisor,
-        estadoNuevo: newAdvisor,
-        comentarios: `Cliente reasignado de ${previousAdvisor} a ${newAdvisor}`
-      };
+            // Actualizar el asesor en el frontend
+            clientToReassign.asesor = newAdvisor;
 
-      // Agregar al inicio del historial (más reciente primero)
-      if (!clientToReassign.historial) {
-        clientToReassign.historial = [];
-      }
-      clientToReassign.historial.unshift(reassignmentEntry);
+            // Agregar entrada al historial
+            const reassignmentEntry = {
+                fecha: formattedDateTime,
+                asesor: 'Sistema',
+                accion: 'Reasignación',
+                comentarios: `Reasignado de ${previousAdvisor} a ${newAdvisor}`
+            };
 
-      // Incrementar asignados del nuevo asesor
-      incrementarAsignados(newAdvisor);
+            if (!clientToReassign.historial) {
+                clientToReassign.historial = [];
+            }
+            clientToReassign.historial.unshift(reassignmentEntry);
 
-      // Enviar cliente al asesor usando el contexto
-      const clienteParaAsesor = {
-        fecha: formattedDate,
-        nombre: clientToReassign.nombre || clientToReassign.cliente,
-        telefono: clientToReassign.cliente,
-        dni: clientToReassign.dni || 'Sin DNI',
-        servicio: clientToReassign.campania,
-        estado: 'Nuevo',
-        gestion: 'Pendiente',
-        seguimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16), // Mañana
-        coordenadas: clientToReassign.email || 'Sin coordenadas',
-        campania: clientToReassign.campania,
-        canal: clientToReassign.canal,
-        comentariosIniciales: `Cliente reasignado desde GTR a ${newAdvisor}`,
-        direccion: '',
-        tipoCasa: '',
-        tipoVia: ''
-      };
+            // Actualizar la lista de clientes
+            setClients(prev => prev.map(c => (c.id === clientToReassign.id ? clientToReassign : c)));
 
-      console.log('GTR - Antes de llamar reasignarCliente:', clienteParaAsesor);
-      reasignarCliente(clienteParaAsesor);
-      
-      console.log('Cliente enviado al asesor:', clienteParaAsesor);
-      console.log('Nuevo asesor:', newAdvisor);
+            // Incrementar asignados para el nuevo asesor
+            incrementarAsignados(newAdvisor);
 
-      setReassignDialogOpen(false);
-      setClientToReassign(null);
+            setReassignDialogOpen(false);
+            setClientToReassign(null);
+        } catch (error) {
+            console.error('Error al reasignar cliente:', error);
+        }
     }
-  };
+};
   
   return (
     <Paper sx={{ 
