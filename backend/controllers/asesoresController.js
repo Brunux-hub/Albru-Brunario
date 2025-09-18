@@ -3,8 +3,17 @@ const pool = require('../config/database');
 
 // Controlador para manejar la lógica de asesores
 
-const getAsesores = (req, res) => {
-  res.send('Obteniendo todos los asesores');
+const getAsesores = async (req, res) => {
+  try {
+    // Recuperar datos de los asesores desde la base de datos
+    const query = 'SELECT * FROM asesores';
+    const result = await pool.query(query);
+
+    res.status(200).json({ asesores: result.rows });
+  } catch (error) {
+    console.error('Error al obtener datos de los asesores:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
 };
 
 const actualizarDatosCliente = async (req, res) => {
