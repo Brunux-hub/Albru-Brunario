@@ -4,237 +4,22 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
-import { useClientes } from '../../context/ClientesContext';
-import apiClient from '../../config/axios';
-
-// Datos simulados expandidos con historial
-// Se debe migrar a un estado para permitir agregar desde el formulario
-const initialClients = [
-  { 
-    id: 1, 
-    fecha: '09/09/2025', 
-    cliente: '914118863', 
-    nombre: 'Juan Pérez',
-    dni: '12345678',
-    email: '-12.0464,-77.0428',
-    campania: 'MASIVO', 
-    canal: 'WSP 1',
-    estado: 'En gestión', 
-    asesor: 'JUAN',
-    comentarios: 'Cliente con información completa ingresada por asesor',
-    fechaCreacion: '05/09/2025',
-    historial: [
-      {
-        fecha: '09/09/2025 14:30',
-        asesor: 'JUAN',
-        accion: 'Datos Completados',
-        comentarios: 'Asesor completó toda la información del cliente'
-      },
-      {
-        fecha: '07/09/2025 10:15',
-        asesor: 'JUAN',
-        accion: 'Contacto',
-        comentarios: 'Primera llamada exitosa, cliente proporcionó datos'
-      },
-      {
-        fecha: '05/09/2025 09:00',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Cliente registrado desde campaña MASIVO vía WhatsApp'
-      }
-    ]
-  },
-  { 
-    id: 2, 
-    fecha: '09/09/2025', 
-    cliente: '987654321', 
-    nombre: 'María García',
-    dni: '87654321',
-    email: '-12.0453,-77.0311',
-    campania: 'REFERIDOS', 
-    canal: 'REFERIDO',
-    estado: 'Vendido', 
-    asesor: 'SASKYA',
-    comentarios: 'Venta cerrada exitosamente',
-    fechaCreacion: '08/09/2025',
-    historial: [
-      {
-        fecha: '09/09/2025 16:45',
-        asesor: 'SASKYA',
-        accion: 'Venta',
-        estadoAnterior: 'En gestión',
-        estadoNuevo: 'Vendido',
-        comentarios: 'Venta cerrada exitosamente. Cliente satisfecho con el servicio.'
-      },
-      {
-        fecha: '08/09/2025 11:20',
-        asesor: 'SASKYA',
-        accion: 'Contacto',
-        comentarios: 'Primera llamada, cliente muy interesado'
-      },
-      {
-        fecha: '08/09/2025 09:30',
-        asesor: 'SASKYA',
-        accion: 'Creación',
-        comentarios: 'Cliente referido por María López'
-      }
-    ]
-  },
-  { 
-    id: 3, 
-    fecha: '09/09/2025', 
-    cliente: '956887643', 
-    nombre: 'Carlos López',
-    dni: '45612378',
-    email: '-12.0432,-77.0283',
-    campania: 'LEADS', 
-    canal: 'WSP 4',
-    estado: 'Nuevo', 
-    asesor: 'MIA',
-    comentarios: 'Cliente registrado solo con número de teléfono',
-    fechaCreacion: '09/09/2025',
-    historial: [
-      {
-        fecha: '09/09/2025 15:00',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Cliente registrado automáticamente desde campaña LEADS - Solo número disponible'
-      }
-    ]
-  },
-  { 
-    id: 4, 
-    fecha: '08/09/2025', 
-    cliente: '923456789', 
-    nombre: 'Ana Rodríguez',
-    dni: '78945612',
-    email: '-12.0482,-77.0301',
-    campania: 'MASIVO', 
-    canal: 'MEDIOS',
-    estado: 'En gestión', 
-    asesor: 'JUAN',
-    comentarios: 'Información completa proporcionada por el asesor',
-    fechaCreacion: '08/09/2025',
-    historial: [
-      {
-        fecha: '08/09/2025 14:20',
-        asesor: 'JUAN',
-        accion: 'Datos Completados',
-        comentarios: 'Asesor ingresó todos los datos del cliente después del contacto'
-      }
-    ]
-  },
-  { 
-    id: 5, 
-    fecha: '08/09/2025', 
-    cliente: '987123456', 
-    nombre: 'Luis Martínez',
-    dni: '32165498',
-    email: '-12.0500,-77.0400',
-    campania: 'LEADS', 
-    canal: 'CREATIVA',
-    estado: 'Perdido', 
-    asesor: 'SASKYA',
-    comentarios: 'Pendiente de contacto para obtener datos',
-    fechaCreacion: '08/09/2025',
-    historial: [
-      {
-        fecha: '08/09/2025 16:30',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Lead automático desde campaña LEADS - Requiere contacto para datos'
-      }
-    ]
-  },
-  { 
-    id: 6, 
-    fecha: '07/09/2025', 
-    cliente: '945678123', 
-    nombre: 'Carmen Vega',
-    dni: '65432187',
-    email: '-12.0499,-77.0350',
-    campania: 'REFERIDOS', 
-    canal: 'WSP 2',
-    estado: 'Vendido', 
-    asesor: 'MIA',
-    comentarios: 'Lead sin información adicional',
-    fechaCreacion: '07/09/2025',
-    historial: [
-      {
-        fecha: '07/09/2025 17:15',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Número capturado automáticamente - Sin datos adicionales'
-      }
-    ]
-  },
-  { 
-    id: 7, 
-    fecha: '07/09/2025', 
-    cliente: '912345678', 
-    nombre: 'Roberto Silva',
-    dni: '98765432',
-    email: '-12.0477,-77.0388',
-    campania: 'MASIVO', 
-    canal: 'ALAS',
-    estado: 'Nuevo', 
-    asesor: 'JUAN',
-    comentarios: 'Cliente nuevo con datos completos',
-    fechaCreacion: '07/09/2025',
-    historial: [
-      {
-        fecha: '07/09/2025 10:30',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Cliente registrado desde campaña MASIVO'
-      }
-    ]
-  },
-  { 
-    id: 8, 
-    fecha: '06/09/2025', 
-    cliente: '934567891', 
-    nombre: 'Patricia Morales',
-    dni: '15975348',
-    email: '-12.0444,-77.0366',
-    campania: 'LEADS', 
-    canal: 'WSP 1',
-    estado: 'En gestión', 
-    asesor: 'SASKYA',
-    comentarios: 'Cliente en proceso de gestión',
-    fechaCreacion: '06/09/2025',
-    historial: [
-      {
-        fecha: '06/09/2025 11:45',
-        asesor: 'Sistema',
-        accion: 'Creación',
-        comentarios: 'Cliente registrado desde campaña LEADS'
-      }
-    ]
-  }
-];
 
 
 interface GtrClientsTableProps {
   statusFilter: string;
   newClient?: any;
-  incrementarAsignados: (asesorNombre: string) => void;
+  clients: any[]; // Nueva propiedad para el estado de clientes
+  setClients: React.Dispatch<React.SetStateAction<any[]>>; // Nueva propiedad para actualizar clientes
+  asesores: any[]; // Lista de asesores disponibles
 }
 
-const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClient, incrementarAsignados }) => {
-  const { reasignarCliente } = useClientes();
-  const [clients, setClients] = useState<any[]>(initialClients);
+const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClient, clients, setClients, asesores }) => {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [clientToReassign, setClientToReassign] = useState<any>(null);
 
-  // Debug: Verificar si el contexto está disponible
-  React.useEffect(() => {
-    console.log('GTR - Contexto reasignarCliente disponible:', typeof reasignarCliente);
-  }, [reasignarCliente]);
-
-  // Si llega un nuevo cliente, agregarlo
   React.useEffect(() => {
     if (newClient) {
       const isSoloNumero = !newClient.nombre && !newClient.dni && !newClient.email;
@@ -287,46 +72,81 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
 
   const handleReassignConfirm = async (newAdvisor: string) => {
     if (clientToReassign) {
-        const previousAdvisor = clientToReassign.asesor;
-        const currentDate = new Date();
-        const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
-        const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
-
+        console.log('🎯 GTR: Confirmando reasignación...');
+        console.log('📋 GTR: Cliente seleccionado:', clientToReassign);
+        console.log('🎯 GTR: Nuevo asesor seleccionado:', newAdvisor);
+        
         try {
-            // Enviar solicitud al backend para actualizar la asignación
-            await apiClient.put('/clientes/reasignar', {
-                clientId: clientToReassign.id,
-                previousAdvisor,
-                newAdvisor
+            // 1. Buscar ID del asesor en la base de datos
+            const asesorResponse = await fetch(`http://localhost:3001/api/asesores/buscar/${newAdvisor}`);
+            
+            if (!asesorResponse.ok) {
+                throw new Error(`Asesor "${newAdvisor}" no encontrado en la base de datos`);
+            }
+            
+            const asesorData = await asesorResponse.json();
+            const asesorId = asesorData.asesor.id;
+            
+            console.log('👤 GTR: Asesor encontrado:', asesorData.asesor);
+
+            // 2. Realizar reasignación en el backend
+            const reasignacionResponse = await fetch('http://localhost:3001/api/clientes/reasignar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    cliente_id: clientToReassign.id,
+                    nuevo_asesor_id: asesorId,
+                    gtr_id: 1, // ID del GTR (puede ser dinámico)
+                    comentario: `Reasignado desde GTR a ${newAdvisor}`
+                }),
             });
 
-            // Actualizar el asesor en el frontend
-            clientToReassign.asesor = newAdvisor;
+            if (!reasignacionResponse.ok) {
+                const errorData = await reasignacionResponse.json();
+                throw new Error(errorData.message || 'Error al reasignar en el servidor');
+            }
 
-            // Agregar entrada al historial
+            const result = await reasignacionResponse.json();
+            console.log('✅ GTR: Reasignación exitosa en BD:', result);
+
+            // 3. Actualizar la tabla local
+            const previousAdvisor = clientToReassign.asesor;
+            const currentDate = new Date();
+            const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
+            const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
+
             const reassignmentEntry = {
                 fecha: formattedDateTime,
-                asesor: 'Sistema',
+                asesor: newAdvisor,
                 accion: 'Reasignación',
+                estadoAnterior: previousAdvisor,
+                estadoNuevo: newAdvisor,
                 comentarios: `Reasignado de ${previousAdvisor} a ${newAdvisor}`
             };
 
-            if (!clientToReassign.historial) {
-                clientToReassign.historial = [];
-            }
-            clientToReassign.historial.unshift(reassignmentEntry);
+            setClients(prev => prev.map(c => {
+                if (c.id === clientToReassign.id) {
+                    const updatedHistorial = c.historial ? [reassignmentEntry, ...c.historial] : [reassignmentEntry];
+                    return {
+                        ...c,
+                        asesor: newAdvisor,
+                        historial: updatedHistorial
+                    };
+                }
+                return c;
+            }));
 
-            // Actualizar la lista de clientes
-            setClients(prev => prev.map(c => (c.id === clientToReassign.id ? clientToReassign : c)));
-
-            // Incrementar asignados para el nuevo asesor
-            incrementarAsignados(newAdvisor);
-
-            setReassignDialogOpen(false);
-            setClientToReassign(null);
+            console.log('🎉 GTR: Reasignación completada exitosamente');
+            
         } catch (error) {
-            console.error('Error al reasignar cliente:', error);
+            console.error('❌ GTR: Error en reasignación:', error);
+            alert(`Error al reasignar cliente: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        } finally {
+            setReassignDialogOpen(false);
         }
+        setClientToReassign(null);
     }
 };
   
@@ -435,6 +255,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         open={reassignDialogOpen}
         onClose={() => setReassignDialogOpen(false)}
         onConfirm={handleReassignConfirm}
+        asesores={asesores}
       />
     </Paper>
   );

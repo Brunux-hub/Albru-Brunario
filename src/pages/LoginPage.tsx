@@ -13,7 +13,7 @@ const LoginPage: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) {
-      setError('Por favor, ingresa usuario y contraseña.');
+      setError('Por favor, ingresa usuario .');
       return;
     }
     const user = users.find(
@@ -39,8 +39,8 @@ const LoginPage: React.FC = () => {
       case 'asesor':
         navigate('/asesor');
         break;
-      case 'calidad':
-        navigate('/calidad');
+      case 'validaciones':
+        navigate('/validaciones');
         break;
       default:
         setError('Rol no reconocido.');

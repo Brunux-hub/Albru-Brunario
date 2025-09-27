@@ -6,7 +6,7 @@ import AdminDashboard from '../pages/AdminDashboard';
 import GtrDashboard from '../pages/GtrDashboard';
 import SupervisorDashboard from '../pages/SupervisorDashboard';
 import AsesorDashboard from '../pages/AsesorDashboard';
-import CalidadDashboard from '../pages/CalidadDashboard';
+import ValidacionesDashboard from '../pages/ValidacionesDashboard';
 
 const AppRoutes: React.FC = () => (
   <BrowserRouter>
@@ -16,7 +16,7 @@ const AppRoutes: React.FC = () => (
       <Route path="/gtr" element={<GtrDashboard />} />
       <Route path="/supervisor" element={<SupervisorDashboard />} />
       <Route path="/asesor" element={<AsesorDashboard />} />
-      <Route path="/calidad" element={<CalidadDashboard />} />
+      <Route path="/validaciones" element={<ValidacionesDashboard />} />
     </Routes>
   </BrowserRouter>
 );

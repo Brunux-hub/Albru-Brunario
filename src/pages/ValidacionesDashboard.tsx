@@ -2,18 +2,22 @@ import React, { useState } from 'react';
 import { Box } from '@mui/material';
 import { 
   ValidacionesSidebar, 
-  ValidacionesDashboard, 
+  ValidacionesDashboard as ValidacionesDashboardComponent, 
   ValidacionesBusqueda, 
   ValidacionesProceso 
 } from '../components/validaciones';
 
-const CalidadDashboard: React.FC = () => {
+const ValidacionesDashboard: React.FC = () => {
   const [section, setSection] = useState('Dashboard');
 
   const renderContent = () => {
     switch (section) {
       case 'Dashboard':
-        return <ValidacionesDashboard />;
+        return (
+          <>
+            <ValidacionesDashboardComponent />
+          </>
+        );
       case 'Búsqueda':
         return <ValidacionesBusqueda />;
       case 'Validación':
@@ -51,7 +55,7 @@ const CalidadDashboard: React.FC = () => {
           </Box>
         );
       default:
-        return <ValidacionesDashboard />;
+        return <ValidacionesDashboardComponent />;
     }
   };
 
@@ -73,4 +77,4 @@ const CalidadDashboard: React.FC = () => {
   );
 };
 
-export default CalidadDashboard;
+export default ValidacionesDashboard;

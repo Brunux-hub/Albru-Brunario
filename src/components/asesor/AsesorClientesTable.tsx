@@ -1,5 +1,23 @@
-import React, { useState } from 'react';
-import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Chip, TextField, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Box,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button,
+  Chip,
+  TextField,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  Alert,
+  Snackbar
+} from '@mui/material';
 import GestionarClienteDialog from './GestionarClienteDialog';
 import { useClientes } from '../../context/ClientesContext';
 
@@ -7,19 +25,137 @@ const estados = ['Todos los estados', 'En gestión', 'En seguimiento', 'Nuevo'];
 const gestiones = ['Todas las gestiones', 'En proceso', 'Derivado'];
 
 const AsesorClientesTable: React.FC = () => {
-  const { clientes, actualizarCliente, recargarClientes } = useClientes();
+  const { clientes, actualizarCliente, agregarCliente } = useClientes();
+  const agregarClienteRef = useRef(agregarCliente);
+  
+  // Estados del componente
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
   const [filtroEstado, setFiltroEstado] = useState('Todos los estados');
   const [filtroGestion, setFiltroGestion] = useState('Todas las gestiones');
   const [busqueda, setBusqueda] = useState('');
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
 
-  // Recargar clientes al montar el componente (solo una vez)
-  React.useEffect(() => {
-    recargarClientes();
-  }, []); // Sin dependencias para evitar bucle
+  // Mantener la referencia actualizada
+  useEffect(() => {
+    agregarClienteRef.current = agregarCliente;
+  }, [agregarCliente]);
 
-  // Filtrar clientes según los filtros aplicados
+  // Establecer usuario JUAN y cargar clientes
+  useEffect(() => {
+    localStorage.setItem('currentUser', 'JUAN');
+    console.log('🎯 JUAN: Sistema inicializado');
+    cargarClientesAsignados();
+  }, []);
+
+  // Función para cargar clientes desde la BD
+  const cargarClientesAsignados = async () => {
+    try {
+      console.log('📡 JUAN: Cargando clientes desde BD...');
+      
+      // Primero obtener ID del asesor JUAN
+      const asesorResponse = await fetch('http://localhost:3001/api/asesores/buscar/JUAN');
+      
+      if (!asesorResponse.ok) {
+        console.log('⚠️ JUAN: Asesor no encontrado en BD');
+        return;
+      }
+      
+      const asesorData = await asesorResponse.json();
+      const asesorId = asesorData.asesor.id;
+      
+      // Cargar clientes asignados
+      const clientesResponse = await fetch(`http://localhost:3001/api/clientes/asesor/${asesorId}`);
+      
+      if (clientesResponse.ok) {
+        const result = await clientesResponse.json();
+        
+        // Actualizar clientes en el contexto
+        result.clientes.forEach((cliente: any) => {
+          const clienteFormateado = {
+            fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
+            nombre: cliente.nombre || 'Sin nombre',
+            telefono: cliente.telefono || 'Sin teléfono',
+            dni: cliente.dni || 'Sin DNI',
+            servicio: cliente.servicio || 'Internet',
+            estado: cliente.estado === 'asignado' ? 'Nuevo' : cliente.estado,
+            gestion: 'En proceso',
+            seguimiento: cliente.seguimiento ? new Date(cliente.seguimiento).toISOString().slice(0, 16) : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+          };
+          
+          agregarClienteRef.current(clienteFormateado);
+        });
+        
+        console.log(`✅ JUAN: ${result.clientes.length} clientes cargados desde BD`);
+      }
+      
+    } catch (error) {
+      console.error('❌ JUAN: Error cargando clientes:', error);
+    }
+  };
+
+  // Monitoreo de nuevas reasignaciones desde BD
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        // Verificar si hay nuevos clientes asignados
+        const asesorResponse = await fetch('http://localhost:3001/api/asesores/buscar/JUAN');
+        if (!asesorResponse.ok) return;
+        
+        const asesorData = await asesorResponse.json();
+        const asesorId = asesorData.asesor.id;
+        
+        const clientesResponse = await fetch(`http://localhost:3001/api/clientes/asesor/${asesorId}`);
+        if (!clientesResponse.ok) return;
+        
+        const result = await clientesResponse.json();
+        const clientesBD = result.clientes;
+        
+        // Verificar si hay clientes nuevos (comparar con los que ya tengo)
+        const clientesActuales = clientes.map(c => c.dni).filter(dni => dni !== 'Sin DNI');
+        const clientesNuevos = clientesBD.filter((cliente: any) => 
+          cliente.dni && !clientesActuales.includes(cliente.dni)
+        );
+        
+        if (clientesNuevos.length > 0) {
+          console.log(`🔔 JUAN: ${clientesNuevos.length} cliente(s) nuevo(s) detectado(s)`);
+          
+          clientesNuevos.forEach((cliente: any) => {
+            const clienteFormateado = {
+              fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
+              nombre: cliente.nombre || 'Sin nombre',
+              telefono: cliente.telefono || 'Sin teléfono',
+              dni: cliente.dni || 'Sin DNI',
+              servicio: cliente.servicio || 'Internet',
+              estado: 'Nuevo',
+              gestion: 'En proceso',
+              seguimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+            };
+            
+            agregarClienteRef.current(clienteFormateado);
+            
+            setNotificationMessage(`¡Cliente ${cliente.nombre} reasignado desde GTR!`);
+            setNotificationOpen(true);
+            
+            console.log('🎉 JUAN: Cliente agregado automáticamente:', clienteFormateado);
+          });
+        }
+        
+      } catch (error) {
+        console.error('❌ JUAN: Error verificando nuevos clientes:', error);
+      }
+    }, 3000); // Verificar cada 3 segundos
+    
+    console.log('🔄 JUAN: Monitoreo automático activado (cada 3s)');
+    
+    return () => {
+      clearInterval(interval);
+      console.log('🛑 JUAN: Monitoreo automático desactivado');
+    };
+  }, [clientes]);
+
+  // Filtrar clientes
   const clientesFiltrados = clientes.filter(cliente => {
     const cumpleEstado = filtroEstado === 'Todos los estados' || cliente.estado === filtroEstado;
     const cumpleGestion = filtroGestion === 'Todas las gestiones' || cliente.gestion === filtroGestion;
@@ -36,13 +172,17 @@ const AsesorClientesTable: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleSaveGestion = (clienteActualizado: any) => {
-    actualizarCliente(clienteActualizado);
+  const handleCloseDialog = () => {
     setDialogOpen(false);
+    setClienteSeleccionado(null);
+  };
+
+  const handleCloseNotification = () => {
+    setNotificationOpen(false);
   };
 
   return (
-    <Box>
+    <Box>      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
         <TextField 
           label="Buscar por nombre, teléfono o DNI..." 
@@ -60,9 +200,14 @@ const AsesorClientesTable: React.FC = () => {
               label="Estado"
               onChange={(e) => setFiltroEstado(e.target.value)}
             >
-              {estados.map(e => <MenuItem key={e} value={e}>{e}</MenuItem>)}
+              {estados.map((estado) => (
+                <MenuItem key={estado} value={estado}>
+                  {estado}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
+          
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Gestión</InputLabel>
             <Select
@@ -70,13 +215,18 @@ const AsesorClientesTable: React.FC = () => {
               label="Gestión"
               onChange={(e) => setFiltroGestion(e.target.value)}
             >
-              {gestiones.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+              {gestiones.map((gestion) => (
+                <MenuItem key={gestion} value={gestion}>
+                  {gestion}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
         </Box>
       </Box>
-      <TableContainer component={Paper}>
-        <Table>
+
+      <TableContainer component={Paper} sx={{ maxHeight: '70vh' }}>
+        <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
               <TableCell>Fecha Asignación</TableCell>
@@ -91,25 +241,36 @@ const AsesorClientesTable: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {clientesFiltrados.map((c, idx) => (
-              <TableRow key={idx}>
-                <TableCell>{c.fecha}</TableCell>
-                <TableCell>{c.nombre}</TableCell>
-                <TableCell>{c.telefono}</TableCell>
-                <TableCell>{c.dni}</TableCell>
-                <TableCell>{c.servicio}</TableCell>
+            {clientesFiltrados.map((cliente, index) => (
+              <TableRow key={index} hover>
+                <TableCell>{cliente.fecha}</TableCell>
+                <TableCell>{cliente.nombre}</TableCell>
+                <TableCell>{cliente.telefono}</TableCell>
+                <TableCell>{cliente.dni}</TableCell>
+                <TableCell>{cliente.servicio}</TableCell>
                 <TableCell>
-                  <Chip label={c.estado} color={c.estado === 'Nuevo' ? 'warning' : c.estado === 'En gestión' ? 'primary' : 'success'} size="small" />
+                  <Chip 
+                    label={cliente.estado} 
+                    color={cliente.estado === 'En gestión' ? 'primary' : cliente.estado === 'En seguimiento' ? 'success' : 'warning'}
+                    size="small"
+                  />
                 </TableCell>
                 <TableCell>
-                  <Chip label={c.gestion} color={c.gestion === 'Derivado' ? 'info' : 'secondary'} size="small" />
+                  <Chip 
+                    label={cliente.gestion} 
+                    color={cliente.gestion === 'En proceso' ? 'error' : 'info'}
+                    size="small"
+                  />
                 </TableCell>
-                <TableCell>{c.seguimiento.replace('T', ' ')}</TableCell>
+                <TableCell>{new Date(cliente.seguimiento).toLocaleString('es-PE')}</TableCell>
                 <TableCell>
-                  <Button variant="outlined" size="small" sx={{ mr: 1 }} onClick={() => handleGestionar(c)}>
+                  <Button 
+                    variant="contained" 
+                    size="small" 
+                    onClick={() => handleGestionar(cliente)}
+                  >
                     GESTIONAR
                   </Button>
-                  <Button variant="outlined" size="small">📍</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -119,10 +280,21 @@ const AsesorClientesTable: React.FC = () => {
 
       <GestionarClienteDialog
         open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
         cliente={clienteSeleccionado}
-        onSave={handleSaveGestion}
+        onClose={handleCloseDialog}
+        onSave={actualizarCliente}
       />
+
+      <Snackbar
+        open={notificationOpen}
+        autoHideDuration={6000}
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleCloseNotification} severity="success" sx={{ width: '100%' }}>
+          {notificationMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

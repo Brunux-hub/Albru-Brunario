@@ -1,16 +1,17 @@
 import axios from 'axios';
 
 // URL base del backend - se puede configurar según el entorno
-const getBaseURL = () => {
+const getBaseURL = (): string => {
   // En desarrollo local
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:3000';
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:3000';
+    }
   }
   
-  // En producción (Vercel u otro hosting)
-  // Por ahora, vamos a usar la misma URL que el frontend pero con diferente puerto
-  // Esto se debe configurar según donde esté desplegado tu backend
-  return process.env.REACT_APP_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:3000`;
+  // En producción - usar variable de entorno si existe
+  const backendUrl = import.meta.env?.VITE_BACKEND_URL || 'http://localhost:3000';
+  return backendUrl;
 };
 
 // Crear instancia de Axios con configuración base
@@ -22,13 +23,9 @@ const apiClient = axios.create({
   },
 });
 
-// Interceptor para agregar automáticamente el token JWT
+// Interceptor para configuración de requests
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {
@@ -42,12 +39,6 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('Error en la solicitud:', error);
-    if (error.response?.status === 401) {
-      // Token expirado o inválido
-      localStorage.removeItem('token');
-      window.location.href = '/login';
-    }
     return Promise.reject(error);
   }
 );

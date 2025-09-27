@@ -9,11 +9,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 
 const AsesorSidebar: React.FC = () => {
   const handleCerrarSesion = () => {
-    // Limpiar información de sesión
-    localStorage.removeItem('userInfo');
-    localStorage.removeItem('userRole');
-    // Redirigir al login o página principal
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   return (

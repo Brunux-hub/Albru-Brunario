@@ -5,21 +5,16 @@ interface ReassignDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (newAdvisor: string) => void;
+  asesores: any[]; // Lista de asesores dinámicos
 }
 
-// Lista de asesores disponibles
-const availableAdvisors = [
-  'JUAN',
-  'SASKYA', 
-  'MIA',
-  'CARLOS',
-  'ANA',
-  'LUIS',
-  'MARÍA'
-];
-
-const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfirm }) => {
+const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfirm, asesores }) => {
   const [newAdvisor, setNewAdvisor] = useState('');
+
+  // Filtrar solo asesores activos
+  const asesoresActivos = asesores?.filter(asesor => 
+    asesor.estado === 'Activo' || asesor.estado === 'Ocupado'
+  ) || [];
 
   const handleConfirm = () => {
     if (newAdvisor) {
@@ -45,12 +40,19 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
             value={newAdvisor}
             label="Nuevo Asesor"
             onChange={(e) => setNewAdvisor(e.target.value as string)}
+            disabled={asesoresActivos.length === 0}
           >
-            {availableAdvisors.map((advisor) => (
-              <MenuItem key={advisor} value={advisor}>
-                {advisor}
+            {asesoresActivos.length === 0 ? (
+              <MenuItem disabled value="">
+                No hay asesores disponibles
               </MenuItem>
-            ))}
+            ) : (
+              asesoresActivos.map((asesor) => (
+                <MenuItem key={asesor.id || asesor.nombre} value={asesor.nombre}>
+                  {asesor.nombre} - {asesor.estado}
+                </MenuItem>
+              ))
+            )}
           </Select>
         </FormControl>
       </DialogContent>

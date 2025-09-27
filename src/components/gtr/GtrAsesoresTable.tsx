@@ -28,7 +28,6 @@ import {
   Schedule,
   Person
 } from '@mui/icons-material';
-import axios from 'axios';
 
 interface Asesor {
   id: number;
@@ -100,27 +99,7 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
     return 'error';
   };
 
-  const fetchProtectedData = async () => {
-    try {
-      const token = localStorage.getItem('jwtToken');
-      if (!token) {
-        console.error('No se encontró un token JWT');
-        return;
-      }
 
-      const response = await axios.get('http://localhost:3000/api/asesores/clientes', {
-        headers: {
-          Authorization: token,
-        },
-      });
-
-      console.log('Datos protegidos:', response.data);
-    } catch (error) {
-      console.error('Error al obtener datos protegidos:', error);
-    }
-  };
-
-  fetchProtectedData();
 
   return (
     <Box sx={{ width: '100%' }}>
@@ -166,7 +145,7 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
                   {asesores.reduce((sum, a) => sum + a.clientesAsignados, 0)}
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                  Clientes Asignados
+                  Total Asignados
                 </Typography>
               </Box>
               <Assignment sx={{ fontSize: 40, opacity: 0.8 }} />

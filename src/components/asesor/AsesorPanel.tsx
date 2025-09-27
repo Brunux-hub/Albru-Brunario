@@ -4,7 +4,6 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import AsesorSidebar from './AsesorSidebar.tsx';
 import AsesorResumen from './AsesorResumen.tsx';
 import AsesorClientesTable from './AsesorClientesTable.tsx';
-
 const theme = createTheme({
   palette: {
     mode: 'light',
@@ -26,6 +25,7 @@ const AsesorPanel: React.FC = () => {
           <Typography variant="h5" fontWeight={700} mb={2}>
             Mis Clientes Asignados
           </Typography>
+          
           <AsesorResumen />
           <Box mt={3}>
             <AsesorClientesTable />

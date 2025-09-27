@@ -129,66 +129,115 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
           Historial de Gestión
         </Typography>
         
+        {/* Vista de tarjetas del historial */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {clientData.historial.map((evento, index) => (
-            <Paper key={index} sx={{ p: 3, position: 'relative' }}>
-              {/* Línea conectora */}
-              {index < clientData.historial.length - 1 && (
-                <Box sx={{
-                  position: 'absolute',
-                  left: 25,
-                  top: 60,
-                  bottom: -16,
-                  width: 2,
-                  backgroundColor: '#e5e7eb'
-                }} />
-              )}
-              
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                {/* Icono de acción */}
-                <Avatar 
+            <Paper
+              key={index}
+              sx={{
+                p: 3,
+                backgroundColor: '#f8fafc',
+                borderRadius: 3,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                border: '1px solid #e2e8f0',
+                transition: 'all 0.2s',
+                '&:hover': {
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                  transform: 'translateY(-1px)'
+                }
+              }}
+            >
+              {/* Hora */}
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: '#64748b',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  mb: 1,
+                  display: 'block'
+                }}
+              >
+                {evento.fecha}
+              </Typography>
+
+              {/* Título de la acción */}
+              <Typography 
+                variant="subtitle1" 
+                sx={{ 
+                  fontWeight: 600,
+                  color: '#1e293b',
+                  mb: 1,
+                  fontSize: '16px'
+                }}
+              >
+                {evento.accion}
+              </Typography>
+
+              {/* Asesor asignado */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <PersonIcon sx={{ fontSize: 16, color: '#64748b' }} />
+                <Typography 
+                  variant="body2" 
                   sx={{ 
-                    backgroundColor: getActionColor(evento.accion),
-                    width: 40,
-                    height: 40
+                    color: '#475569',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    fontSize: '13px'
                   }}
                 >
-                  {getActionIcon(evento.accion)}
-                </Avatar>
-                
-                {/* Contenido del evento */}
-                <Box sx={{ flex: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                      {evento.accion}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {evento.fecha}
-                    </Typography>
-                  </Box>
-                  
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Asesor:</strong> {evento.asesor}
-                    {evento.accion === 'Creación' && (
-                      <span style={{ marginLeft: 8, color: '#64748b', fontWeight: 500 }}>
-                        (Creado por: GTR)
-                      </span>
-                    )}
-                  </Typography>
-                  
-                  {evento.estadoAnterior && evento.estadoNuevo && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <Chip label={evento.estadoAnterior} size="small" variant="outlined" />
-                      <Typography variant="caption">→</Typography>
-                      <Chip label={evento.estadoNuevo} size="small" color="primary" />
-                    </Box>
-                  )}
-                  
-                  <Typography variant="body2" color="text.secondary">
-                    {evento.comentarios}
+                  {evento.asesor}
+                </Typography>
+                <Typography 
+                  variant="caption" 
+                  sx={{ 
+                    color: '#94a3b8',
+                    fontSize: '11px'
+                  }}
+                >
+                  • 30 min
+                </Typography>
+              </Box>
+
+              {/* Información de reasignación */}
+              {evento.accion === 'Reasignación' && evento.estadoNuevo && (
+                <Box sx={{ mb: 1 }}>
+                  <Chip 
+                    label="Reasignado"
+                    size="small"
+                    sx={{ 
+                      backgroundColor: '#fef3c7',
+                      color: '#92400e',
+                      fontSize: '10px',
+                      height: 18,
+                      mr: 1
+                    }}
+                  />
+                  <Typography 
+                    variant="caption"
+                    sx={{ 
+                      color: '#374151',
+                      fontSize: '12px',
+                      fontWeight: 600
+                    }}
+                  >
+                    → {evento.estadoNuevo}
                   </Typography>
                 </Box>
-              </Box>
+              )}
+
+              {/* Descripción */}
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: '#64748b',
+                  fontSize: '13px',
+                  fontStyle: 'italic',
+                  lineHeight: 1.5
+                }}
+              >
+                {evento.comentarios}
+              </Typography>
             </Paper>
           ))}
         </Box>

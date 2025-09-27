@@ -1,20 +1,22 @@
 import React from 'react';
 import { List, ListItemIcon, ListItemText, ListItemButton, ListItem, Typography, Box, Button, Divider } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import PeopleIcon from '@mui/icons-material/People';
-import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import VerifiedIcon from '@mui/icons-material/Verified';
+import SearchIcon from '@mui/icons-material/Search';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 
 const menuItems = [
-  { text: 'Clientes', icon: <PeopleIcon /> },
-  { text: 'Asesores', icon: <AssignmentIndIcon /> },
+  { text: 'Dashboard', icon: <VerifiedIcon /> },
+  { text: 'Búsqueda', icon: <SearchIcon /> },
+  { text: 'Validación', icon: <AssignmentIcon /> },
   { text: 'Reportes', icon: <BarChartIcon /> },
   { text: 'Configuración', icon: <SettingsIcon /> },
 ];
 
-const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: string }> = ({ onSelect, selected }) => {
+const ValidacionesSidebar: React.FC<{ onSelect: (section: string) => void, selected: string }> = ({ onSelect, selected }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -26,7 +28,7 @@ const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: stri
       sx={{
         width: 220,
         height: '100vh',
-        backgroundColor: '#1e293b',
+        backgroundColor: '#059669',
         color: 'white',
         position: 'fixed',
         left: 0,
@@ -36,8 +38,8 @@ const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: stri
         flexDirection: 'column'
       }}
     >
-      <Box sx={{ p: 3, borderBottom: '1px solid #334155' }}>
-        <Typography variant="h6" fontWeight="bold">GTR Admin</Typography>
+      <Box sx={{ p: 3, borderBottom: '1px solid #065f46' }}>
+        <Typography variant="h6" fontWeight="bold">Validaciones</Typography>
       </Box>
       
       <List sx={{ flex: 1 }}>
@@ -48,13 +50,13 @@ const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: stri
               onClick={() => onSelect(item.text)}
               sx={{
                 '&.Mui-selected': {
-                  backgroundColor: '#3b82f6',
+                  backgroundColor: '#10b981',
                   '&:hover': {
-                    backgroundColor: '#2563eb',
+                    backgroundColor: '#059669',
                   }
                 },
                 '&:hover': {
-                  backgroundColor: '#334155',
+                  backgroundColor: '#065f46',
                 },
                 color: 'white',
                 margin: '4px 8px',
@@ -70,15 +72,15 @@ const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: stri
 
       {/* Sección de cerrar sesión */}
       <Box sx={{ p: 2 }}>
-        <Divider sx={{ backgroundColor: '#334155', mb: 2 }} />
+        <Divider sx={{ backgroundColor: '#065f46', mb: 2 }} />
         <Button
           fullWidth
           variant="outlined"
           startIcon={<LogoutIcon />}
           onClick={handleLogout}
           sx={{
-            color: '#f1f5f9',
-            borderColor: '#475569',
+            color: '#f0fdf4',
+            borderColor: '#065f46',
             textTransform: 'none',
             fontWeight: 500,
             py: 1.5,
@@ -96,4 +98,4 @@ const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: stri
   );
 };
 
-export default GtrSidebar;
+export default ValidacionesSidebar;

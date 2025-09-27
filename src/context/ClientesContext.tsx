@@ -21,6 +21,7 @@ interface Cliente {
 
 interface ClientesContextType {
   clientes: Cliente[];
+  agregarCliente: (cliente: Cliente) => void;
   reasignarCliente: (cliente: Cliente) => void;
   actualizarCliente: (clienteActualizado: Cliente) => void;
   recargarClientes: () => void;
@@ -83,59 +84,28 @@ const clientesIniciales: Cliente[] = [
 ];
 
 export const ClientesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Cargar datos iniciales desde localStorage o usar datos por defecto
-  const [clientes, setClientes] = useState<Cliente[]>(() => {
-    const clientesGuardados = localStorage.getItem('clientesAsesor');
-    if (clientesGuardados) {
-      try {
-        const clientesParsed = JSON.parse(clientesGuardados);
-        return clientesParsed;
-      } catch (error) {
-        console.error('Error al parsear clientes desde localStorage:', error);
-      }
-    }
-    return clientesIniciales;
-  });
+  // Usar solo datos iniciales (sin localStorage)
+  const [clientes, setClientes] = useState<Cliente[]>(clientesIniciales);
 
-  // Función para recargar desde localStorage
-  const recargarDesdeLocalStorage = () => {
-    const clientesGuardados = localStorage.getItem('clientesAsesor');
-    if (clientesGuardados) {
-      try {
-        const clientesParsed = JSON.parse(clientesGuardados);
-        setClientes(clientesParsed);
-      } catch (error) {
-        console.error('Error al recargar desde localStorage:', error);
-      }
-    }
+  // Función para recargar datos iniciales
+  const recargarDatos = () => {
+    setClientes(clientesIniciales);
   };
 
-  // Escuchar cambios en localStorage (solo una vez al montar)
-  React.useEffect(() => {
-    const handleStorageChange = () => {
-      const clientesGuardados = localStorage.getItem('clientesAsesor');
-      if (clientesGuardados) {
-        try {
-          const clientesParsed = JSON.parse(clientesGuardados);
-          setClientes(clientesParsed);
-        } catch (error) {
-          console.error('Error al recargar desde localStorage:', error);
-        }
+  const agregarCliente = (cliente: Cliente) => {
+    console.log('🔥 ClientesContext: Agregando cliente:', cliente.nombre);
+    setClientes((prevClientes) => {
+      // Verificar si el cliente ya existe para evitar duplicados
+      const existeCliente = prevClientes.some(c => c.dni === cliente.dni || c.telefono === cliente.telefono);
+      if (existeCliente) {
+        console.log('⚠️ Cliente ya existe, no se agrega duplicado');
+        return prevClientes;
       }
-    };
-
-    // Solo escuchar cambios, NO recargar automáticamente
-    window.addEventListener('storage', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
-
-  // Guardar en localStorage cada vez que cambian los clientes
-  React.useEffect(() => {
-    localStorage.setItem('clientesAsesor', JSON.stringify(clientes));
-  }, [clientes]);
+      const nuevaLista = [...prevClientes, cliente];
+      console.log('✅ Cliente agregado, nueva lista:', nuevaLista.length, 'clientes');
+      return nuevaLista;
+    });
+  };
 
   const reasignarCliente = (cliente: Cliente) => {
     setClientes((prevClientes) => {
@@ -153,7 +123,7 @@ export const ClientesProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   return (
-    <ClientesContext.Provider value={{ clientes, reasignarCliente, actualizarCliente, recargarClientes: recargarDesdeLocalStorage }}>
+    <ClientesContext.Provider value={{ clientes, agregarCliente, reasignarCliente, actualizarCliente, recargarClientes: recargarDatos }}>
       {children}
     </ClientesContext.Provider>
   );

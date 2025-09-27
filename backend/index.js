@@ -1,7 +1,12 @@
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+const WebSocketService = require('./services/WebSocketService');
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Crear servidor HTTP
+const server = http.createServer(app);
 
 // Importar rutas
 const clientesRoutes = require('./routes/clientes');
@@ -22,6 +27,8 @@ const corsOptions = {
       'http://localhost:3000',
       'http://localhost:5173',
       'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
       'https://albru-brunario.vercel.app',
       process.env.FRONTEND_URL || 'http://localhost:3000'
     ];
@@ -29,12 +36,13 @@ const corsOptions = {
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.log('Origen bloqueado por CORS:', origin);
-      callback(new Error('No permitido por CORS'));
+      console.log('✅ Permitiendo origen:', origin);
+      // Permitir cualquier origen durante desarrollo
+      callback(null, true);
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true
 };
 
@@ -49,7 +57,8 @@ app.get('/', (req, res) => {
   res.send('Servidor funcionando.');
 });
 
-// Probar conexión a la base de datos
+// Probar conexión a la base de datos (comentado temporalmente)
+/*
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('Error conectando a la base de datos:', err);
@@ -57,7 +66,18 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('Conexión exitosa a la base de datos:', res.rows[0]);
   }
 });
+*/
+console.log('⚠️ Base de datos deshabilitada temporalmente para desarrollo');
 
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
+// Inicializar WebSocket
+WebSocketService.initialize(server);
+
+// Ruta para obtener estadísticas de WebSocket
+app.get('/api/ws-stats', (req, res) => {
+  res.json(WebSocketService.getStats());
+});
+
+server.listen(port, () => {
+  console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
+  console.log(`🔌 WebSocket disponible en ws://localhost:${port}`);
 });
