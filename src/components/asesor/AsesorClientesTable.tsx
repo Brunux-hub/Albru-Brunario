@@ -73,7 +73,7 @@ const AsesorClientesTable: React.FC = () => {
         const result = await clientesResponse.json();
         
         // Actualizar clientes en el contexto
-        result.clientes.forEach((cliente: any) => {
+        (result.clientes as any[]).forEach((cliente) => {
           const clienteFormateado: Cliente = {
             fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
             nombre: cliente.nombre || 'Sin nombre',
@@ -115,14 +115,14 @@ const AsesorClientesTable: React.FC = () => {
         
         // Verificar si hay clientes nuevos (comparar con los que ya tengo)
         const clientesActuales = clientes.map(c => c.dni).filter(dni => dni !== 'Sin DNI');
-        const clientesNuevos = clientesBD.filter((cliente: any) => 
+        const clientesNuevos = (clientesBD as any[]).filter((cliente) => 
           cliente.dni && !clientesActuales.includes(cliente.dni)
         );
         
         if (clientesNuevos.length > 0) {
           console.log(`🔔 JUAN: ${clientesNuevos.length} cliente(s) nuevo(s) detectado(s)`);
           
-          clientesNuevos.forEach((cliente: any) => {
+          clientesNuevos.forEach((cliente) => {
             const clienteFormateado: Cliente = {
               fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
               nombre: cliente.nombre || 'Sin nombre',
