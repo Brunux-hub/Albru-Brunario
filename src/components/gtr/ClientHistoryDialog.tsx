@@ -13,30 +13,8 @@ import {
   Avatar
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-import PhoneIcon from '@mui/icons-material/Phone';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import MessageIcon from '@mui/icons-material/Message';
 
-interface ClientHistoryData {
-  id: number;
-  nombre: string;
-  cliente: string;
-  dni: string;
-  email: string;
-  campania: string;
-  canal: string;
-  estado: string;
-  fechaCreacion: string;
-  historial: {
-    fecha: string;
-    asesor: string;
-    accion: string;
-    estadoAnterior?: string;
-    estadoNuevo?: string;
-    comentarios: string;
-  }[];
-}
+import type { ClientHistoryData } from './types';
 
 interface ClientHistoryDialogProps {
   open: boolean;
@@ -47,27 +25,6 @@ interface ClientHistoryDialogProps {
 const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose, clientData }) => {
   if (!clientData) return null;
 
-  const getActionColor = (accion: string) => {
-    switch (accion) {
-      case 'Creación': return '#10b981';
-      case 'Reasignación': return '#f59e0b';
-      case 'Actualización': return '#3b82f6';
-      case 'Contacto': return '#8b5cf6';
-      case 'Mensaje Cliente': return '#f59e0b';
-      case 'Venta': return '#059669';
-      default: return '#6b7280';
-    }
-  };
-
-  const getActionIcon = (accion: string) => {
-    switch (accion) {
-      case 'Creación': return <PersonIcon />;
-      case 'Reasignación': return <SwapHorizIcon />;
-      case 'Contacto': return <PhoneIcon />;
-      case 'Mensaje Cliente': return <MessageIcon />;
-      default: return <CalendarTodayIcon />;
-    }
-  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>

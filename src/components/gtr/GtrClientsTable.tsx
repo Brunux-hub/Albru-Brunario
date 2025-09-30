@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
+import type { ClientHistoryData } from './types';
 
 
 interface Historial {
@@ -33,13 +35,7 @@ interface Asesor {
   tipo: string;
 }
 
-interface ClientHistoryData {
-  cliente: number;
-  campania: string;
-  canal: string;
-  fechaCreacion: string;
-  historial: Historial[];
-}
+
 
 interface GtrClientsTableProps {
   statusFilter: string;
@@ -93,9 +89,14 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   
   const handleViewHistory = (client: Cliente) => {
     const clientHistoryData: ClientHistoryData = {
-      cliente: client.id,
+      id: client.id,
+      nombre: client.nombre || '',
+      cliente: String(client.id),
+      dni: client.dni || '',
+      email: client.email || '',
       campania: client.comentarios || 'Sin campaña',
       canal: 'Sin canal',
+      estado: client.estado || '',
       fechaCreacion: client.fecha,
       historial: client.historial || []
     };
