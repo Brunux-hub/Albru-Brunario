@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import GestionarClienteDialog from './GestionarClienteDialog';
 import { useClientes } from '../../context/ClientesContext';
+import type { Cliente } from '../../context/ClientesContext';
 
 const estados = ['Todos los estados', 'En gestión', 'En seguimiento', 'Nuevo'];
 const gestiones = ['Todas las gestiones', 'En proceso', 'Derivado'];
@@ -30,7 +31,7 @@ const AsesorClientesTable: React.FC = () => {
   
   // Estados del componente
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('Todos los estados');
   const [filtroGestion, setFiltroGestion] = useState('Todas las gestiones');
   const [busqueda, setBusqueda] = useState('');
@@ -73,7 +74,7 @@ const AsesorClientesTable: React.FC = () => {
         
         // Actualizar clientes en el contexto
         result.clientes.forEach((cliente: any) => {
-          const clienteFormateado = {
+          const clienteFormateado: Cliente = {
             fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
             nombre: cliente.nombre || 'Sin nombre',
             telefono: cliente.telefono || 'Sin teléfono',
@@ -122,7 +123,7 @@ const AsesorClientesTable: React.FC = () => {
           console.log(`🔔 JUAN: ${clientesNuevos.length} cliente(s) nuevo(s) detectado(s)`);
           
           clientesNuevos.forEach((cliente: any) => {
-            const clienteFormateado = {
+            const clienteFormateado: Cliente = {
               fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
               nombre: cliente.nombre || 'Sin nombre',
               telefono: cliente.telefono || 'Sin teléfono',
@@ -167,7 +168,7 @@ const AsesorClientesTable: React.FC = () => {
     return cumpleEstado && cumpleGestion && cumpleBusqueda;
   });
 
-  const handleGestionar = (cliente: any) => {
+  const handleGestionar = (cliente: Cliente) => {
     setClienteSeleccionado(cliente);
     setDialogOpen(true);
   };

@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext } from 'react';
 import type { ReactNode } from 'react';
 
-interface Cliente {
+export interface Cliente {
   fecha: string;
   nombre: string;
   telefono: string;
