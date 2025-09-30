@@ -3,48 +3,15 @@ const pool = require('../config/database');
 
 // Controlador para manejar la lógica de asesores
 
-// Datos simulados para desarrollo (sin base de datos)
-let asesoresSimulados = [
-  {
-    id: 1,
-    nombre: 'JUAN',
-    email: 'juan@albru.com',
-    estado: 'Activo',
-    sala: 'Sala 1',
-    clientesAsignados: 5,
-    clientesAtendidos: 12,
-    ventasRealizadas: 8
-  },
-  {
-    id: 2,
-    nombre: 'SASKYA',
-    email: 'saskya@albru.com',
-    estado: 'Ocupado',
-    sala: 'Sala 2',
-    clientesAsignados: 3,
-    clientesAtendidos: 15,
-    ventasRealizadas: 12
-  },
-  {
-    id: 3,
-    nombre: 'MIA',
-    email: 'mia@albru.com',
-    estado: 'Activo',
-    sala: 'Sala 3',
-    clientesAsignados: 7,
-    clientesAtendidos: 9,
-    ventasRealizadas: 6
-  }
-];
-
 const getAsesores = async (req, res) => {
   try {
-    // Usar datos simulados en lugar de base de datos
-    console.log('👥 Obteniendo lista de asesores simulados');
+    // Obtener la lista de asesores desde la base de datos
+    const [rows] = await pool.query('SELECT * FROM asesores');
+    console.log('👥 Obteniendo lista de asesores desde la base de datos');
     res.status(200).json({ 
       success: true,
-      asesores: asesoresSimulados,
-      total: asesoresSimulados.length
+      asesores: rows,
+      total: rows.length
     });
   } catch (error) {
     console.error('Error al obtener datos de los asesores:', error);
@@ -58,7 +25,8 @@ const actualizarDatosCliente = async (req, res) => {
   console.log(`✏️ Actualizando datos del cliente ${clienteId}:`, datos);
 
   try {
-    // Simulación sin base de datos
+    // Actualizar datos del cliente en la base de datos
+    await pool.query('UPDATE clientes SET ? WHERE id = ?', [datos, clienteId]);
     res.status(200).json({ 
       success: true,
       message: 'Datos actualizados correctamente', 
@@ -73,12 +41,12 @@ const actualizarDatosCliente = async (req, res) => {
 
 const obtenerDatosClientes = async (req, res) => {
   try {
-    // Simulación sin base de datos
-    console.log('📋 Obteniendo datos de clientes para asesor');
+    // Obtener datos de clientes desde la base de datos
+    const [rows] = await pool.query('SELECT * FROM clientes WHERE asesor_id = ?', [req.asesorId]);
+    console.log('📋 Obteniendo datos de clientes para asesor desde la base de datos');
     res.status(200).json({ 
       success: true,
-      clientes: [],
-      message: 'Datos simulados - implementar con base de datos real'
+      clientes: rows
     });
   } catch (error) {
     console.error('Error al obtener datos de los clientes:', error);
@@ -93,13 +61,12 @@ const updateEstadoAsesor = async (req, res) => {
   console.log(`🔄 Cambiando estado del asesor ${id} a: ${estado}`);
   
   try {
-    const index = asesoresSimulados.findIndex(a => a.id === parseInt(id));
-    if (index !== -1) {
-      asesoresSimulados[index].estado = estado;
+    // Actualizar el estado del asesor en la base de datos
+    const result = await pool.query('UPDATE asesores SET estado = ? WHERE id = ?', [estado, id]);
+    if (result.affectedRows > 0) {
       res.status(200).json({
         success: true,
-        message: 'Estado del asesor actualizado',
-        asesor: asesoresSimulados[index]
+        message: 'Estado del asesor actualizado'
       });
     } else {
       res.status(404).json({
@@ -113,9 +80,33 @@ const updateEstadoAsesor = async (req, res) => {
   }
 };
 
+const buscarAsesor = async (req, res) => {
+  const { nombre } = req.params;
+  console.log(`🔍 Buscando asesor con nombre: ${nombre}`);
+
+  try {
+    const [rows] = await pool.query('SELECT * FROM asesores WHERE nombre = ?', [nombre]);
+    if (rows.length > 0) {
+      res.status(200).json({
+        success: true,
+        asesor: rows[0]
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: `Asesor "${nombre}" no encontrado`
+      });
+    }
+  } catch (error) {
+    console.error('Error al buscar asesor:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   getAsesores,
   actualizarDatosCliente,
   obtenerDatosClientes,
-  updateEstadoAsesor
+  updateEstadoAsesor,
+  buscarAsesor
 };

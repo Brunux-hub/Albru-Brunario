@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getAsesores, actualizarDatosCliente, obtenerDatosClientes, updateEstadoAsesor } = require('../controllers/asesoresController');
+const { getAsesores, actualizarDatosCliente, obtenerDatosClientes, updateEstadoAsesor, buscarAsesor } = require('../controllers/asesoresController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
 // Obtener todos los asesores
@@ -14,5 +14,8 @@ router.put('/actualizar-cliente', authMiddleware, actualizarDatosCliente);
 
 // Obtener datos de los clientes
 router.get('/clientes', authMiddleware, obtenerDatosClientes);
+
+// Buscar asesor por nombre
+router.get('/buscar/:nombre', buscarAsesor);
 
 module.exports = router;
