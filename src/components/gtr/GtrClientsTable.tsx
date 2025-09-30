@@ -6,19 +6,54 @@ import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
 
 
+interface Historial {
+  fecha: string;
+  asesor: string;
+  accion: string;
+  comentarios: string;
+}
+
+interface Cliente {
+  id: number;
+  nombre?: string;
+  dni?: string;
+  email?: string;
+  estado: string;
+  asesor: string;
+  historial?: Historial[];
+  fecha: string;
+  comentarios?: string;
+}
+
+interface Asesor {
+  id: number;
+  nombre: string;
+  email: string;
+  estado: string;
+  tipo: string;
+}
+
+interface ClientHistoryData {
+  cliente: number;
+  campania: string;
+  canal: string;
+  fechaCreacion: string;
+  historial: Historial[];
+}
+
 interface GtrClientsTableProps {
   statusFilter: string;
-  newClient?: any;
-  clients: any[]; // Nueva propiedad para el estado de clientes
-  setClients: React.Dispatch<React.SetStateAction<any[]>>; // Nueva propiedad para actualizar clientes
-  asesores: any[]; // Lista de asesores disponibles
+  newClient?: Partial<Cliente>; // Cliente parcial para nuevos datos
+  clients: Cliente[]; // Lista de clientes
+  setClients: React.Dispatch<React.SetStateAction<Cliente[]>>; // Actualizar clientes
+  asesores: Asesor[]; // Lista de asesores disponibles
 }
 
 const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClient, clients, setClients, asesores }) => {
-  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientHistoryData | null>(null);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
-  const [clientToReassign, setClientToReassign] = useState<any>(null);
+  const [clientToReassign, setClientToReassign] = useState<Cliente | null>(null);
 
   React.useEffect(() => {
     if (newClient) {
@@ -31,7 +66,6 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
           ...newClient,
           id: Date.now(),
           fecha,
-          fechaCreacion: fecha,
           estado: isSoloNumero ? 'Nuevo' : 'En gestión',
           asesor: '-',
           comentarios: isSoloNumero ? 'Solo número' : (newClient.comentarios || ''),
@@ -47,7 +81,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         ...prev
       ]);
     }
-  }, [newClient]);
+  }, [newClient, setClients]);
 
   const sortedClients = [...clients].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
   let filtered = sortedClients;
@@ -57,15 +91,19 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     filtered = sortedClients.filter(c => c.estado === statusFilter);
   }
   
-  const handleViewHistory = (client: any) => {
-    setSelectedClient({
-      ...client,
+  const handleViewHistory = (client: Cliente) => {
+    const clientHistoryData: ClientHistoryData = {
+      cliente: client.id,
+      campania: client.comentarios || 'Sin campaña',
+      canal: 'Sin canal',
+      fechaCreacion: client.fecha,
       historial: client.historial || []
-    });
+    };
+    setSelectedClient(clientHistoryData);
     setHistoryDialogOpen(true);
   };
   
-  const handleReassign = (client: any) => {
+  const handleReassign = (client: Cliente) => {
     setClientToReassign(client);
     setReassignDialogOpen(true);
   };
@@ -75,18 +113,19 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         console.log('🎯 GTR: Confirmando reasignación...');
         console.log('📋 GTR: Cliente seleccionado:', clientToReassign);
         console.log('🎯 GTR: Nuevo asesor seleccionado:', newAdvisor);
-        
+
         try {
             // 1. Buscar ID del asesor en la base de datos
             const asesorResponse = await fetch(`http://localhost:3001/api/asesores/buscar/${newAdvisor}`);
-            
+
             if (!asesorResponse.ok) {
-                throw new Error(`Asesor "${newAdvisor}" no encontrado en la base de datos`);
+                const errorData = await asesorResponse.json();
+                throw new Error(errorData.message || `Asesor "${newAdvisor}" no encontrado en la base de datos`);
             }
-            
+
             const asesorData = await asesorResponse.json();
             const asesorId = asesorData.asesor.id;
-            
+
             console.log('👤 GTR: Asesor encontrado:', asesorData.asesor);
 
             // 2. Realizar reasignación en el backend
@@ -139,7 +178,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
             }));
 
             console.log('🎉 GTR: Reasignación completada exitosamente');
-            
+
         } catch (error) {
             console.error('❌ GTR: Error en reasignación:', error);
             alert(`Error al reasignar cliente: ${error instanceof Error ? error.message : 'Error desconocido'}`);
@@ -183,12 +222,11 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
             {filtered.map(client => (
               <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
                 <TableCell>{client.fecha}</TableCell>
-                <TableCell>{client.cliente}</TableCell>
+                <TableCell>{client.id}</TableCell>
                 <TableCell>{client.nombre || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin nombre</span>}</TableCell>
                 <TableCell>{client.dni || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin DNI</span>}</TableCell>
                 <TableCell>{client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin coordenadas</span>}</TableCell>
-                <TableCell>{client.campania}</TableCell>
-                <TableCell>{client.canal}</TableCell>
+                <TableCell>{client.comentarios}</TableCell>
                 <TableCell>
                   <Chip 
                     label={client.estado}

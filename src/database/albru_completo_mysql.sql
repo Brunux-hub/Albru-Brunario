@@ -357,3 +357,6 @@ ORDER BY c.fecha_datos_completos ASC;
 -- SELECT h.*, a.nombre as usuario FROM historial_cliente h 
 -- LEFT JOIN asesores a ON h.usuario_id = a.id 
 -- WHERE cliente_id = 1 ORDER BY fecha DESC;
+
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY 'tu_contraseña' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
