@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 
+import type { Asesor } from './types';
+
 interface ReassignDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (newAdvisor: string) => void;
-  asesores: any[]; // Lista de asesores dinámicos
+  asesores: Asesor[]; // Lista de asesores dinámicos
 }
 
 const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfirm, asesores }) => {

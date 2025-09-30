@@ -1,3 +1,10 @@
+export interface Asesor {
+  id: number;
+  nombre: string;
+  email: string;
+  estado: string;
+  tipo: string;
+}
 // Tipos compartidos para componentes GTR
 
 export interface ClientHistoryData {
