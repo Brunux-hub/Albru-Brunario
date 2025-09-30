@@ -29,7 +29,17 @@ const AsesorClientesTable: React.FC = () => {
   const { clientes, actualizarCliente, agregarCliente } = useClientes();
   const agregarClienteRef = useRef(agregarCliente);
   
-  // Estados del componente
+  // Tipado para datos crudos de la API
+  type ClienteApi = {
+    fecha?: string;
+    nombre?: string;
+    telefono?: string;
+    dni?: string;
+    servicio?: string;
+    estado?: string;
+    gestion?: string;
+    seguimiento?: string;
+  };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('Todos los estados');
@@ -73,18 +83,17 @@ const AsesorClientesTable: React.FC = () => {
         const result = await clientesResponse.json();
         
         // Actualizar clientes en el contexto
-        (result.clientes as any[]).forEach((cliente) => {
+        (result.clientes as ClienteApi[]).forEach((cliente) => {
           const clienteFormateado: Cliente = {
-            fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
-            nombre: cliente.nombre || 'Sin nombre',
-            telefono: cliente.telefono || 'Sin teléfono',
-            dni: cliente.dni || 'Sin DNI',
-            servicio: cliente.servicio || 'Internet',
-            estado: cliente.estado === 'asignado' ? 'Nuevo' : cliente.estado,
+            fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : '',
+            nombre: cliente.nombre ?? 'Sin nombre',
+            telefono: cliente.telefono ?? 'Sin teléfono',
+            dni: cliente.dni ?? 'Sin DNI',
+            servicio: cliente.servicio ?? 'Internet',
+            estado: cliente.estado === 'asignado' ? 'Nuevo' : (cliente.estado ?? ''),
             gestion: 'En proceso',
             seguimiento: cliente.seguimiento ? new Date(cliente.seguimiento).toISOString().slice(0, 16) : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
           };
-          
           agregarClienteRef.current(clienteFormateado);
         });
         
@@ -115,7 +124,7 @@ const AsesorClientesTable: React.FC = () => {
         
         // Verificar si hay clientes nuevos (comparar con los que ya tengo)
         const clientesActuales = clientes.map(c => c.dni).filter(dni => dni !== 'Sin DNI');
-        const clientesNuevos = (clientesBD as any[]).filter((cliente) => 
+        const clientesNuevos = (clientesBD as ClienteApi[]).filter((cliente) => 
           cliente.dni && !clientesActuales.includes(cliente.dni)
         );
         
@@ -124,21 +133,18 @@ const AsesorClientesTable: React.FC = () => {
           
           clientesNuevos.forEach((cliente) => {
             const clienteFormateado: Cliente = {
-              fecha: new Date(cliente.fecha).toLocaleDateString('es-PE'),
-              nombre: cliente.nombre || 'Sin nombre',
-              telefono: cliente.telefono || 'Sin teléfono',
-              dni: cliente.dni || 'Sin DNI',
-              servicio: cliente.servicio || 'Internet',
+              fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : '',
+              nombre: cliente.nombre ?? 'Sin nombre',
+              telefono: cliente.telefono ?? 'Sin teléfono',
+              dni: cliente.dni ?? 'Sin DNI',
+              servicio: cliente.servicio ?? 'Internet',
               estado: 'Nuevo',
               gestion: 'En proceso',
               seguimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
             };
-            
             agregarClienteRef.current(clienteFormateado);
-            
-            setNotificationMessage(`¡Cliente ${cliente.nombre} reasignado desde GTR!`);
+            setNotificationMessage(`¡Cliente ${cliente.nombre ?? ''} reasignado desde GTR!`);
             setNotificationOpen(true);
-            
             console.log('🎉 JUAN: Cliente agregado automáticamente:', clienteFormateado);
           });
         }
