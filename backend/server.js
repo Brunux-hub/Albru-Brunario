@@ -1,218 +1,133 @@
+require('dotenv').config();
 const express = require('express');
-const mysql = require('mysql2/promise');
 const cors = require('cors');
+const mysql = require('mysql2/promise');
+const path = require('path');
+const morgan = require('morgan');
+
 const app = express();
+const port = process.env.PORT || 3001;
 
-// Configuración de la base de datos MySQL
-const dbConfig = {
-  host: 'localhost',
-  user: 'root', // Usuario por defecto de MySQL
-  password: '', // Contraseña de tu MySQL (puedes cambiarla)
-  database: 'albru',
-  port: 3306
-};
-
-// Crear pool de conexiones
-const pool = mysql.createPool(dbConfig);
-
-// Middleware
 app.use(cors());
 app.use(express.json());
+// Logging
+app.use(morgan('combined'));
 
-// ============================================================
-// API PARA REASIGNACIÓN DE CLIENTES GTR → ASESOR
-// ============================================================
+// Database config from environment with sensible defaults for dev
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'albru',
+  port: Number(process.env.DB_PORT || 3306),
+  waitForConnections: true,
+  connectionLimit: Number(process.env.DB_CONN_LIMIT || 10),
+};
 
-// Reasignar cliente desde GTR a Asesor
-app.post('/api/clientes/reasignar', async (req, res) => {
-  try {
-    const { cliente_id, nuevo_asesor_id, gtr_id, comentario } = req.body;
-    
-    console.log('🔄 Reasignando cliente:', { cliente_id, nuevo_asesor_id });
+// Create a pool at module level so handlers can use it
+const pool = mysql.createPool(dbConfig);
 
-    // Iniciar transacción
-    const connection = await pool.getConnection();
-    
-    try {
-      await connection.beginTransaction();
-      
-      // 1. Actualizar cliente con nuevo asesor
-      const [updateResult] = await connection.execute(`
-        UPDATE clientes 
-        SET asesor_asignado = ?,
-            estado_cliente = 'asignado',
-            fecha_asignacion = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [nuevo_asesor_id, cliente_id]);
-
-      if (updateResult.affectedRows === 0) {
-        throw new Error('Cliente no encontrado');
-      }
-
-      // Obtener datos del cliente actualizado
-      const [clienteResult] = await connection.execute(`
-        SELECT * FROM clientes WHERE id = ?
-      `, [cliente_id]);
-      
-      const cliente = clienteResult[0];
-
-      // 2. Registrar en historial
-      await connection.execute(`
-        INSERT INTO historial_cliente (cliente_id, usuario_id, accion, estado_nuevo, comentarios)
-        VALUES (?, ?, 'reasignado_asesor', 'asignado', ?)
-      `, [cliente_id, gtr_id, comentario || `Reasignado desde GTR a asesor ${nuevo_asesor_id}`]);
-
-      // 3. Actualizar contador de clientes asignados
-      await connection.execute(`
-        UPDATE asesores 
-        SET clientes_asignados = clientes_asignados + 1,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [nuevo_asesor_id]);
-
-      // 4. Obtener datos del asesor para la respuesta
-      const [asesorResult] = await connection.execute(`
-        SELECT nombre FROM asesores WHERE id = ?
-      `, [nuevo_asesor_id]);
-
-      await connection.commit();
-      
-      // 5. Respuesta con datos completos
-      res.json({
-        success: true,
-        message: 'Cliente reasignado exitosamente',
-        data: {
-          cliente: {
-            id: cliente.id,
-            nombre: cliente.nombre,
-            telefono: cliente.telefono,
-            dni: cliente.dni,
-            lead_id: cliente.lead_id,
-            estado: cliente.estado_cliente
-          },
-          asesor: {
-            id: nuevo_asesor_id,
-            nombre: asesorResult[0]?.nombre
-          },
-          fecha_reasignacion: new Date()
-        }
-      });
-
-      console.log('✅ Reasignación exitosa para cliente:', cliente_id);
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-
-  } catch (error) {
-    console.error('❌ Error en reasignación:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error al reasignar cliente',
-      error: error.message
-    });
-  }
-});
-
-// Obtener clientes asignados a un asesor específico
-app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
-  try {
-    const { asesorId } = req.params;
-    
-    const [rows] = await pool.execute(`
-      SELECT 
-        c.id,
-        c.nombre,
-        c.telefono,
-        c.dni,
-        c.correo_electronico,
-        c.direccion,
-        c.distrito,
-        c.plan_seleccionado,
-        c.precio_final,
-        c.estado_cliente as estado,
-        c.observaciones_asesor as gestion,
-        c.fecha_asignacion as fecha,
-        c.fecha_cita as seguimiento,
-        'Internet' as servicio
-      FROM clientes c
-      WHERE c.asesor_asignado = ?
-      ORDER BY c.fecha_asignacion DESC
-    `, [asesorId]);
-
-    res.json({
-      success: true,
-      clientes: rows
-    });
-
-  } catch (error) {
-    console.error('Error obteniendo clientes:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener clientes',
-      error: error.message
-    });
-  }
-});
-
-// Obtener ID del asesor por nombre
-app.get('/api/asesores/buscar/:nombre', async (req, res) => {
-  try {
-    const { nombre } = req.params;
-    
-    const [rows] = await pool.execute(`
-      SELECT id, nombre, email, tipo 
-      FROM asesores 
-      WHERE UPPER(nombre) = UPPER(?) AND estado = 'activo'
-    `, [nombre]);
-
-    if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Asesor no encontrado'
-      });
-    }
-
-    res.json({
-      success: true,
-      asesor: rows[0]
-    });
-
-  } catch (error) {
-    console.error('Error buscando asesor:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error al buscar asesor',
-      error: error.message
-    });
-  }
-});
-
-// Obtener todos los asesores activos
+// Simple endpoints
 app.get('/api/asesores', async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT id, nombre, email, tipo, clientes_asignados
-      FROM asesores 
-      WHERE estado = 'activo' AND tipo = 'asesor'
-      ORDER BY nombre
-    `);
+    const [rows] = await pool.query('SELECT id, nombre, email, tipo, clientes_asignados FROM asesores WHERE estado = "activo"');
+    res.json({ success: true, asesores: rows });
+  } catch (error) {
+    console.error('Error obteniendo asesores:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener asesores', error: error.message });
+  }
+});
+
+app.get('/api/asesores/buscar/:nombre', async (req, res) => {
+  try {
+    const nombre = req.params.nombre || '';
+    const [rows] = await pool.query('SELECT id, nombre, email, tipo FROM asesores WHERE UPPER(nombre) LIKE UPPER(?) AND estado = "activo"', [`%${nombre}%`]);
+    res.json({ success: true, resultados: rows });
+  } catch (error) {
+    console.error('Error buscando asesores:', error);
+    res.status(500).json({ success: false, message: 'Error al buscar asesores', error: error.message });
+  }
+});
+
+app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
+  try {
+    const asesorId = req.params.asesorId;
+    const [rows] = await pool.query('SELECT id, nombre, telefono, dni, correo_electronico, direccion, distrito, plan_seleccionado, precio_final, estado_cliente as estado, observaciones_asesor as gestion, fecha_asignacion as fecha, fecha_cita as seguimiento FROM clientes WHERE asesor_asignado = ? ORDER BY fecha_asignacion DESC', [asesorId]);
+    res.json({ success: true, clientes: rows });
+  } catch (error) {
+    console.error('Error obteniendo clientes:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener clientes', error: error.message });
+  }
+});
+
+// Reasignar cliente a otro asesor con transacción
+app.post('/api/clientes/reasignar', async (req, res) => {
+  const { clienteId, nuevoAsesorId, gtrId, comentario } = req.body || {};
+
+  if (!clienteId || !nuevoAsesorId) {
+    return res.status(400).json({ success: false, message: 'clienteId y nuevoAsesorId son requeridos' });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Obtener datos del cliente actual
+    const [clienteRows] = await connection.query('SELECT id, nombre, telefono, dni, lead_id, estado_cliente, asesor_asignado FROM clientes WHERE id = ?', [clienteId]);
+    const cliente = clienteRows[0];
+
+    if (!cliente) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
+    }
+
+    const antiguoAsesorId = cliente.asesor_asignado;
+
+    // Actualizar asignación
+    await connection.query('UPDATE clientes SET asesor_asignado = ? WHERE id = ?', [nuevoAsesorId, clienteId]);
+
+    // Registrar en historial si la tabla existe
+    try {
+      await connection.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, estado_nuevo, comentarios) VALUES (?, ?, ?, ?, ?)', [clienteId, gtrId || null, 'reasignado_asesor', cliente.estado_cliente || null, comentario || `Reasignado a asesor ${nuevoAsesorId}`]);
+    } catch (e) {
+      // Si la tabla no existe, no falle la operación completa
+      console.warn('No se pudo insertar en historial_cliente (posible ausencia de tabla):', e.message);
+    }
+
+    // Actualizar contadores: decrementar en antiguo asesor (si existe) y aumentar en nuevo asesor
+    if (antiguoAsesorId) {
+      await connection.query('UPDATE asesores SET clientes_asignados = GREATEST(IFNULL(clientes_asignados,0) - 1,0), updated_at = CURRENT_TIMESTAMP WHERE id = ?', [antiguoAsesorId]);
+    }
+    await connection.query('UPDATE asesores SET clientes_asignados = IFNULL(clientes_asignados,0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nuevoAsesorId]);
+
+    // Obtener datos del nuevo asesor
+    const [asesorRows] = await connection.query('SELECT id, nombre FROM asesores WHERE id = ?', [nuevoAsesorId]);
+
+    await connection.commit();
 
     res.json({
       success: true,
-      asesores: rows
+      message: 'Cliente reasignado exitosamente',
+      data: {
+        cliente: {
+          id: cliente.id,
+          nombre: cliente.nombre,
+          telefono: cliente.telefono,
+          dni: cliente.dni,
+          lead_id: cliente.lead_id,
+          estado: cliente.estado_cliente
+        },
+        asesor: asesorRows[0] || { id: nuevoAsesorId },
+        fecha_reasignacion: new Date()
+      }
     });
 
   } catch (error) {
-    console.error('Error obteniendo asesores:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener asesores'
-    });
+    await connection.rollback();
+    console.error('Error en reasignación:', error);
+    res.status(500).json({ success: false, message: 'Error al reasignar cliente', error: error.message });
+  } finally {
+    connection.release();
   }
 });
 
@@ -221,10 +136,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log(`📊 API disponible en http://localhost:${PORT}`);
+// Serve static frontend in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.resolve(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+}
+
+app.listen(port, () => {
+  console.log(`Backend listening on port ${port} (env=${process.env.NODE_ENV || 'development'})`);
 });
 
 module.exports = app;

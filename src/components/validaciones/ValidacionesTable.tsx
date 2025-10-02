@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
@@ -27,8 +27,7 @@ import {
   InputLabel,
   Select,
   MenuItem as SelectMenuItem,
-  Snackbar,
-  Alert
+  
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -136,10 +135,9 @@ const ValidacionesTable: React.FC = () => {
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editedCliente, setEditedCliente] = useState<Cliente | null>(null);
-  const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notificationMessage, setNotificationMessage] = useState('');
+  
 
-  const [clientes, setClientes] = useState<Cliente[]>([
+  const [clientes] = useState<Cliente[]>([
     {
       id: '12345678',
       nombre: 'Juan Pérez',

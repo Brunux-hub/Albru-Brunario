@@ -5,7 +5,7 @@ import {
   Paper,
   Typography,
   TextField,
-  Grid,
+  
   Card,
   CardContent,
   Chip,
@@ -17,6 +17,9 @@ import {
   MenuItem,
   Divider
 } from '@mui/material';
+// Usamos Grid estándar y añadimos component="div" en los items para mantener compatibilidad de tipos
+import { Grid as MuiGrid } from '@mui/material';
+const GridComponent = MuiGrid as unknown as any;
 import SearchIcon from '@mui/icons-material/Search';
 import PersonIcon from '@mui/icons-material/Person';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -164,8 +167,8 @@ const ValidacionesBusqueda: React.FC = () => {
             Criterios de Búsqueda
           </Typography>
           
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
+          <GridComponent container spacing={3}>
+            <GridComponent item component="div" xs={12} md={4}>
               <FormControl fullWidth size="small">
                 <InputLabel>Tipo de Búsqueda</InputLabel>
                 <Select
@@ -178,9 +181,9 @@ const ValidacionesBusqueda: React.FC = () => {
                   <MenuItem value="email">Por Email</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
+            </GridComponent>
             
-            <Grid item xs={12} md={4}>
+            <GridComponent item component="div" xs={12} md={4}>
               <TextField
                 fullWidth
                 size="small"
@@ -196,9 +199,9 @@ const ValidacionesBusqueda: React.FC = () => {
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               />
-            </Grid>
+            </GridComponent>
             
-            <Grid item xs={12} md={2}>
+            <GridComponent item component="div" xs={12} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Estado</InputLabel>
                 <Select
@@ -213,9 +216,9 @@ const ValidacionesBusqueda: React.FC = () => {
                   <MenuItem value="rechazado">Rechazado</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
+            </GridComponent>
             
-            <Grid item xs={12} md={2}>
+            <GridComponent item component="div" xs={12} md={2}>
               <Button
                 fullWidth
                 variant="contained"
@@ -230,8 +233,8 @@ const ValidacionesBusqueda: React.FC = () => {
               >
                 {isSearching ? 'Buscando...' : 'Buscar'}
               </Button>
-            </Grid>
-          </Grid>
+            </GridComponent>
+          </GridComponent>
         </Paper>
 
         {/* Resultados */}
@@ -246,9 +249,9 @@ const ValidacionesBusqueda: React.FC = () => {
               Resultados de Búsqueda ({resultados.length} encontrados)
             </Typography>
             
-            <Grid container spacing={3}>
+            <GridComponent container spacing={3}>
               {resultados.map((cliente) => (
-                <Grid item xs={12} key={cliente.id}>
+                <GridComponent item component="div" xs={12} key={cliente.id}>
                   <Card sx={{ 
                     borderRadius: 2,
                     border: '1px solid #e5e7eb',
@@ -280,8 +283,8 @@ const ValidacionesBusqueda: React.FC = () => {
                       
                       <Divider sx={{ my: 2 }} />
                       
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} sm={6} md={3}>
+                      <GridComponent container spacing={3}>
+                        <GridComponent item component="div" xs={12} sm={6} md={3}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                             <PersonIcon sx={{ fontSize: 16, color: '#6b7280' }} />
                             <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
@@ -291,9 +294,9 @@ const ValidacionesBusqueda: React.FC = () => {
                           <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
                             {cliente.asesorActual}
                           </Typography>
-                        </Grid>
+                        </GridComponent>
                         
-                        <Grid item xs={12} sm={6} md={3}>
+                        <GridComponent item component="div" xs={12} sm={6} md={3}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                             <BusinessIcon sx={{ fontSize: 16, color: '#6b7280' }} />
                             <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
@@ -311,9 +314,9 @@ const ValidacionesBusqueda: React.FC = () => {
                               fontWeight: 500
                             }}
                           />
-                        </Grid>
+                        </GridComponent>
                         
-                        <Grid item xs={12} sm={6} md={3}>
+                        <GridComponent item component="div" xs={12} sm={6} md={3}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                             <AccountBalanceIcon sx={{ fontSize: 16, color: '#6b7280' }} />
                             <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
@@ -323,9 +326,9 @@ const ValidacionesBusqueda: React.FC = () => {
                           <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
                             {formatCurrency(cliente.montoCartera)}
                           </Typography>
-                        </Grid>
+                        </GridComponent>
                         
-                        <Grid item xs={12} sm={6} md={3}>
+                        <GridComponent item component="div" xs={12} sm={6} md={3}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                             <DateRangeIcon sx={{ fontSize: 16, color: '#6b7280' }} />
                             <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
@@ -335,28 +338,28 @@ const ValidacionesBusqueda: React.FC = () => {
                           <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
                             {new Date(cliente.fechaIngreso).toLocaleDateString('es-MX')}
                           </Typography>
-                        </Grid>
-                      </Grid>
+                        </GridComponent>
+                      </GridComponent>
                       
                       <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e5e7eb' }}>
-                        <Grid container spacing={2}>
-                          <Grid item xs={12} sm={6}>
+                        <GridComponent container spacing={2}>
+                          <GridComponent item component="div" xs={12} sm={6}>
                             <Typography variant="caption" sx={{ color: '#6b7280' }}>
                               Teléfono: {cliente.telefono}
                             </Typography>
-                          </Grid>
-                          <Grid item xs={12} sm={6}>
+                          </GridComponent>
+                          <GridComponent item component="div" xs={12} sm={6}>
                             <Typography variant="caption" sx={{ color: '#6b7280' }}>
                               Email: {cliente.email}
                             </Typography>
-                          </Grid>
-                        </Grid>
+                          </GridComponent>
+                        </GridComponent>
                       </Box>
                     </CardContent>
                   </Card>
-                </Grid>
+                </GridComponent>
               ))}
-            </Grid>
+            </GridComponent>
           </Paper>
         )}
 
