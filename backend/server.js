@@ -13,19 +13,10 @@ app.use(express.json());
 // Logging
 app.use(morgan('combined'));
 
-// Database config from environment with sensible defaults for dev
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'albru',
-  port: Number(process.env.DB_PORT || 3306),
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONN_LIMIT || 10),
-};
-
-// Create a pool at module level so handlers can use it
-const pool = mysql.createPool(dbConfig);
+// Use centralized pool from config so controllers can require the same instance
+const pool = require('./config/database');
+// Import controller so we can reuse existing update logic
+const { actualizarDatosCliente } = require('./controllers/asesoresController');
 
 // Simple endpoints
 app.get('/api/asesores', async (req, res) => {
@@ -58,6 +49,13 @@ app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
     console.error('Error obteniendo clientes:', error);
     res.status(500).json({ success: false, message: 'Error al obtener clientes', error: error.message });
   }
+});
+
+// Exponer endpoint de actualización de cliente usando el controlador existente
+// Se deja sin middleware de auth para desarrollo local (coincide con otras rutas públicas)
+app.put('/api/asesores/actualizar-cliente', async (req, res) => {
+  // Delegar en el controlador que ya maneja la validación y la query dinámica
+  return actualizarDatosCliente(req, res);
 });
 
 // Reasignar cliente a otro asesor con transacción

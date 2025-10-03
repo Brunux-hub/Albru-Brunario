@@ -31,6 +31,7 @@ const AsesorClientesTable: React.FC = () => {
   
   // Tipado para datos crudos de la API
   type ClienteApi = {
+    id?: number;
     fecha?: string;
     nombre?: string;
     telefono?: string;
@@ -84,7 +85,8 @@ const AsesorClientesTable: React.FC = () => {
         
         // Actualizar clientes en el contexto
         (result.clientes as ClienteApi[]).forEach((cliente) => {
-          const clienteFormateado: Cliente = {
+          const clienteFormateado: any = {
+            id: cliente.id,
             fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : '',
             nombre: cliente.nombre ?? 'Sin nombre',
             telefono: cliente.telefono ?? 'Sin teléfono',
@@ -93,7 +95,7 @@ const AsesorClientesTable: React.FC = () => {
             estado: cliente.estado === 'asignado' ? 'Nuevo' : (cliente.estado ?? ''),
             gestion: 'En proceso',
             seguimiento: cliente.seguimiento ? new Date(cliente.seguimiento).toISOString().slice(0, 16) : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-          };
+          } as Cliente;
           agregarClienteRef.current(clienteFormateado);
         });
         

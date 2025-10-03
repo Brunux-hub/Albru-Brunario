@@ -115,6 +115,23 @@ export const ClientesProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const actualizarCliente = (clienteActualizado: Cliente) => {
+    // Enviar al backend para persistir cambios si tenemos un DNI identificador
+    (async () => {
+      try {
+        // Intentar enviar cambios al backend si existe un endpoint
+        const clienteId = (clienteActualizado as any).id || null;
+        const payload: any = { clienteId: clienteId, datos: { ...clienteActualizado } };
+        // Usar fetch directo para no introducir dependencias adicionales
+        await fetch((import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001') + '/api/asesores/actualizar-cliente', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.warn('No se pudo persistir en backend (continuando en UI):', e);
+      }
+    })();
+
     setClientes((prevClientes) =>
       prevClientes.map((cliente) =>
         cliente.dni === clienteActualizado.dni ? { ...cliente, ...clienteActualizado } : cliente

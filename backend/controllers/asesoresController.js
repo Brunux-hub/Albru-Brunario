@@ -1,4 +1,3 @@
-const { Pool } = require('pg');
 const pool = require('../config/database');
 
 // Controlador para manejar la lógica de asesores
@@ -21,12 +20,28 @@ const getAsesores = async (req, res) => {
 
 const actualizarDatosCliente = async (req, res) => {
   const { clienteId, datos } = req.body;
-  
+
   console.log(`✏️ Actualizando datos del cliente ${clienteId}:`, datos);
 
   try {
-    // Actualizar datos del cliente en la base de datos
-    await pool.query('UPDATE clientes SET ? WHERE id = ?', [datos, clienteId]);
+    // Construir SET dinámico y parámetros para evitar inyección
+    const keys = Object.keys(datos || {});
+    if (keys.length === 0) {
+      return res.status(400).json({ success: false, message: 'No hay datos para actualizar' });
+    }
+
+    // Construir SET con placeholders '?' para mysql2
+    const setClauses = keys.map(k => `${k} = ?`).join(', ');
+    const values = keys.map(k => datos[k]);
+    values.push(clienteId);
+
+    const sql = `UPDATE clientes SET ${setClauses}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    const [result] = await pool.query(sql, values);
+    // result.affectedRows puede usarse para validar
+    if (result && result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
+    }
+
     res.status(200).json({ 
       success: true,
       message: 'Datos actualizados correctamente', 
@@ -62,8 +77,8 @@ const updateEstadoAsesor = async (req, res) => {
   
   try {
     // Actualizar el estado del asesor en la base de datos
-    const result = await pool.query('UPDATE asesores SET estado = ? WHERE id = ?', [estado, id]);
-    if (result.affectedRows > 0) {
+    const [result] = await pool.query('UPDATE asesores SET estado = ? WHERE id = ?', [estado, id]);
+    if (result && result.affectedRows > 0) {
       res.status(200).json({
         success: true,
         message: 'Estado del asesor actualizado'

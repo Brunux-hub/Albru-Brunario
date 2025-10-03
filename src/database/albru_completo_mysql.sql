@@ -77,6 +77,11 @@ CREATE TABLE clientes (
     numero_grabacion VARCHAR(50),
     titular_linea VARCHAR(100),
     plan_bono VARCHAR(150),
+    numero_referencia VARCHAR(50),
+    dispositivos_adicionales TEXT,
+    pago_adelanto_instalacion DECIMAL(10,2) DEFAULT 0,
+    plataforma_digital VARCHAR(150),
+    interior VARCHAR(50),
     
     -- FECHAS
     fecha_lead TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -138,6 +143,7 @@ CREATE TABLE validaciones (
 -- ÍNDICES PARA PERFORMANCE
 -- ================================================
 CREATE INDEX idx_clientes_lead_id ON clientes(lead_id);
+CREATE INDEX idx_clientes_plan ON clientes(plan_seleccionado);
 CREATE INDEX idx_clientes_dni ON clientes(dni);
 CREATE INDEX idx_clientes_estado ON clientes(estado_cliente);
 CREATE INDEX idx_clientes_asesor ON clientes(asesor_asignado);
@@ -277,6 +283,63 @@ BEGIN
     INSERT INTO historial_cliente (cliente_id, usuario_id, accion, estado_nuevo, comentarios)
     VALUES (p_cliente_id, p_validador_id, 'validacion_aprobada', 'validado', p_comentario);
     
+    COMMIT;
+END//
+
+-- Procedures para programación/completado de instalación (añadidos desde migración 2025-10-03)
+-- Estos procedimientos actualizan la fila del cliente y registran en historial_cliente
+
+-- Programar instalación
+CREATE PROCEDURE IF NOT EXISTS programar_instalacion(
+    IN p_cliente_id INT,
+    IN p_fecha_programacion DATETIME,
+    IN p_usuario_id INT,
+    IN p_comentarios TEXT
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    START TRANSACTION;
+
+    UPDATE clientes
+    SET fecha_programacion = p_fecha_programacion,
+            estado_cliente = 'instalacion_programada',
+            updated_at = CURRENT_TIMESTAMP
+    WHERE id = p_cliente_id;
+
+    INSERT INTO historial_cliente (cliente_id, usuario_id, accion, estado_nuevo, comentarios)
+    VALUES (p_cliente_id, p_usuario_id, 'programar_instalacion', 'instalacion_programada', p_comentarios);
+
+    COMMIT;
+END//
+
+-- Completar instalación
+CREATE PROCEDURE IF NOT EXISTS completar_instalacion(
+    IN p_cliente_id INT,
+    IN p_fecha_instalacion DATETIME,
+    IN p_usuario_id INT,
+    IN p_comentarios TEXT
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+    START TRANSACTION;
+
+    UPDATE clientes
+    SET fecha_instalacion = p_fecha_instalacion,
+            estado_cliente = 'instalado',
+            updated_at = CURRENT_TIMESTAMP
+    WHERE id = p_cliente_id;
+
+    INSERT INTO historial_cliente (cliente_id, usuario_id, accion, estado_nuevo, comentarios)
+    VALUES (p_cliente_id, p_usuario_id, 'completar_instalacion', 'instalado', p_comentarios);
+
     COMMIT;
 END//
 
