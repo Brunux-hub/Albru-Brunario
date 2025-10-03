@@ -2,15 +2,17 @@ import axios from 'axios';
 
 // URL base del backend - se puede configurar según el entorno
 const getBaseURL = (): string => {
-  // En desarrollo local
+  // En desarrollo local (Vite suele correr en localhost:5173)
   if (typeof window !== 'undefined') {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'http://localhost:3000';
+  const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      // Si estás en el dev server (por ejemplo puerto 5173) apuntamos al backend en 3001
+      return import.meta.env?.VITE_BACKEND_URL || 'http://localhost:3001';
     }
   }
-  
-  // En producción - usar variable de entorno si existe
-  const backendUrl = import.meta.env?.VITE_BACKEND_URL || 'http://localhost:3000';
+
+  // Producción o fallback: usar variable de entorno VITE_BACKEND_URL si está definida
+  const backendUrl = import.meta.env?.VITE_BACKEND_URL || 'http://localhost:3001';
   return backendUrl;
 };
 
