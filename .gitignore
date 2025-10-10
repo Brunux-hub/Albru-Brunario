@@ -16,6 +16,10 @@ dist-ssr
 backend/.env
 backend/node_modules
 
+# Docker environment files
+.env
+.env.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
