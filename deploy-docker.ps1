@@ -11,7 +11,8 @@ Write-Host "Verificando Docker..." -ForegroundColor Yellow
 try {
     $dockerVersion = docker version --format "{{.Client.Version}}"
     Write-Host "✓ Docker instalado (versión: $dockerVersion)" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "✗ Error: Docker no está instalado o no está corriendo" -ForegroundColor Red
     Write-Host "Instala Docker Desktop y asegúrate de que esté corriendo" -ForegroundColor Red
     exit 1
@@ -92,7 +93,8 @@ try {
     $response = Invoke-RestMethod -Uri "http://localhost:3001/api/clientes/1" -Method GET -TimeoutSec 10 -ErrorAction Stop
     Write-Host "✓ Backend responde correctamente" -ForegroundColor Green
     Write-Host "Respuesta: $($response | ConvertTo-Json -Compress)" -ForegroundColor Blue
-} catch {
+}
+catch {
     Write-Host "⚠ El backend aún no responde (puede necesitar más tiempo)" -ForegroundColor Yellow
     Write-Host "Puedes probarlo manualmente con: Invoke-RestMethod -Uri 'http://localhost:3001/api/clientes/1' -Method GET" -ForegroundColor Blue
 }
