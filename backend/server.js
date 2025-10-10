@@ -16,7 +16,11 @@ app.use(morgan('combined'));
 // Use centralized pool from config so controllers can require the same instance
 const pool = require('./config/database');
 // Import controller so we can reuse existing update logic
-const { actualizarDatosCliente } = require('./controllers/asesoresController');
+const { actualizarDatosCliente, updateEstadoAsesor } = require('./controllers/asesoresController');
+
+// Mount clientes routes
+const clientesRoutes = require('./routes/clientes');
+app.use('/api/clientes', clientesRoutes);
 
 // Simple endpoints
 app.get('/api/asesores', async (req, res) => {
@@ -56,6 +60,11 @@ app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
 app.put('/api/asesores/actualizar-cliente', async (req, res) => {
   // Delegar en el controlador que ya maneja la validación y la query dinámica
   return actualizarDatosCliente(req, res);
+});
+
+// Exponer endpoint para cambiar estado del asesor (activo/inactivo)
+app.put('/api/asesores/:id/estado', async (req, res) => {
+  return updateEstadoAsesor(req, res);
 });
 
 // Reasignar cliente a otro asesor con transacción
@@ -127,6 +136,17 @@ app.post('/api/clientes/reasignar', async (req, res) => {
   } finally {
     connection.release();
   }
+});
+
+// Admin demo endpoints
+const { getDashboard, getTopAsesores } = require('./controllers/adminController');
+
+app.get('/api/admin/dashboard', async (req, res) => {
+  return getDashboard(req, res);
+});
+
+app.get('/api/admin/asesores/top', async (req, res) => {
+  return getTopAsesores(req, res);
 });
 
 // Health check

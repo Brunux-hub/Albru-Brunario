@@ -24,10 +24,18 @@ const actualizarDatosCliente = async (req, res) => {
   console.log(`✏️ Actualizando datos del cliente ${clienteId}:`, datos);
 
   try {
-    // Construir SET dinámico y parámetros para evitar inyección
-    const keys = Object.keys(datos || {});
+    // Lista blanca de columnas permitidas para actualizar desde la API
+    const allowed = new Set([
+      'nombre','telefono','dni','correo_electronico','direccion','distrito',
+      'plan_seleccionado','precio_final','observaciones_asesor','comentario_validacion',
+      'fecha_cita','hora_cita','estado_cliente','asesor_asignado','validador_asignado',
+      'coordenadas','score','numero_referencia','numero_registro'
+    ]);
+
+    // Construir SET dinámico solo con campos permitidos
+    const keys = Object.keys(datos || {}).filter(k => allowed.has(k));
     if (keys.length === 0) {
-      return res.status(400).json({ success: false, message: 'No hay datos para actualizar' });
+      return res.status(400).json({ success: false, message: 'No hay datos permitidos para actualizar' });
     }
 
     // Construir SET con placeholders '?' para mysql2
@@ -56,9 +64,15 @@ const actualizarDatosCliente = async (req, res) => {
 
 const obtenerDatosClientes = async (req, res) => {
   try {
-    // Obtener datos de clientes desde la base de datos
-    const [rows] = await pool.query('SELECT * FROM clientes WHERE asesor_id = ?', [req.asesorId]);
-    console.log('📋 Obteniendo datos de clientes para asesor desde la base de datos');
+    // Determinar el id del asesor: middleware (req.asesorId), query o params
+    const asesorId = req.asesorId || req.query.asesorId || req.params.asesorId;
+    if (!asesorId) {
+      return res.status(400).json({ success: false, message: 'asesorId requerido (middleware, query o params)'});
+    }
+
+    // Obtener datos de clientes desde la base de datos (campo real: asesor_asignado)
+    const [rows] = await pool.query('SELECT id, nombre, telefono, dni, correo_electronico, direccion, distrito, plan_seleccionado, precio_final, estado_cliente as estado, observaciones_asesor as gestion, fecha_asignacion as fecha, fecha_cita as seguimiento FROM clientes WHERE asesor_asignado = ? ORDER BY fecha_asignacion DESC', [asesorId]);
+    console.log(`📋 Obteniendo datos de clientes para asesor ${asesorId} desde la base de datos`);
     res.status(200).json({ 
       success: true,
       clientes: rows

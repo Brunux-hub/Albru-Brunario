@@ -4,11 +4,11 @@ import { ThemeProvider } from '@mui/material/styles'
 import { CssBaseline } from '@mui/material'
 import './index.css'
 import App from './App.tsx'
-import theme from './theme/theme'
+import corporateTheme from './theme/corporateTheme'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider theme={theme}>
+    <ThemeProvider theme={corporateTheme}>
       <CssBaseline />
       <App />
     </ThemeProvider>

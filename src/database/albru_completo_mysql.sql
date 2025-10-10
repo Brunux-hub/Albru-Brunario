@@ -3,7 +3,7 @@
 -- Incluye: Estructura + Funciones + Datos Ejemplo
 -- ================================================
 
--- Crear base de datos
+-- Crear base de datos (comentado - debe hacerse con usuario root)
 CREATE DATABASE IF NOT EXISTS albru;
 USE albru;
 
