@@ -71,15 +71,67 @@ export const ClientesProvider: React.FC<{ children: ReactNode }> = ({ children }
       try {
         // Intentar enviar cambios al backend si existe un endpoint
         const clienteId = (clienteActualizado as any).id || null;
-        const payload: any = { clienteId: clienteId, datos: { ...clienteActualizado } };
-        // Usar fetch directo para no introducir dependencias adicionales
-        await fetch((import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001') + '/api/asesores/actualizar-cliente', {
+        
+        if (!clienteId) {
+          console.warn('No se puede actualizar cliente sin ID:', clienteActualizado.nombre);
+          return;
+        }
+
+        // Mapear todos los campos del frontend a los campos esperados por el backend
+        const datosBackend: any = {};
+        
+        // Campos básicos
+        if (clienteActualizado.nombre) datosBackend.nombre = clienteActualizado.nombre;
+        if (clienteActualizado.telefono) datosBackend.telefono = clienteActualizado.telefono;
+        if (clienteActualizado.dni) datosBackend.dni = clienteActualizado.dni;
+        if (clienteActualizado.direccion) datosBackend.direccion = clienteActualizado.direccion;
+        if (clienteActualizado.estado) datosBackend.estado_cliente = clienteActualizado.estado;
+        if (clienteActualizado.servicio) datosBackend.servicio = clienteActualizado.servicio;
+        if (clienteActualizado.seguimiento) datosBackend.fecha_cita = clienteActualizado.seguimiento;
+        if (clienteActualizado.comentariosIniciales) datosBackend.comentarios_iniciales = clienteActualizado.comentariosIniciales;
+        
+        // Campos del wizard (si están presentes en el objeto cliente actualizado)
+        const camposWizard = [
+          // Campos originales
+          'tipo_cliente', 'tipo_documento', 'score', 'fecha_nacimiento', 'lugar_nacimiento',
+          'titular_linea', 'correo_electronico', 'distrito', 'numero_piso', 'plan_seleccionado',
+          'precio_final', 'dispositivos_adicionales', 'plataforma_digital', 'pago_adelanto_instalacion',
+          'numero_referencia', 'numero_grabacion', 'coordenadas', 'observaciones_asesor',
+          // Nuevos campos del wizard
+          'lead_score', 'tipo_cliente_wizard', 'telefono_registro', 'dni_nombre_titular',
+          'parentesco_titular', 'telefono_referencia_wizard', 'telefono_grabacion_wizard',
+          'departamento', 'direccion_completa', 'numero_piso_wizard', 'tipo_plan',
+          'servicio_contratado', 'velocidad_contratada', 'precio_plan',
+          'dispositivos_adicionales_wizard', 'plataforma_digital_wizard',
+          'pago_adelanto_instalacion_wizard', 'wizard_completado',
+          'fecha_wizard_completado', 'wizard_data_json'
+        ];
+        
+        camposWizard.forEach(campo => {
+          if ((clienteActualizado as any)[campo] !== undefined && (clienteActualizado as any)[campo] !== null) {
+            datosBackend[campo] = (clienteActualizado as any)[campo];
+          }
+        });
+
+        const payload = { clienteId: clienteId, datos: datosBackend };
+        
+        console.log('🔄 Enviando actualización al backend:', payload);
+        
+        const response = await fetch((import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001') + '/api/asesores/actualizar-cliente', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('✅ Cliente actualizado en backend:', result);
+        } else {
+          const error = await response.json();
+          console.error('❌ Error del backend:', error);
+        }
       } catch (e) {
-        console.warn('No se pudo persistir en backend (continuando en UI):', e);
+        console.warn('⚠️ No se pudo persistir en backend (continuando en UI):', e);
       }
     })();
 

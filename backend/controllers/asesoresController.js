@@ -34,10 +34,24 @@ const actualizarDatosCliente = async (req, res) => {
     }
     // Lista blanca de columnas permitidas para actualizar desde la API
     const allowed = new Set([
+      // Campos básicos
       'nombre','telefono','dni','correo_electronico','direccion','distrito',
       'plan_seleccionado','precio_final','observaciones_asesor','comentario_validacion',
       'fecha_cita','hora_cita','estado_cliente','asesor_asignado','validador_asignado',
-      'numero_referencia','numero_registro'
+      'numero_referencia','numero_registro','numero_grabacion',
+      'tipo_documento','fecha_nacimiento','lugar_nacimiento','titular_linea',
+      'numero_piso','interior','tipo_cliente','dispositivos_adicionales',
+      'pago_adelanto_instalacion','plataforma_digital','fecha_programacion',
+      'fecha_instalacion','fecha_lead','score','coordenadas','campania',
+      'canal','comentarios_iniciales','servicio','seguimiento','gestion',
+      // Campos nuevos del wizard
+      'lead_score','tipo_cliente_wizard','telefono_registro','dni_nombre_titular',
+      'parentesco_titular','telefono_referencia_wizard','telefono_grabacion_wizard',
+      'departamento','direccion_completa','numero_piso_wizard','tipo_plan',
+      'servicio_contratado','velocidad_contratada','precio_plan',
+      'dispositivos_adicionales_wizard','plataforma_digital_wizard',
+      'pago_adelanto_instalacion_wizard','wizard_completado',
+      'fecha_wizard_completado','wizard_data_json'
     ]);
 
     // Construir SET dinámico solo con campos permitidos

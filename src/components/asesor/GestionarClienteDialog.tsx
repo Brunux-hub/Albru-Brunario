@@ -337,7 +337,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     // Validar el último paso antes de guardar
     if (!validateStep4()) return;
 
-    // Aquí guardarías todos los datos del wizard
+    // Preparar todos los datos del wizard para enviar al backend
     const wizardData = {
       step1: step1Data,
       step2: step2Data, 
@@ -347,12 +347,54 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
 
     console.log('Datos completos del wizard:', wizardData);
 
-    const updatedCliente: Cliente = {
+    // Mapear todos los datos del wizard a los campos de la base de datos
+    const updatedCliente: Cliente & { [key: string]: any } = {
       ...cliente!,
+      // Paso 1: Información básica
       nombre: step1Data.nombresApellidos,
       dni: step1Data.numeroDocumento,
       coordenadas: step1Data.coordenadas,
-      telefono: step2Data.telefonoRegistro
+      tipo_cliente_wizard: step1Data.tipoCliente,
+      tipo_documento: step1Data.tipoDocumento,
+      lead_score: step1Data.score,
+      
+      // Paso 2: Información de contacto y ubicación
+      telefono_registro: step2Data.telefonoRegistro,
+      fecha_nacimiento: step2Data.fechaNacimiento,
+      lugar_nacimiento: step2Data.lugarNacimiento,
+      dni_nombre_titular: step2Data.dniNombreTitular,
+      parentesco_titular: step2Data.parentescoTitular,
+      telefono_referencia_wizard: step2Data.telefonoReferencia,
+      telefono_grabacion_wizard: step2Data.telefonoGrabacion,
+      correo_electronico: step2Data.correoAfiliado,
+      departamento: step2Data.departamento,
+      distrito: step2Data.distrito,
+      direccion_completa: step2Data.direccion,
+      numero_piso_wizard: step2Data.piso,
+      
+      // Paso 3: Plan y servicios
+      tipo_plan: step3Data.tipoPlan,
+      servicio_contratado: step3Data.servicioContratado.join(', '),
+      velocidad_contratada: step3Data.velocidadContratada,
+      precio_plan: step3Data.precioPlan ? parseFloat(step3Data.precioPlan) : null,
+      dispositivos_adicionales_wizard: step3Data.dispositivosAdicionales.join(', '),
+      plataforma_digital_wizard: step3Data.plataformaDigital.join(', '),
+      
+      // Paso 4: Pago
+      pago_adelanto_instalacion_wizard: step4Data.pagoAdelantoInstalacion,
+      
+      // Metadatos del wizard
+      wizard_completado: true,
+      fecha_wizard_completado: new Date().toISOString(),
+      wizard_data_json: JSON.stringify(wizardData),
+      comentarios_iniciales: `Wizard completado - Lead: ${step1Data.lead}`,
+      observaciones_asesor: `Parentesco titular: ${step2Data.parentescoTitular}. Velocidad: ${step3Data.velocidadContratada}`,
+      
+      // También actualizar campos básicos para compatibilidad
+      telefono: step2Data.telefonoRegistro,
+      direccion: step2Data.direccion,
+      plan_seleccionado: step3Data.tipoPlan,
+      precio_final: step3Data.precioPlan ? parseFloat(step3Data.precioPlan) : null
     };
     
     onSave(updatedCliente);
@@ -414,10 +456,10 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             <MenuItem disabled value="">
               Elige
             </MenuItem>
-            <MenuItem value="Básico">Básico</MenuItem>
-            <MenuItem value="Intermedio">Intermedio</MenuItem>
-            <MenuItem value="Premium">Premium</MenuItem>
-            <MenuItem value="Empresarial">Empresarial</MenuItem>
+            <MenuItem value="Mono">Mono</MenuItem>
+            <MenuItem value="Duo">Duo</MenuItem>
+            <MenuItem value="Trio">Trio</MenuItem>
+            <MenuItem value="Gamer">Gamer</MenuItem>
           </Select>
         </FormControl>
         {errors.tipoPlan && (
@@ -435,8 +477,8 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         <FormGroup>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
             {[
-              'Fibra', 'DUO Full', 'DUO Básico', 'WinTV Básico', 
-              'WinTV Plus', 'FreeWifi', 'DUO BÁSICO. L1 MAX', 'DUO FULL L1 MAX',
+              'Fibra', 'DGO Full', 'DGO Básico', 'WinTV Básico', 
+              'WinTV Plus', 'FonoWin', 'DGO BÁSICO. L1 MAX', 'DGO FULL L1 MAX',
               'WinTV L1 Max', 'WinTV L1 MAX Premium'
             ].map((servicio) => (
               <FormControlLabel
@@ -487,13 +529,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             <MenuItem disabled value="">
               Elige
             </MenuItem>
-            <MenuItem value="10 Mbps">10 Mbps</MenuItem>
-            <MenuItem value="20 Mbps">20 Mbps</MenuItem>
-            <MenuItem value="50 Mbps">50 Mbps</MenuItem>
-            <MenuItem value="100 Mbps">100 Mbps</MenuItem>
             <MenuItem value="200 Mbps">200 Mbps</MenuItem>
             <MenuItem value="300 Mbps">300 Mbps</MenuItem>
-            <MenuItem value="500 Mbps">500 Mbps</MenuItem>
+            <MenuItem value="400 Mbps">400 Mbps</MenuItem>
+            <MenuItem value="600 Mbps">600 Mbps</MenuItem>
+            <MenuItem value="1000 Mbps">1000 Mbps</MenuItem>
           </Select>
         </FormControl>
         {errors.velocidadContratada && (
@@ -766,9 +806,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             <MenuItem value="Hijo/a">Hijo/a</MenuItem>
             <MenuItem value="Padre/Madre">Padre/Madre</MenuItem>
             <MenuItem value="Hermano/a">Hermano/a</MenuItem>
-            <MenuItem value="Otro familiar">Otro familiar</MenuItem>
-            <MenuItem value="Inquilino">Inquilino</MenuItem>
-            <MenuItem value="Otro">Otro</MenuItem>
+            <MenuItem value="Tio">Tio</MenuItem>
+            <MenuItem value="Primo">Primo</MenuItem>
+            <MenuItem value="Amigo">Amigo</MenuItem>
+            <MenuItem value="Vecino">Vecino</MenuItem>
+            <MenuItem value="Pariente">Pariente</MenuItem>
           </Select>
         </FormControl>
         {errors.parentescoTitular && (
