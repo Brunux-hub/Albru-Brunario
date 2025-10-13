@@ -4,13 +4,15 @@ services:
     image: mysql:8.0
     container_name: albru-base
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
       MYSQL_DATABASE: ${DB_NAME:-albru}
       MYSQL_USER: ${DB_USER:-albru}
       MYSQL_PASSWORD: ${DB_PASSWORD:-albru_pass}
     ports:
-      - "3307:3306"
+      - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - db_data:/var/lib/mysql
       # Import SQL on first run: map local file to container's init directory
@@ -22,15 +24,20 @@ services:
       dockerfile: Dockerfile
     container_name: albru-backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      PORT: 3001
-      DB_HOST: db
-      DB_PORT: 3306
+      PORT: ${BACKEND_PORT:-3001}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER:-albru}
       DB_PASSWORD: ${DB_PASSWORD:-albru_pass}
       DB_NAME: ${DB_NAME:-albru}
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: ${NODE_ENV:-production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
     ports:
-      - "3001:3001"
+      - "${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}"
     depends_on:
       - db
 
@@ -40,16 +47,20 @@ services:
       dockerfile: Dockerfile
     container_name: albru-frontend
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
-      - "5173:80"
+      - "${FRONTEND_PORT:-5173}:80"
     depends_on:
       - backend
 
   adminer:
     image: adminer
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
-      - "8080:8080"
+      - "${ADMINER_PORT:-8080}:8080"
 
 volumes:
   db_data:
