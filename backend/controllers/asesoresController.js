@@ -19,17 +19,25 @@ const getAsesores = async (req, res) => {
 };
 
 const actualizarDatosCliente = async (req, res) => {
-  const { clienteId, datos } = req.body;
-
-  console.log(`✏️ Actualizando datos del cliente ${clienteId}:`, datos);
-
   try {
+    const { clienteId, datos } = req.body;
+
+    console.log(`✏️ Actualizando datos del cliente. Request body:`, req.body);
+    console.log(`✏️ Cliente ID: ${clienteId}, Datos:`, datos);
+
+    if (!clienteId) {
+      return res.status(400).json({ success: false, message: 'clienteId es requerido' });
+    }
+
+    if (!datos || typeof datos !== 'object') {
+      return res.status(400).json({ success: false, message: 'datos debe ser un objeto válido' });
+    }
     // Lista blanca de columnas permitidas para actualizar desde la API
     const allowed = new Set([
       'nombre','telefono','dni','correo_electronico','direccion','distrito',
       'plan_seleccionado','precio_final','observaciones_asesor','comentario_validacion',
       'fecha_cita','hora_cita','estado_cliente','asesor_asignado','validador_asignado',
-      'coordenadas','score','numero_referencia','numero_registro'
+      'numero_referencia','numero_registro'
     ]);
 
     // Construir SET dinámico solo con campos permitidos

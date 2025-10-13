@@ -1,11 +1,14 @@
 import React from 'react';
 import AppRoutes from './routes/AppRoutes';
 import { ClientesProvider } from './context/ClientesContext';
+import { AuthProvider } from './context/AuthContext';
 
 const App: React.FC = () => (
-  <ClientesProvider>
-    <AppRoutes />
-  </ClientesProvider>
+  <AuthProvider>
+    <ClientesProvider>
+      <AppRoutes />
+    </ClientesProvider>
+  </AuthProvider>
 );
 
 export default App;

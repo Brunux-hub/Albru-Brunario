@@ -1,49 +1,42 @@
 import React, { useState } from 'react';
-import { Button, TextField, Typography, Box, Alert } from '@mui/material';
+import { Button, TextField, Typography, Box, Alert, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
-import { users } from '../data/users';
+import { useAuth } from '../context/AuthContext';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) {
-      setError('Por favor, ingresa usuario .');
+      setError('Por favor, ingresa usuario y contraseña.');
       return;
     }
-    const user = users.find(
-      u => u.username === username && u.password === password
-    );
-    if (!user) {
-      setError('Usuario o contraseña incorrectos.');
-      return;
-    }
+
+    setLoading(true);
     setError('');
-    
-    // Redirigir según el rol
-    switch (user.role) {
-      case 'admin':
-        navigate('/admin');
-        break;
-      case 'gtr':
-        navigate('/gtr');
-        break;
-      case 'supervisor':
-        navigate('/supervisor');
-        break;
-      case 'asesor':
-        navigate('/asesor');
-        break;
-      case 'validaciones':
-        navigate('/validaciones');
-        break;
-      default:
-        setError('Rol no reconocido.');
+
+    try {
+      const success = await login(username, password);
+      
+      if (success) {
+        // El AuthContext maneja la redirección basada en el rol
+        // Por ahora, redirigimos a una página genérica y luego el contexto decide
+        navigate('/dashboard');
+      } else {
+        setError('Usuario o contraseña incorrectos, o acceso no autorizado.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Error de conexión. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
     }
   };
   return (
@@ -75,8 +68,17 @@ const LoginPage: React.FC = () => {
             size="medium"
           />
           {error && <Alert severity="error">{error}</Alert>}
-          <Button type="submit" variant="contained" color="primary" size="large" sx={{ mt: 1 }} fullWidth>
-            Entrar
+          <Button 
+            type="submit" 
+            variant="contained" 
+            color="primary" 
+            size="large" 
+            sx={{ mt: 1 }} 
+            fullWidth
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+          >
+            {loading ? 'Iniciando...' : 'Entrar'}
           </Button>
         </Box>
       </form>

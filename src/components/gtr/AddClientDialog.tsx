@@ -15,13 +15,13 @@ import {
 import CheckIcon from '@mui/icons-material/Check';
 
 interface NewClientData {
-  cliente: string;
-  nombre: string;
-  dni: string;
-  coordenadas: string;
-  campania: string;
-  canal: string;
-  comentarios: string;
+  lead_id: string;
+  nombre?: string;
+  dni?: string;
+  coordenadas?: string;
+  campania?: string;
+  canal?: string;
+  comentarios?: string;
 }
 
 const AddClientDialog: React.FC<{ open: boolean; onClose: () => void; onSave: (data: NewClientData) => void }> = ({ 
@@ -30,7 +30,7 @@ const AddClientDialog: React.FC<{ open: boolean; onClose: () => void; onSave: (d
   onSave 
 }) => {
   const [formData, setFormData] = useState<NewClientData>({
-    cliente: '',
+    lead_id: '',
     nombre: '',
     dni: '',
     coordenadas: '',
@@ -40,17 +40,19 @@ const AddClientDialog: React.FC<{ open: boolean; onClose: () => void; onSave: (d
   });
 
   const handleSave = () => {
-    onSave(formData);
-    setFormData({
-      cliente: '',
-      nombre: '',
-      dni: '',
-      coordenadas: '',
-      campania: '',
-      canal: '',
-      comentarios: ''
-    });
-    onClose();
+    if (formData.lead_id.trim()) {
+      onSave(formData);
+      setFormData({
+        lead_id: '',
+        nombre: '',
+        dni: '',
+        coordenadas: '',
+        campania: '',
+        canal: '',
+        comentarios: ''
+      });
+      onClose();
+    }
   };
 
   return (
@@ -58,21 +60,22 @@ const AddClientDialog: React.FC<{ open: boolean; onClose: () => void; onSave: (d
       <DialogTitle>Agregar Nuevo Cliente</DialogTitle>
       <DialogContent>
         <Box mt={2}>
-          {/* Primera sección: Teléfono/Cliente, Campaña, Canal */}
+          {/* Primera sección: Lead ID (Teléfono), Campaña, Canal */}
           <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
             <TextField
               fullWidth
-              label="Teléfono/Cliente"
-              value={formData.cliente}
+              label="Lead ID (Teléfono)"
+              value={formData.lead_id}
               onChange={(e) => {
                 let val = e.target.value.replace(/[^\d+]/g, '');
-                if (!val.startsWith('+51')) val = '+51';
+                if (val && !val.startsWith('+51')) val = '+51' + val.replace(/^\+?51?/, '');
                 if (val.length > 12) val = val.slice(0, 12);
-                setFormData({ ...formData, cliente: val });
+                setFormData({ ...formData, lead_id: val });
               }}
               inputProps={{ maxLength: 12, pattern: '\\+51\\d{9}', inputMode: 'numeric' }}
               required
-              helperText="Formato: +51 y 9 dígitos"
+              helperText="Formato: +51 y 9 dígitos (ej: +51987654321)"
+              placeholder="+51987654321"
             />
             <FormControl fullWidth>
               <InputLabel>Campaña</InputLabel>

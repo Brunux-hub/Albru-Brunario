@@ -27,7 +27,7 @@ class RealtimeService {
         
         // En desarrollo local
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return 'ws://localhost:3000';
+          return 'ws://localhost:3001';
         }
         
         // En producción

@@ -14,9 +14,11 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
   const [newAdvisor, setNewAdvisor] = useState('');
 
   // Filtrar solo asesores activos
+  console.log('🔍 ReassignDialog: Asesores recibidos:', asesores);
   const asesoresActivos = asesores?.filter(asesor => 
     asesor.estado === 'Activo' || asesor.estado === 'Ocupado'
   ) || [];
+  console.log('🔍 ReassignDialog: Asesores activos filtrados:', asesoresActivos);
 
   const handleConfirm = () => {
     if (newAdvisor) {

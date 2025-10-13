@@ -1,271 +1,279 @@
-import React from 'react';
-import { Box, Typography, Paper, TextField, Select, MenuItem, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, InputAdornment } from '@mui/material';
-import { Search, Download } from '@mui/icons-material';
+import React, { useState, useEffect } from 'react';
+import { 
+  Box, 
+  Typography, 
+  Paper, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow, 
+  Chip, 
+  TextField,
+  CircularProgress,
+  Alert,
+  Card,
+  CardContent
+} from '@mui/material';
+
+interface Cliente {
+  id: number;
+  nombre: string;
+  dni: string;
+  telefono: string;
+  email: string;
+  servicio: string;
+  plan: string;
+  montoMensual: number;
+  montoTotal: number;
+  estado: string;
+  asesor: string;
+  vencimiento: string;
+}
 
 const DatabasePanel: React.FC = () => {
-  const clientes = [
-    { 
-      nombre: 'Juan Pérez', 
-      dni: '45434678', 
-      telefono: '914118663',
-      email: 'juan@email.com',
-      servicio: 'Fibra Óptica',
-      plan: 'Plan Premium 300MB',
-      montoMensual: 89.90,
-      montoTotal: 539.40,
-      estado: 'Activo',
-      asesor: 'JUAN',
-      vencimiento: '14/2/2025'
-    },
-    { 
-      nombre: 'María García', 
-      dni: '87654321', 
-      telefono: '967654321',
-      email: 'maria@email.com',
-      servicio: 'Cable + Internet',
-      plan: 'Combo Familiar 200MB',
-      montoMensual: 129.90,
-      montoTotal: 909.30,
-      estado: 'Activo',
-      asesor: 'SASKYA',
-      vencimiento: '9/2/2025'
-    },
-    { 
-      nombre: 'Carlos López', 
-      dni: '45612378', 
-      telefono: '956587643',
-      email: 'carlos@email.com',
-      servicio: 'Internet Móvil',
-      plan: 'Plan Móvil 50GB',
-      montoMensual: 45.90,
-      montoTotal: 229.50,
-      estado: 'Activo',
-      asesor: 'MIA',
-      vencimiento: '4/2/2025'
-    },
-    { 
-      nombre: 'Isabella Torres', 
-      dni: '36925814', 
-      telefono: '963258147',
-      email: 'isabella@email.com',
-      servicio: 'Fibra Óptica',
-      plan: 'Plan Hogar 200MB',
-      montoMensual: 65.90,
-      montoTotal: 329.50,
-      estado: 'Cancelado',
-      asesor: 'JUAN',
-      vencimiento: '24/12/2024'
-    }
-  ];
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Cargar clientes reales desde la API
+  useEffect(() => {
+    const fetchClientes = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('http://localhost:3001/api/clientes');
+        const data = await response.json();
+        
+        if (data.success && data.clientes) {
+          // Mapear datos de BD a formato del componente
+          const clientesFormateados = data.clientes.map((cliente: any) => ({
+            id: cliente.id,
+            nombre: cliente.nombre || 'Sin nombre',
+            dni: cliente.dni || 'Sin DNI',
+            telefono: cliente.telefono || 'Sin teléfono',
+            email: cliente.correo_electronico || 'Sin email',
+            servicio: 'Internet', // Valor por defecto
+            plan: cliente.plan_seleccionado || 'Sin plan',
+            montoMensual: cliente.precio_final || 0,
+            montoTotal: (cliente.precio_final || 0) * 6, // Estimado 6 meses
+            estado: cliente.estado_cliente || 'nuevo',
+            asesor: cliente.asesor_nombre || 'Sin asignar',
+            vencimiento: cliente.fecha_cita ? new Date(cliente.fecha_cita).toLocaleDateString('es-ES') : 'Sin fecha'
+          }));
+          
+          setClientes(clientesFormateados);
+        } else {
+          setError('No se pudieron cargar los clientes');
+        }
+      } catch (error) {
+        console.error('Error cargando clientes:', error);
+        setError('Error de conexión al cargar clientes');
+        setClientes([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClientes();
+  }, []);
 
   const getStatusColor = (estado: string) => {
-    switch (estado) {
-      case 'Activo': return 'success';
-      case 'Suspendido': return 'warning';
-      case 'Cancelado': return 'error';
+    switch (estado.toLowerCase()) {
+      case 'nuevo': return 'info';
+      case 'activo': return 'success';
+      case 'vendido': return 'success';
+      case 'cancelado': return 'error';
+      case 'perdido': return 'error';
+      case 'pendiente': return 'warning';
       default: return 'default';
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN'
+    }).format(amount);
+  };
+
+  // Filtrar clientes por término de búsqueda
+  const clientesFiltrados = clientes.filter(cliente =>
+    cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cliente.dni.includes(searchTerm) ||
+    cliente.telefono.includes(searchTerm) ||
+    cliente.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
+        <CircularProgress />
+        <Typography variant="body1" sx={{ ml: 2 }}>
+          Cargando base de datos...
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert severity="error" sx={{ mb: 2 }}>
+        {error}
+      </Alert>
+    );
+  }
+
+  // Estadísticas
+  const totalClientes = clientes.length;
+  const clientesActivos = clientes.filter(c => c.estado.toLowerCase() === 'activo' || c.estado.toLowerCase() === 'vendido').length;
+  const ingresosTotales = clientes.reduce((sum, c) => sum + c.montoTotal, 0);
+  const ingresosMensuales = clientes.reduce((sum, c) => sum + c.montoMensual, 0);
+
   return (
     <Box>
-      {/* Filtros y Búsqueda */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-          Filtros y Búsqueda
-        </Typography>
-        
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr 1fr 1fr auto' }, gap: 2, alignItems: 'end' }}>
-          <TextField
-            placeholder="Buscar por nombre, DNI, teléfono o email..."
-            variant="outlined"
-            size="small"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <Select
-            defaultValue="todos-estados"
-            size="small"
-            displayEmpty
-          >
-            <MenuItem value="todos-estados">Todos los Estados</MenuItem>
-            <MenuItem value="activo">Activo</MenuItem>
-            <MenuItem value="suspendido">Suspendido</MenuItem>
-            <MenuItem value="cancelado">Cancelado</MenuItem>
-          </Select>
-          
-          <Select
-            defaultValue="todos-servicios"
-            size="small"
-            displayEmpty
-          >
-            <MenuItem value="todos-servicios">Todos los Servicios</MenuItem>
-            <MenuItem value="fibra">Fibra Óptica</MenuItem>
-            <MenuItem value="cable">Cable + Internet</MenuItem>
-            <MenuItem value="movil">Internet Móvil</MenuItem>
-          </Select>
-          
-          <Select
-            defaultValue="todos-asesores"
-            size="small"
-            displayEmpty
-          >
-            <MenuItem value="todos-asesores">Todos los Asesores</MenuItem>
-            <MenuItem value="juan">JUAN</MenuItem>
-            <MenuItem value="saskya">SASKYA</MenuItem>
-            <MenuItem value="mia">MIA</MenuItem>
-          </Select>
-          
-          <Button
-            variant="contained"
-            startIcon={<Download />}
-            sx={{ 
-              bgcolor: '#000', 
-              color: 'white',
-              '&:hover': { bgcolor: '#333' },
-              textTransform: 'none',
-              fontWeight: 600
-            }}
-          >
-            Exportar
-          </Button>
-        </Box>
-      </Paper>
+      <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+        Base de Datos de Clientes
+      </Typography>
 
-      {/* Tabla Principal */}
-      <Paper sx={{ mb: 4 }}>
-        <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Base de Datos de Clientes - {clientes.length} registros
-          </Typography>
-        </Box>
+      {/* Estadísticas */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+        <Card>
+          <CardContent sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" sx={{ color: '#3498db', fontWeight: 'bold' }}>
+              {totalClientes}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total Clientes
+            </Typography>
+          </CardContent>
+        </Card>
         
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                <TableCell sx={{ fontWeight: 600 }}>Cliente</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Contacto</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Servicio</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Plan</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Monto Mensual</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Monto Total</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Asesor</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Próx. Vencimiento</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {clientes.map((cliente, index) => (
-                <TableRow key={index} hover>
-                  <TableCell>
-                    <Box>
+        <Card>
+          <CardContent sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" sx={{ color: '#2ecc71', fontWeight: 'bold' }}>
+              {clientesActivos}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Clientes Activos
+            </Typography>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" sx={{ color: '#f39c12', fontWeight: 'bold' }}>
+              {formatCurrency(ingresosMensuales)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Ingresos Mensuales
+            </Typography>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" sx={{ color: '#9b59b6', fontWeight: 'bold' }}>
+              {formatCurrency(ingresosTotales)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Ingresos Totales
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* Buscador */}
+      <TextField
+        fullWidth
+        label="Buscar clientes por nombre, DNI, teléfono o email"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        sx={{ mb: 3 }}
+        variant="outlined"
+      />
+
+      {/* Tabla de clientes */}
+      {clientesFiltrados.length === 0 ? (
+        <Alert severity="info">
+          {searchTerm ? 'No se encontraron clientes que coincidan con la búsqueda.' : 'No hay clientes registrados en la base de datos.'}
+        </Alert>
+      ) : (
+        <Paper>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Cliente</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>DNI</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Contacto</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Plan</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Monto Mensual</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Asesor</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {clientesFiltrados.map((cliente) => (
+                  <TableRow key={cliente.id} hover>
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      {cliente.id}
+                    </TableCell>
+                    <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {cliente.nombre}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        DNI: {cliente.dni}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Box>
-                      <Typography variant="body2">{cliente.telefono}</Typography>
-                      <Typography variant="caption" color="text.secondary">
                         {cliente.email}
                       </Typography>
-                    </Box>
-                  </TableCell>
-                  <TableCell>{cliente.servicio}</TableCell>
-                  <TableCell>{cliente.plan}</TableCell>
-                  <TableCell sx={{ color: '#2ecc71', fontWeight: 600 }}>
-                    ${cliente.montoMensual}
-                  </TableCell>
-                  <TableCell sx={{ color: '#3498db', fontWeight: 600 }}>
-                    ${cliente.montoTotal}
-                  </TableCell>
-                  <TableCell>
-                    <Chip 
-                      label={cliente.estado} 
-                      color={getStatusColor(cliente.estado) as any}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>{cliente.asesor}</TableCell>
-                  <TableCell>{cliente.vencimiento}</TableCell>
-                  <TableCell>...</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-
-      {/* Resúmenes */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-            Resumen por Servicio
-          </Typography>
-          <Box sx={{ display: 'grid', gap: 2 }}>
-            {[
-              { servicio: 'Fibra Óptica', monto: 389.80, clientes: 2 },
-              { servicio: 'Cable + Internet', monto: 209.80, clientes: 2 },
-              { servicio: 'Internet Móvil', monto: 115.80, clientes: 2 },
-              { servicio: 'Combo Premium', monto: 359.80, clientes: 2 },
-              { servicio: 'Televisión', monto: 0.00, clientes: 0 }
-            ].map((item, index) => (
-              <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    {item.servicio}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {item.clientes} clientes activos
-                  </Typography>
-                </Box>
-                <Typography sx={{ color: '#2ecc71', fontWeight: 600, fontSize: '1.1rem' }}>
-                  ${item.monto} mensual
-                </Typography>
-              </Box>
-            ))}
-          </Box>
+                    </TableCell>
+                    <TableCell>{cliente.dni}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {cliente.telefono}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {cliente.plan}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#2ecc71' }}>
+                        {formatCurrency(cliente.montoMensual)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={cliente.estado.toUpperCase()} 
+                        color={getStatusColor(cliente.estado) as any}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {cliente.asesor}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {cliente.vencimiento}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         </Paper>
+      )}
 
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-            Resumen por Asesor
-          </Typography>
-          <Box sx={{ display: 'grid', gap: 2 }}>
-            {[
-              { asesor: 'JUAN', monto: 329.70, clientes: 3 },
-              { asesor: 'SASKYA', monto: 199.80, clientes: 2 },
-              { asesor: 'MIA', monto: 545.70, clientes: 3 }
-            ].map((item, index) => (
-              <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    {item.asesor}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {item.clientes} clientes activos
-                  </Typography>
-                </Box>
-                <Typography sx={{ color: '#3498db', fontWeight: 600, fontSize: '1.1rem' }}>
-                  ${item.monto} mensual generado
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        </Paper>
-      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+        Mostrando {clientesFiltrados.length} de {totalClientes} clientes
+      </Typography>
     </Box>
   );
 };

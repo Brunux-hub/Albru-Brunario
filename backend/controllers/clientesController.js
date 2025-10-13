@@ -60,6 +60,29 @@ const searchClientes = async (req, res) => {
   }
 };
 
+// GET /api/clientes (obtener todos los clientes)
+const getAllClientes = async (req, res) => {
+  try {
+    const limit = Math.min(1000, Number(req.query.limit) || 100);
+    const [rows] = await pool.query(`
+      SELECT c.id, c.nombre, c.telefono, c.dni, c.correo_electronico, 
+             c.direccion, c.distrito, c.plan_seleccionado, c.precio_final,
+             c.estado_cliente, c.observaciones_asesor, c.fecha_asignacion as created_at,
+             c.lead_id, a.nombre as asesor_nombre
+      FROM clientes c 
+      LEFT JOIN asesores a ON c.asesor_asignado = a.id 
+      ORDER BY c.fecha_asignacion DESC 
+      LIMIT ?
+    `, [limit]);
+    
+    console.log(`📋 Obteniendo ${rows.length} clientes desde la base de datos`);
+    return res.json({ success: true, clientes: rows, total: rows.length });
+  } catch (err) {
+    console.error('Error getAllClientes', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
 // GET /api/clientes/:id
 const getClienteById = async (req, res) => {
   const id = Number(req.params.id);
@@ -74,9 +97,104 @@ const getClienteById = async (req, res) => {
   }
 };
 
+// POST /api/clientes (crear nuevo cliente/lead)
+const createCliente = async (req, res) => {
+  const { 
+    lead_id, nombre, telefono, dni, correo_electronico, direccion, distrito, 
+    plan_seleccionado, precio_final, estado_cliente, asesor_asignado,
+    observaciones_asesor, coordenadas, campania, canal, comentarios_iniciales
+  } = req.body;
+
+  // Validación básica: solo lead_id es obligatorio
+  if (!lead_id) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Lead ID es obligatorio' 
+    });
+  }
+
+  try {
+    // Verificar si ya existe un cliente con el mismo lead_id
+    const [existingByLead] = await pool.query('SELECT id FROM clientes WHERE lead_id = ? LIMIT 1', [lead_id]);
+    if (existingByLead.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'Ya existe un cliente con este Lead ID' 
+      });
+    }
+
+    // Verificar duplicados solo si los campos tienen valor
+    if (dni) {
+      const [existingByDni] = await pool.query('SELECT id FROM clientes WHERE dni = ? LIMIT 1', [dni]);
+      if (existingByDni.length > 0) {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'Ya existe un cliente con este DNI' 
+        });
+      }
+    }
+
+    if (telefono) {
+      const [existingByPhone] = await pool.query('SELECT id FROM clientes WHERE telefono = ? LIMIT 1', [telefono]);
+      if (existingByPhone.length > 0) {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'Ya existe un cliente con este teléfono' 
+        });
+      }
+    }
+
+    // Insertar el nuevo cliente/lead
+    const [result] = await pool.query(`
+      INSERT INTO clientes (
+        lead_id, nombre, telefono, dni, correo_electronico, direccion, distrito,
+        plan_seleccionado, precio_final, estado_cliente, asesor_asignado, observaciones_asesor,
+        coordenadas, campania, canal, comentarios_iniciales
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      lead_id,
+      nombre || null,
+      telefono || null,
+      dni || null,
+      correo_electronico || null,
+      direccion || null,
+      distrito || null,
+      plan_seleccionado || null,
+      precio_final || null,
+      estado_cliente || 'nuevo',
+      asesor_asignado || null,
+      observaciones_asesor || null,
+      coordenadas || null,
+      campania || null,
+      canal || null,
+      comentarios_iniciales || null
+    ]);
+
+    // Obtener el cliente recién creado
+    const [newClient] = await pool.query('SELECT * FROM clientes WHERE id = ?', [result.insertId]);
+    
+    console.log(`✅ Cliente creado con ID: ${result.insertId}`);
+    return res.status(201).json({ 
+      success: true, 
+      message: 'Cliente creado exitosamente',
+      cliente: newClient[0]
+    });
+
+  } catch (err) {
+    console.error('Error createCliente', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor',
+      error: err.message 
+    });
+  }
+};
+
 module.exports = {
   getClienteByLead,
   getClienteByDni,
   searchClientes,
-  getClienteById
+  getAllClientes,
+  getClienteById,
+  createCliente
 };

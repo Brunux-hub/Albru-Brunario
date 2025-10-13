@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Typography, Tabs, Tab } from '@mui/material';
+import { Box, Tabs, Tab } from '@mui/material';
 import KPICard from '../dashboard/KPICard';
 import TendenciasTab from './TendenciasTab';
 import ProductosTab from './ProductosTab';

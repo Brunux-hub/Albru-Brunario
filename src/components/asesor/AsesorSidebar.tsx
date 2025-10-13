@@ -12,6 +12,11 @@ const AsesorSidebar: React.FC = () => {
     window.location.href = '/';
   };
 
+  // Obtener datos del usuario autenticado
+  const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+  const nombreAsesor = userData.nombre || 'Asesor';
+  const iniciales = nombreAsesor.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+
   return (
     <Box sx={{ 
       width: 260, 
@@ -23,9 +28,9 @@ const AsesorSidebar: React.FC = () => {
       flexDirection: 'column'
     }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Avatar sx={{ bgcolor: '#6366f1', mr: 2 }}>J</Avatar>
+        <Avatar sx={{ bgcolor: '#6366f1', mr: 2 }}>{iniciales}</Avatar>
         <Box>
-          <Typography fontWeight={700}>JUAN</Typography>
+          <Typography fontWeight={700}>{nombreAsesor}</Typography>
           <Typography variant="caption" color="#cbd5e1">Asesor Comercial</Typography>
         </Box>
       </Box>

@@ -32,8 +32,9 @@ const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: stri
         left: 0,
         top: 0,
         zIndex: 1200,
-        display: 'flex',
-        flexDirection: 'column'
+        display: { xs: 'none', md: 'flex' }, // Ocultar en móviles por ahora
+        flexDirection: 'column',
+        boxShadow: '4px 0 8px rgba(0,0,0,0.1)'
       }}
     >
       <Box sx={{ p: 3, borderBottom: '1px solid #334155' }}>

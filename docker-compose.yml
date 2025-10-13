@@ -10,11 +10,11 @@ services:
       MYSQL_USER: ${DB_USER:-albru}
       MYSQL_PASSWORD: ${DB_PASSWORD:-albru_pass}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
       # Import SQL on first run: map local file to container's init directory
-      - ./src/database/albru_completo_mysql.sql:/docker-entrypoint-initdb.d/albru_completo_mysql.sql:ro
+      - ./src/database/albru_produccion_limpia.sql:/docker-entrypoint-initdb.d/albru_produccion_limpia.sql:ro
 
   backend:
     build:
@@ -33,6 +33,17 @@ services:
       - "3001:3001"
     depends_on:
       - db
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: albru-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
 
   adminer:
     image: adminer

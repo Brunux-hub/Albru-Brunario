@@ -22,6 +22,11 @@ const { actualizarDatosCliente, updateEstadoAsesor } = require('./controllers/as
 const clientesRoutes = require('./routes/clientes');
 app.use('/api/clientes', clientesRoutes);
 
+// Mount usuarios/auth routes
+const usuariosRoutes = require('./routes/usuarios');
+app.use('/api/auth', usuariosRoutes);
+app.use('/api', usuariosRoutes);
+
 // Simple endpoints
 app.get('/api/asesores', async (req, res) => {
   try {
@@ -129,6 +134,24 @@ app.post('/api/clientes/reasignar', async (req, res) => {
       }
     });
 
+    // Enviar notificación por WebSocket
+    const webSocketService = require('./services/WebSocketService');
+    webSocketService.notifyAll('CLIENT_REASSIGNED', {
+      cliente: {
+        id: cliente.id,
+        nombre: cliente.nombre,
+        telefono: cliente.telefono,
+        dni: cliente.dni,
+        lead_id: cliente.lead_id,
+        estado: cliente.estado_cliente
+      },
+      nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
+      antiguoAsesor: { id: antiguoAsesorId },
+      fecha_reasignacion: new Date(),
+      clienteId: clienteId,
+      nuevoAsesorId: nuevoAsesorId
+    });
+
   } catch (error) {
     await connection.rollback();
     console.error('Error en reasignación:', error);
@@ -154,6 +177,61 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
+// BYPASS LOGIN TEMPORAL - SOLO PARA PRUEBAS
+app.post('/api/auth/bypass-login', async (req, res) => {
+  const { username } = req.body;
+  
+  if (username === 'gtr_maria') {
+    const jwt = require('jsonwebtoken');
+    const { JWT_SECRET } = require('./middleware/authMiddleware');
+    
+    const token = jwt.sign(
+      { userId: 2, asesorId: 1, username: 'gtr_maria', role: 'gtr' },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    return res.json({
+      success: true,
+      message: 'Login exitoso (bypass)',
+      token,
+      user: {
+        id: 1,
+        nombre: 'María García',
+        email: 'maria.gtr@empresa.com',
+        username: 'gtr_maria',
+        role: 'gtr'
+      }
+    });
+  }
+  
+  if (username === 'asesor_carlos') {
+    const jwt = require('jsonwebtoken');
+    const { JWT_SECRET } = require('./middleware/authMiddleware');
+    
+    const token = jwt.sign(
+      { userId: 3, asesorId: 2, username: 'asesor_carlos', role: 'asesor' },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    return res.json({
+      success: true,
+      message: 'Login exitoso (bypass)',
+      token,
+      user: {
+        id: 2,
+        nombre: 'Carlos López',
+        email: 'carlos.asesor@empresa.com',
+        username: 'asesor_carlos',
+        role: 'asesor'
+      }
+    });
+  }
+  
+  return res.status(401).json({ success: false, message: 'Usuario no disponible para bypass' });
+});
+
 // Serve static frontend in production
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.resolve(__dirname, '..', 'dist');
@@ -161,8 +239,16 @@ if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
 }
 
-app.listen(port, () => {
+const http = require('http');
+const server = http.createServer(app);
+
+// Inicializar WebSocket
+const webSocketService = require('./services/WebSocketService');
+webSocketService.initialize(server);
+
+server.listen(port, () => {
   console.log(`Backend listening on port ${port} (env=${process.env.NODE_ENV || 'development'})`);
+  console.log(`WebSocket server initialized on port ${port}`);
 });
 
 module.exports = app;

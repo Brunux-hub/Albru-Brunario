@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   Box,
   Table,
@@ -14,9 +14,7 @@ import {
   MenuItem,
   Select,
   FormControl,
-  InputLabel,
-  Alert,
-  Snackbar
+  InputLabel
 } from '@mui/material';
 import GestionarClienteDialog from './GestionarClienteDialog';
 import { useClientes } from '../../context/ClientesContext';
@@ -25,8 +23,8 @@ import type { Cliente } from '../../context/ClientesContext';
 const estados = ['Todos los estados', 'En gestión', 'En seguimiento', 'Nuevo'];
 const gestiones = ['Todas las gestiones', 'En proceso', 'Derivado'];
 
-const AsesorClientesTable: React.FC = () => {
-  const { clientes, actualizarCliente, agregarCliente } = useClientes();
+const AsesorClientesTable = forwardRef<any, {}>((_, ref) => {
+  const { clientes, actualizarCliente, agregarCliente, recargarClientes } = useClientes();
   const agregarClienteRef = useRef(agregarCliente);
   
   // Tipado para datos crudos de la API
@@ -46,60 +44,62 @@ const AsesorClientesTable: React.FC = () => {
   const [filtroEstado, setFiltroEstado] = useState('Todos los estados');
   const [filtroGestion, setFiltroGestion] = useState('Todas las gestiones');
   const [busqueda, setBusqueda] = useState('');
-  const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notificationMessage, setNotificationMessage] = useState('');
 
   // Mantener la referencia actualizada
   useEffect(() => {
     agregarClienteRef.current = agregarCliente;
   }, [agregarCliente]);
 
-  // Establecer usuario JUAN y cargar clientes
+  // Cargar clientes del asesor autenticado
   useEffect(() => {
-    localStorage.setItem('currentUser', 'JUAN');
-    console.log('🎯 JUAN: Sistema inicializado');
     cargarClientesAsignados();
   }, []);
+
+  // Exponer funciones al componente padre
+  useImperativeHandle(ref, () => ({
+    refreshClientes: cargarClientesAsignados
+  }));
 
   // Función para cargar clientes desde la BD
   const cargarClientesAsignados = async () => {
     try {
-      console.log('📡 JUAN: Cargando clientes desde BD...');
+      console.log('📡 Cargando clientes asignados al asesor desde BD...');
       
-      // Primero obtener ID del asesor JUAN
-      const asesorResponse = await fetch('http://localhost:3001/api/asesores/buscar/JUAN');
+      // Para demo, usamos el asesor Carlos López (ID: 1)
+      // En producción esto vendría del token o usuario autenticado
+      const asesorId = 1; // Carlos López
       
-      if (!asesorResponse.ok) {
-        console.log('⚠️ JUAN: Asesor no encontrado en BD');
+      // Obtener solo los clientes asignados a este asesor
+      const response = await fetch(`/api/clientes/asesor/${asesorId}`);
+      
+      if (!response.ok) {
+        console.log('⚠️ Error al cargar clientes');
         return;
       }
       
-      const asesorData = await asesorResponse.json();
-      const asesorId = asesorData.asesor.id;
+      const result = await response.json();
       
-      // Cargar clientes asignados
-      const clientesResponse = await fetch(`http://localhost:3001/api/clientes/asesor/${asesorId}`);
-      
-      if (clientesResponse.ok) {
-        const result = await clientesResponse.json();
+      if (result.success && result.clientes) {
+        // Limpiar clientes existentes antes de cargar los nuevos
+        recargarClientes();
         
-        // Actualizar clientes en el contexto
+        // Mapear y actualizar clientes en el contexto
         (result.clientes as ClienteApi[]).forEach((cliente) => {
-          const clienteFormateado: any = {
+          const clienteFormateado: Cliente = {
             id: cliente.id,
-            fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : '',
+            fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : new Date().toLocaleDateString('es-PE'),
             nombre: cliente.nombre ?? 'Sin nombre',
             telefono: cliente.telefono ?? 'Sin teléfono',
             dni: cliente.dni ?? 'Sin DNI',
             servicio: cliente.servicio ?? 'Internet',
-            estado: cliente.estado === 'asignado' ? 'Nuevo' : (cliente.estado ?? ''),
+            estado: cliente.estado === 'nuevo' ? 'Nuevo' : (cliente.estado ?? 'Nuevo'),
             gestion: 'En proceso',
             seguimiento: cliente.seguimiento ? new Date(cliente.seguimiento).toISOString().slice(0, 16) : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-          } as Cliente;
+          };
           agregarClienteRef.current(clienteFormateado);
         });
         
-        console.log(`✅ JUAN: ${result.clientes.length} clientes cargados desde BD`);
+        console.log(`✅ ${result.clientes.length} clientes cargados desde BD`);
       }
       
     } catch (error) {
@@ -107,64 +107,7 @@ const AsesorClientesTable: React.FC = () => {
     }
   };
 
-  // Monitoreo de nuevas reasignaciones desde BD
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        // Verificar si hay nuevos clientes asignados
-        const asesorResponse = await fetch('http://localhost:3001/api/asesores/buscar/JUAN');
-        if (!asesorResponse.ok) return;
-        
-        const asesorData = await asesorResponse.json();
-        const asesorId = asesorData.asesor.id;
-        
-        const clientesResponse = await fetch(`http://localhost:3001/api/clientes/asesor/${asesorId}`);
-        if (!clientesResponse.ok) return;
-        
-        const result = await clientesResponse.json();
-        const clientesBD = result.clientes;
-        
-        // Verificar si hay clientes nuevos (comparar con los que ya tengo)
-        const clientesActuales = clientes.map(c => c.dni).filter(dni => dni !== 'Sin DNI');
-        const clientesNuevos = (clientesBD as ClienteApi[]).filter((cliente) => 
-          cliente.dni && !clientesActuales.includes(cliente.dni)
-        );
-        
-        if (clientesNuevos.length > 0) {
-          console.log(`🔔 JUAN: ${clientesNuevos.length} cliente(s) nuevo(s) detectado(s)`);
-          
-          clientesNuevos.forEach((cliente) => {
-            const clienteFormateado: Cliente = {
-              fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : '',
-              nombre: cliente.nombre ?? 'Sin nombre',
-              telefono: cliente.telefono ?? 'Sin teléfono',
-              dni: cliente.dni ?? 'Sin DNI',
-              servicio: cliente.servicio ?? 'Internet',
-              estado: 'Nuevo',
-              gestion: 'En proceso',
-              seguimiento: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-            };
-            agregarClienteRef.current(clienteFormateado);
-            setNotificationMessage(`¡Cliente ${cliente.nombre ?? ''} reasignado desde GTR!`);
-            setNotificationOpen(true);
-            console.log('🎉 JUAN: Cliente agregado automáticamente:', clienteFormateado);
-          });
-        }
-        
-      } catch (error) {
-        console.error('❌ JUAN: Error verificando nuevos clientes:', error);
-      }
-    }, 3000); // Verificar cada 3 segundos
-    
-    console.log('🔄 JUAN: Monitoreo automático activado (cada 3s)');
-    
-    return () => {
-      clearInterval(interval);
-      console.log('🛑 JUAN: Monitoreo automático desactivado');
-    };
-  }, [clientes]);
-
-  // Filtrar clientes
+  // TODO: Implementar monitoreo de reasignaciones en tiempo real con WebSockets cuando sea necesario  // Filtrar clientes
   const clientesFiltrados = clientes.filter(cliente => {
     const cumpleEstado = filtroEstado === 'Todos los estados' || cliente.estado === filtroEstado;
     const cumpleGestion = filtroGestion === 'Todas las gestiones' || cliente.gestion === filtroGestion;
@@ -186,9 +129,7 @@ const AsesorClientesTable: React.FC = () => {
     setClienteSeleccionado(null);
   };
 
-  const handleCloseNotification = () => {
-    setNotificationOpen(false);
-  };
+  // Sistema de notificaciones removido - usar toast o similar cuando sea necesario
 
   return (
     <Box>      
@@ -294,18 +235,9 @@ const AsesorClientesTable: React.FC = () => {
         onSave={actualizarCliente}
       />
 
-      <Snackbar
-        open={notificationOpen}
-        autoHideDuration={6000}
-        onClose={handleCloseNotification}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert onClose={handleCloseNotification} severity="success" sx={{ width: '100%' }}>
-          {notificationMessage}
-        </Alert>
-      </Snackbar>
+      {/* Sistema de notificaciones removido */}
     </Box>
   );
-};
+});
 
 export default AsesorClientesTable;

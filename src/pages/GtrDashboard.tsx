@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Box } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Button } from '@mui/material';
 import GtrSidebar from '../components/gtr/GtrSidebar';
-import GtrSummary from '../components/gtr/GtrSummary';
+import RealtimeService from '../services/RealtimeService';
+
 import GtrStatusMenu from '../components/gtr/GtrStatusMenu';
 import GtrClientsTable from '../components/gtr/GtrClientsTable';
 import GtrAsesoresTable from '../components/gtr/GtrAsesoresTable';
-import initialAsesores from '../components/gtr/initialAsesores';
 import AddClientDialog from '../components/gtr/AddClientDialog';
 
 const GtrDashboard: React.FC = () => {
@@ -13,337 +13,350 @@ const GtrDashboard: React.FC = () => {
   const [status, setStatus] = useState('Todos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClient, setNewClient] = useState<any>(null);
-  const [clients, setClients] = useState<any[]>([]); // Estado inicial vacío para clientes
-  // Estado centralizado de asesores
-  const [asesores, setAsesores] = useState(
-    initialAsesores.map(a => ({
-      ...a,
-      clientesAsignados: 0,
-      clientesAtendidos: 0,
-      estado: a.estado as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
-      sala: a.sala as 'Sala 1' | 'Sala 2' | 'Sala 3' | 'Sala 4'
-    }))
-  );
+  const [clients, setClients] = useState<any[]>([]);
+  const [asesores, setAsesores] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Cargar clientes iniciales
+  // Cargar asesores desde la API
   useEffect(() => {
-    setClients([
-      {
-        id: 1,
-        fecha: '8/9/2025',
-        cliente: '914 118 863',
-        nombre: 'Cliente Lead 01',
-        dni: '71234567',
-        email: 'cliente01@example.com',
-        campania: 'CAMPAÑA 08',
-        canal: 'WSP 4',
-        estado: 'En gestión',
-        asesor: 'SASKYA',
-        comentarios: 'LEADS - Rango 14-15',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'SASKYA',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde LEADS'
-          }
-        ]
-      },
-      {
-        id: 2,
-        fecha: '8/9/2025',
-        cliente: '960 147 625',
-        nombre: 'Cliente Lead 02',
-        dni: '72345678',
-        email: 'cliente02@example.com',
-        campania: 'CAMPAÑA 08',
-        canal: 'WSP 4',
-        estado: 'Nuevo',
-        asesor: 'KAREN',
-        comentarios: 'LEADS - Rango 11-12',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'KAREN',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde LEADS'
-          }
-        ]
-      },
-      {
-        id: 3,
-        fecha: '4/9/2025',
-        cliente: '944 658 388',
-        nombre: 'Cliente Lead 03',
-        dni: '73456789',
-        email: 'cliente03@example.com',
-        campania: 'CAMPAÑA 08',
-        canal: 'WSP 4',
-        estado: 'En gestión',
-        asesor: 'CESAR',
-        comentarios: 'LEADS - Rango 10-11',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'CESAR',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde LEADS'
-          }
-        ]
-      },
-      {
-        id: 4,
-        fecha: '8/9/2025',
-        cliente: '935 885 304',
-        nombre: 'Cliente Masivo 01',
-        dni: '74567890',
-        email: 'masivo01@example.com',
-        campania: 'MASIVO',
-        canal: 'WSP 1',
-        estado: 'En seguimiento',
-        asesor: 'ALBERTO',
-        comentarios: 'MASIVO - Rango 12-13',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'ALBERTO',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde MASIVO'
-          }
-        ]
-      },
-      {
-        id: 5,
-        fecha: '1/9/2025',
-        cliente: '991 240 254',
-        nombre: 'Cliente Lead 04',
-        dni: '75678901',
-        email: 'cliente04@example.com',
-        campania: 'CAMPAÑA 08',
-        canal: 'WSP 4',
-        estado: 'Vendido',
-        asesor: 'SEBASTIAN',
-        comentarios: 'LEADS - Rango 14-15',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'SEBASTIAN',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde LEADS'
-          }
-        ]
-      },
-      {
-        id: 6,
-        fecha: '3/9/2025',
-        cliente: '965 688 704',
-        nombre: 'Cliente Referido 01',
-        dni: '76789012',
-        email: 'referido01@example.com',
-        campania: 'REFERIDOS',
-        canal: 'REFERIDO',
-        estado: 'En gestión',
-        asesor: 'JUAN',
-        comentarios: 'REFERIDO - Rango 17-18',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'JUAN',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde REFERIDOS'
-          }
-        ]
-      },
-      {
-        id: 7,
-        fecha: '2/9/2025',
-        cliente: '999 047 141',
-        nombre: 'Cliente Masivo 02',
-        dni: '77890123',
-        email: 'masivo02@example.com',
-        campania: 'MASIVO',
-        canal: 'WSP 5',
-        estado: 'Nuevo',
-        asesor: 'JHUDIT',
-        comentarios: 'MASIVO - Rango 14-15',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'JHUDIT',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde MASIVO'
-          }
-        ]
-      },
-      {
-        id: 8,
-        fecha: '19/8/2025',
-        cliente: '912 074 009',
-        nombre: 'Cliente Masivo 03',
-        dni: '78901234',
-        email: 'masivo03@example.com',
-        campania: 'MASIVO',
-        canal: 'WSP 1',
-        estado: 'En seguimiento',
-        asesor: 'GINGER',
-        comentarios: 'MASIVO - Rango 15-16',
-        historial: [
-          {
-            fecha: new Date().toLocaleString('es-PE'),
-            asesor: 'GINGER',
-            accion: 'Creación',
-            comentarios: 'Cliente derivado desde MASIVO'
-          }
-        ]
+    const fetchAsesores = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/asesores');
+        const data = await response.json();
+        
+        if (data.success && data.asesores) {
+          const asesoresFormateados = data.asesores.map((asesor: any) => ({
+            id: asesor.id,
+            nombre: asesor.nombre,
+            email: asesor.email,
+            tipo: asesor.tipo,
+            telefono: asesor.telefono || 'Sin teléfono',
+            estado: 'Activo' as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
+            clientesAsignados: asesor.clientes_asignados || 0,
+            clientesAtendidos: 0,
+            ventasHoy: 0,
+            ventasMes: 0,
+            metaMensual: 50,
+            eficiencia: 0,
+            ultimaActividad: 'Sistema iniciado',
+            sala: 'Sala 1' as 'Sala 1' | 'Sala 2' | 'Sala 3' | 'Sala 4'
+          }));
+          console.log('🔍 GTR: Asesores formateados:', asesoresFormateados);
+          setAsesores(asesoresFormateados);
+        } else {
+          setError('No se pudieron cargar los asesores');
+        }
+      } catch (error) {
+        console.error('Error cargando asesores:', error);
+        setError('Error de conexión al cargar asesores');
+        setAsesores([]);
+      } finally {
+        setLoading(false);
       }
-    ]);
+    };
 
-    // Todos los asesores empiezan desde 0 - se incrementarán con las reasignaciones
-    setAsesores(prev => prev.map(asesor => ({
-      ...asesor,
-      clientesAsignados: 0  // Empezar desde cero
-    })));
+    fetchAsesores();
   }, []);
 
-  const handleSaveClient = (clientData: any) => {
-    setNewClient(clientData);
-    setDialogOpen(false);
-  };
-
-  // Manejar eventos de reasignación
+  // Cargar clientes desde la API
   useEffect(() => {
-    const handleLocalReassignment = (data: any) => {
-      // Solo actualizar el asesor del cliente (el historial ya se maneja en GtrClientsTable)
-      setClients((prevClients: any[]) => prevClients.map((client: any) => 
-        client.id === data.clientId 
-          ? { ...client, asesor: data.newAdvisor }
-          : client
-      ));
-
-      // Actualizar estado de asesores - Solo incrementar el nuevo, no decrementar el anterior
-      setAsesores((prevAsesores: any[]) => prevAsesores.map((asesor: any) => {
-        if (asesor.nombre === data.newAdvisor) {
-          return { ...asesor, clientesAsignados: asesor.clientesAsignados + 1 };
+    const fetchClientes = async () => {
+      try {
+        const response = await fetch('/api/clientes');
+        const data = await response.json();
+        
+        if (data.success && data.clientes) {
+          const clientesFormateados = data.clientes.map((cliente: any) => ({
+            id: cliente.id,
+            fecha: new Date(cliente.created_at || cliente.fecha_asignacion).toLocaleDateString('es-ES'),
+            cliente: cliente.telefono || 'Sin teléfono',
+            nombre: cliente.nombre || 'Sin nombre',
+            lead: cliente.lead_id || cliente.id.toString(),
+            ciudad: cliente.distrito || 'Sin ciudad',
+            plan: cliente.plan_seleccionado || 'Sin plan',
+            precio: cliente.precio_final || 0,
+            estado: cliente.estado_cliente || 'nuevo',
+            asesor: cliente.asesor_nombre || 'Disponible',
+            canal: 'Web',
+            distrito: cliente.distrito || 'Sin distrito',
+            clienteNuevo: true,
+            observaciones: cliente.observaciones_asesor || '',
+            telefono: cliente.telefono || '',
+            email: cliente.correo_electronico || '',
+            direccion: cliente.direccion || '',
+            historial: []
+          }));
+          setClients(clientesFormateados);
         }
-        return asesor;
-      }));
+      } catch (error) {
+        console.error('Error cargando clientes:', error);
+      }
     };
 
-    const eventHandler = (event: any) => {
-      handleLocalReassignment(event.detail);
-    };
+    fetchClientes();
+  }, []);
 
-    window.addEventListener('local-reassignment', eventHandler);
+  // Manejar nuevo cliente agregado
+  useEffect(() => {
+    if (newClient) {
+      setClients(prev => [newClient, ...prev]);
+      setNewClient(null);
+    }
+  }, [newClient]);
+
+  // Conectar WebSocket para GTR
+  useEffect(() => {
+    const realtimeService = RealtimeService.getInstance();
+    const gtrName = localStorage.getItem('username') || 'GTR';
+    
+    // Solo conectar si no está ya conectado
+    if (!realtimeService.isConnected()) {
+      realtimeService.connect('GTR', gtrName);
+    }
+    
+    // Suscribirse a confirmaciones de reasignación
+    const unsubscribe = realtimeService.subscribe('REASSIGNMENT_CONFIRMED', (data: any) => {
+      console.log('✅ GTR: Reasignación confirmada por WebSocket:', data);
+    });
 
     return () => {
-      window.removeEventListener('local-reassignment', eventHandler);
+      unsubscribe();
+      // No desconectar automáticamente
     };
   }, []);
 
+
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
+        <Typography variant="body1" sx={{ ml: 2 }}>
+          Cargando dashboard GTR...
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          {error}
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      height: '100vh',
-      backgroundColor: '#f8fafc'
-    }}>
-      <GtrSidebar onSelect={setSection} selected={section} />
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+      <GtrSidebar
+        onSelect={setSection}
+        selected={section}
+      />
       
       <Box sx={{ 
-        flexGrow: 1, 
-        p: 3,
-        overflow: 'auto',
-        marginLeft: '220px'
+        flex: 1, 
+        p: { xs: 2, sm: 3 }, 
+        marginLeft: { xs: 0, md: '220px' }, // Responsivo para móviles
+        minHeight: '100vh',
+        width: { xs: '100%', md: 'calc(100% - 220px)' }
       }}>
-
-
-        {section === 'Clientes' && (
+        {/* Header móvil */}
+        <Box sx={{ 
+          display: { xs: 'block', md: 'none' }, 
+          mb: 2
+        }}>
+          <Box sx={{ 
+            p: 2,
+            bgcolor: '#1e293b',
+            color: 'white',
+            borderRadius: 2,
+            mx: -2,
+            mt: -2,
+            mb: 2
+          }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              GTR Panel - {section}
+            </Typography>
+          </Box>
+          
+          {/* Navegación móvil */}
           <Box sx={{ 
             display: 'flex', 
-            flexDirection: 'column', 
-            height: '100%',
-            gap: 3 
+            gap: 1, 
+            overflowX: 'auto',
+            pb: 1,
+            '&::-webkit-scrollbar': { display: 'none' }
           }}>
-            <GtrSummary />
+            {['Clientes', 'Asesores', 'Reportes', 'Configuración'].map((item) => (
+              <Button
+                key={item}
+                variant={section === item ? 'contained' : 'outlined'}
+                onClick={() => setSection(item)}
+                size="small"
+                sx={{
+                  minWidth: 'auto',
+                  whiteSpace: 'nowrap',
+                  px: 2,
+                  py: 1,
+                  backgroundColor: section === item ? '#3b82f6' : 'transparent',
+                  borderColor: '#3b82f6',
+                  color: section === item ? 'white' : '#3b82f6',
+                  '&:hover': {
+                    backgroundColor: section === item ? '#2563eb' : '#f3f4f6',
+                  }
+                }}
+              >
+                {item}
+              </Button>
+            ))}
+          </Box>
+        </Box>
+
+        <Typography variant="h4" sx={{ 
+          mb: 3, 
+          fontWeight: 600,
+          fontSize: { xs: '1.75rem', md: '2.125rem' },
+          color: '#1f2937',
+          display: { xs: 'none', md: 'block' }
+        }}>
+          Panel GTR
+        </Typography>
+        
+        {/* Estadísticas básicas */}
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { 
+            xs: 'repeat(1, 1fr)', 
+            sm: 'repeat(2, 1fr)', 
+            md: 'repeat(3, 1fr)' 
+          }, 
+          gap: 2, 
+          mb: 3 
+        }}>
+          <Box sx={{ 
+            bgcolor: 'white', 
+            p: 3, 
+            borderRadius: 2, 
+            boxShadow: 2,
+            textAlign: 'center',
+            border: '1px solid #e3f2fd'
+          }}>
+            <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {asesores.length}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Total Asesores
+            </Typography>
+          </Box>
+          <Box sx={{ 
+            bgcolor: 'white', 
+            p: 3, 
+            borderRadius: 2, 
+            boxShadow: 2,
+            textAlign: 'center',
+            border: '1px solid #e8f5e8'
+          }}>
+            <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {clients.length}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Total Clientes
+            </Typography>
+          </Box>
+          <Box sx={{ 
+            bgcolor: 'white', 
+            p: 3, 
+            borderRadius: 2, 
+            boxShadow: 2,
+            textAlign: 'center',
+            border: '1px solid #fff3e0'
+          }}>
+            <Typography variant="h4" color="warning.main" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {clients.filter(c => c.estado === 'nuevo').length}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+              Clientes Nuevos
+            </Typography>
+          </Box>
+        </Box>
+        
+        {section === 'Clientes' && (
+          <>
             <GtrStatusMenu 
               selected={status} 
               onSelect={setStatus}
               onAddClient={() => setDialogOpen(true)}
             />
-            <Box sx={{ flex: 1, display: 'flex' }}>
-              <GtrClientsTable 
-                statusFilter={status} 
-                newClient={newClient} 
-                clients={clients} 
-                setClients={setClients}
-                asesores={asesores}
-              />
-            </Box>
-          </Box>
+            <GtrClientsTable 
+              clients={clients.filter(client => 
+                status === 'Todos' || client.estado === status.toLowerCase()
+              )}
+              asesores={asesores}
+              statusFilter={status}
+              setClients={setClients}
+            />
+          </>
         )}
         
         {section === 'Asesores' && (
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            height: '100%',
-            gap: 3 
-          }}>
-            <Box sx={{
-              backgroundColor: 'white',
-              borderRadius: 2,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-              p: 3
-            }}>
-              <Box sx={{ mb: 3 }}>
-                <h2 style={{ margin: 0, color: '#111827', fontSize: '1.5rem', fontWeight: '600' }}>
-                  Gestión de Asesores
-                </h2>
-                <p style={{ margin: '8px 0 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
-                  Aquí se muestran todos los asesores disponibles y su rendimiento en tiempo real.
-                </p>
-              </Box>
-              <GtrAsesoresTable asesores={asesores} />
-            </Box>
-          </Box>
-        )}
-
-
-        
-        {section === 'Reportes' && (
-          <Box sx={{ 
-            p: 4, 
-            backgroundColor: 'white',
-            borderRadius: 2,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <h2>Reportes y Análisis</h2>
-            <p>Aquí se mostrarán gráficos y reportes detallados.</p>
-          </Box>
-        )}
-        
-        {section === 'Configuración' && (
-          <Box sx={{ 
-            p: 4, 
-            backgroundColor: 'white',
-            borderRadius: 2,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <h2>Configuración del Sistema</h2>
-            <p>Configuración de parámetros y preferencias.</p>
-          </Box>
+          <GtrAsesoresTable 
+            asesores={asesores}
+          />
         )}
       </Box>
 
-      <AddClientDialog 
-        open={dialogOpen} 
-        onClose={() => setDialogOpen(false)} 
-        onSave={handleSaveClient}
+      <AddClientDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={async (data) => {
+          try {
+            console.log('Guardando nuevo lead:', data);
+            
+            const response = await fetch('/api/clientes', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                lead_id: data.lead_id,
+                nombre: data.nombre || null,
+                telefono: data.lead_id, // El lead_id ES el teléfono
+                dni: data.dni || null,
+                coordenadas: data.coordenadas || null,
+                campania: data.campania || null,
+                canal: data.canal || null,
+                estado_cliente: 'nuevo',
+                comentarios_iniciales: data.comentarios || null,
+                asesor_asignado: null // Sin asignar inicialmente
+              })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+              console.log('✅ Cliente creado exitosamente:', result.cliente);
+              
+              // Agregar el nuevo cliente al estado local
+              setClients(prevClients => [result.cliente, ...prevClients]);
+              
+              // Cerrar el diálogo
+              setDialogOpen(false);
+              
+              // Mostrar mensaje de éxito (opcional)
+              alert('Cliente registrado exitosamente');
+            } else {
+              console.error('❌ Error al crear cliente:', result.message);
+              alert(`Error al registrar cliente: ${result.message}`);
+            }
+          } catch (error) {
+            console.error('❌ Error en la petición:', error);
+            alert('Error de conexión. Verifique su conexión a internet.');
+          }
+        }}
       />
     </Box>
   );

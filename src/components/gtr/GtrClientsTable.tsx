@@ -17,6 +17,7 @@ interface Historial {
 
 interface Cliente {
   id: number;
+  lead_id?: string;
   nombre?: string;
   dni?: string;
   email?: string;
@@ -113,11 +114,19 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     if (clientToReassign) {
         console.log('🎯 GTR: Confirmando reasignación...');
         console.log('📋 GTR: Cliente seleccionado:', clientToReassign);
+        console.log('📋 GTR: Cliente ID:', clientToReassign.id);
+        console.log('📋 GTR: Tipo de Cliente ID:', typeof clientToReassign.id);
         console.log('🎯 GTR: Nuevo asesor seleccionado:', newAdvisor);
+        console.log('📋 GTR: Lista de asesores disponibles:', asesores);
 
         try {
+            // Validar que el cliente tenga ID
+            if (!clientToReassign.id) {
+                throw new Error('Cliente no tiene ID válido');
+            }
+
             // 1. Buscar ID del asesor en la base de datos
-            const asesorResponse = await fetch(`http://localhost:3001/api/asesores/buscar/${newAdvisor}`);
+            const asesorResponse = await fetch(`/api/asesores/buscar/${newAdvisor}`);
 
             if (!asesorResponse.ok) {
                 const errorData = await asesorResponse.json();
@@ -125,20 +134,26 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
             }
 
             const asesorData = await asesorResponse.json();
-            const asesorId = asesorData.asesor.id;
+            
+            if (!asesorData.success || !asesorData.resultados || asesorData.resultados.length === 0) {
+                throw new Error(`Asesor "${newAdvisor}" no encontrado`);
+            }
+            
+            const asesor = asesorData.resultados[0];
+            const asesorId = asesor.id;
 
-            console.log('👤 GTR: Asesor encontrado:', asesorData.asesor);
+            console.log('👤 GTR: Asesor encontrado:', asesor);
 
             // 2. Realizar reasignación en el backend
-            const reasignacionResponse = await fetch('http://localhost:3001/api/clientes/reasignar', {
+            const reasignacionResponse = await fetch('/api/clientes/reasignar', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    cliente_id: clientToReassign.id,
-                    nuevo_asesor_id: asesorId,
-                    gtr_id: 1, // ID del GTR (puede ser dinámico)
+                    clienteId: clientToReassign.id,
+                    nuevoAsesorId: asesorId,
+                    gtrId: 1, // ID del GTR (puede ser dinámico)
                     comentario: `Reasignado desde GTR a ${newAdvisor}`
                 }),
             });
@@ -151,7 +166,10 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
             const result = await reasignacionResponse.json();
             console.log('✅ GTR: Reasignación exitosa en BD:', result);
 
-            // 3. Actualizar la tabla local
+            // 3. Enviar notificación por WebSocket
+            // La notificación ya se envía desde el backend automáticamente
+
+            // 4. Actualizar la tabla local
             const previousAdvisor = clientToReassign.asesor;
             const currentDate = new Date();
             const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
@@ -208,7 +226,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Cliente</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Lead (Teléfono)</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Nombre</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>DNI</TableCell>
               <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Coordenadas</TableCell>
@@ -223,7 +241,13 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
             {filtered.map(client => (
               <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
                 <TableCell>{client.fecha}</TableCell>
-                <TableCell>{client.id}</TableCell>
+                <TableCell>
+                  {client.lead_id ? (
+                    <span style={{ fontWeight: 600, color: '#1976d2' }}>{client.lead_id}</span>
+                  ) : (
+                    <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin lead</span>
+                  )}
+                </TableCell>
                 <TableCell>{client.nombre || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin nombre</span>}</TableCell>
                 <TableCell>{client.dni || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin DNI</span>}</TableCell>
                 <TableCell>{client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin coordenadas</span>}</TableCell>
