@@ -15,6 +15,7 @@ const GtrDashboard: React.FC = () => {
   const [newClient, setNewClient] = useState<any>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [asesores, setAsesores] = useState<any[]>([]);
+  // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -28,21 +29,18 @@ const GtrDashboard: React.FC = () => {
         
         if (data.success && data.asesores) {
           const asesoresFormateados = data.asesores.map((asesor: any) => ({
-            id: asesor.id,
+            asesor_id: asesor.asesor_id,
+            usuario_id: asesor.usuario_id,
             nombre: asesor.nombre,
             email: asesor.email,
-            tipo: asesor.tipo,
             telefono: asesor.telefono || 'Sin teléfono',
-            estado: 'Activo' as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
-            clientesAsignados: asesor.clientes_asignados || 0,
-            clientesAtendidos: 0,
-            ventasHoy: 0,
-            ventasMes: 0,
-            metaMensual: 50,
-            eficiencia: 0,
-            ultimaActividad: 'Sistema iniciado',
-            sala: 'Sala 1' as 'Sala 1' | 'Sala 2' | 'Sala 3' | 'Sala 4'
+            estado: asesor.estado === 'activo' ? 'Activo' : 'Offline',
+            clientes_asignados: asesor.clientes_asignados || 0,
+            meta_mensual: asesor.meta_mensual || '50000.00',
+            ventas_realizadas: asesor.ventas_realizadas || '0.00',
+            comision_porcentaje: asesor.comision_porcentaje || '5.00'
           }));
+          console.log('🔍 GTR: Asesores cargados desde API:', data.asesores);
           console.log('🔍 GTR: Asesores formateados:', asesoresFormateados);
           setAsesores(asesoresFormateados);
         } else {

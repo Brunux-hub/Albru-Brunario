@@ -1,16 +1,16 @@
 const pool = require('../config/database');
 
-// GET /api/clientes/lead/:leadId
-const getClienteByLead = async (req, res) => {
-  const { leadId } = req.params;
-  if (!leadId) return res.status(400).json({ success:false, message: 'leadId requerido' });
+// GET /api/clientes/telefono/:telefono
+const getClienteByTelefono = async (req, res) => {
+  const { telefono } = req.params;
+  if (!telefono) return res.status(400).json({ success:false, message: 'telefono requerido' });
 
   try {
-    const [rows] = await pool.query('SELECT * FROM clientes WHERE lead_id = ? LIMIT 1', [leadId]);
+    const [rows] = await pool.query('SELECT * FROM clientes WHERE telefono = ? LIMIT 1', [telefono]);
     if (!rows || rows.length === 0) return res.status(404).json({ success:false, message: 'Cliente no encontrado' });
     return res.json({ success: true, cliente: rows[0] });
   } catch (err) {
-    console.error('Error getClienteByLead', err);
+    console.error('Error getClienteByTelefono', err);
     return res.status(500).json({ success:false, message: 'Error interno' });
   }
 };
@@ -41,15 +41,15 @@ const searchClientes = async (req, res) => {
   const like = `%${term}%`;
   try {
     const [rows] = await pool.query(
-      `SELECT id, nombre, telefono, dni, correo_electronico, lead_id, estado_cliente, plan_seleccionado
+      `SELECT id, nombre, telefono, dni, email, estado, ocupacion
        FROM clientes
-       WHERE nombre LIKE ? OR dni LIKE ? OR lead_id LIKE ? OR correo_electronico LIKE ?
-       ORDER BY fecha_asignacion DESC
+       WHERE nombre LIKE ? OR dni LIKE ? OR telefono LIKE ? OR email LIKE ?
+       ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
       [like, like, like, like, limit, offset]
     );
     const [countRows] = await pool.query(
-      `SELECT COUNT(*) as total FROM clientes WHERE nombre LIKE ? OR dni LIKE ? OR lead_id LIKE ? OR correo_electronico LIKE ?`,
+      `SELECT COUNT(*) as total FROM clientes WHERE nombre LIKE ? OR dni LIKE ? OR telefono LIKE ? OR email LIKE ?`,
       [like, like, like, like]
     );
     const total = countRows[0].total || 0;
@@ -65,13 +65,14 @@ const getAllClientes = async (req, res) => {
   try {
     const limit = Math.min(1000, Number(req.query.limit) || 100);
     const [rows] = await pool.query(`
-      SELECT c.id, c.nombre, c.telefono, c.dni, c.correo_electronico, 
-             c.direccion, c.distrito, c.plan_seleccionado, c.precio_final,
-             c.estado_cliente, c.observaciones_asesor, c.fecha_asignacion as created_at,
-             c.lead_id, a.nombre as asesor_nombre
+      SELECT c.id, c.nombre, c.telefono, c.dni, c.email, 
+             c.direccion, c.ciudad,
+             c.estado, c.prioridad, c.observaciones_asesor, c.created_at,
+             a.id as asesor_id, u.nombre as asesor_nombre
       FROM clientes c 
       LEFT JOIN asesores a ON c.asesor_asignado = a.id 
-      ORDER BY c.fecha_asignacion DESC 
+      LEFT JOIN usuarios u ON a.usuario_id = u.id
+      ORDER BY c.created_at DESC 
       LIMIT ?
     `, [limit]);
     
@@ -97,31 +98,34 @@ const getClienteById = async (req, res) => {
   }
 };
 
-// POST /api/clientes (crear nuevo cliente/lead)
+// POST /api/clientes (crear nuevo cliente)
 const createCliente = async (req, res) => {
   const { 
-    lead_id, nombre, telefono, dni, correo_electronico, direccion, distrito, 
-    plan_seleccionado, precio_final, estado_cliente, asesor_asignado,
-    observaciones_asesor, coordenadas, campania, canal, comentarios_iniciales
+    // Campos básicos del CRM
+    nombre, apellidos, telefono, dni, email, direccion, ciudad,
+    edad, genero, estado_civil, ocupacion, ingresos_mensuales,
+    asesor_asignado, observaciones_asesor,
+    
+    // Campos específicos del wizard
+    tipo_cliente_wizard, lead_score, telefono_registro, fecha_nacimiento,
+    dni_nombre_titular, parentesco_titular, telefono_referencia_wizard, telefono_grabacion_wizard,
+    direccion_completa, numero_piso_wizard, tipo_plan, servicio_contratado, velocidad_contratada,
+    precio_plan, dispositivos_adicionales_wizard, plataforma_digital_wizard,
+    pago_adelanto_instalacion_wizard, wizard_completado, wizard_data_json
   } = req.body;
 
-  // Validación básica: solo lead_id es obligatorio
-  if (!lead_id) {
+  // Validación básica: teléfono es obligatorio
+  if (!telefono) {
     return res.status(400).json({ 
       success: false, 
-      message: 'Lead ID es obligatorio' 
+      message: 'Teléfono es obligatorio' 
     });
   }
 
   try {
-    // Verificar si ya existe un cliente con el mismo lead_id
-    const [existingByLead] = await pool.query('SELECT id FROM clientes WHERE lead_id = ? LIMIT 1', [lead_id]);
-    if (existingByLead.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Ya existe un cliente con este Lead ID' 
-      });
-    }
+    console.log('📋 Backend: Creando cliente con datos del wizard:', {
+      nombre, apellidos, telefono, tipo_cliente_wizard, lead_score, wizard_completado
+    });
 
     // Verificar duplicados solo si los campos tienen valor
     if (dni) {
@@ -134,40 +138,63 @@ const createCliente = async (req, res) => {
       }
     }
 
-    if (telefono) {
-      const [existingByPhone] = await pool.query('SELECT id FROM clientes WHERE telefono = ? LIMIT 1', [telefono]);
-      if (existingByPhone.length > 0) {
-        return res.status(409).json({ 
-          success: false, 
-          message: 'Ya existe un cliente con este teléfono' 
-        });
-      }
+    const [existingByPhone] = await pool.query('SELECT id FROM clientes WHERE telefono = ? LIMIT 1', [telefono]);
+    if (existingByPhone.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'Ya existe un cliente con este teléfono' 
+      });
     }
 
-    // Insertar el nuevo cliente/lead
+    // Insertar el nuevo cliente con todos los campos del wizard
     const [result] = await pool.query(`
       INSERT INTO clientes (
-        lead_id, nombre, telefono, dni, correo_electronico, direccion, distrito,
-        plan_seleccionado, precio_final, estado_cliente, asesor_asignado, observaciones_asesor,
-        coordenadas, campania, canal, comentarios_iniciales
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        nombre, apellidos, telefono, dni, email, direccion, ciudad,
+        edad, genero, estado_civil, ocupacion, ingresos_mensuales,
+        asesor_asignado, observaciones_asesor, estado,
+        tipo_cliente_wizard, lead_score, telefono_registro, fecha_nacimiento,
+        dni_nombre_titular, parentesco_titular, telefono_referencia_wizard, telefono_grabacion_wizard,
+        direccion_completa, numero_piso_wizard, tipo_plan, servicio_contratado, velocidad_contratada,
+        precio_plan, dispositivos_adicionales_wizard, plataforma_digital_wizard,
+        pago_adelanto_instalacion_wizard, wizard_completado, fecha_wizard_completado, wizard_data_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      lead_id,
       nombre || null,
-      telefono || null,
+      apellidos || null,
+      telefono,
       dni || null,
-      correo_electronico || null,
+      email || null,
       direccion || null,
-      distrito || null,
-      plan_seleccionado || null,
-      precio_final || null,
-      estado_cliente || 'nuevo',
+      ciudad || null,
+      edad || null,
+      genero || null,
+      estado_civil || null,
+      ocupacion || null,
+      ingresos_mensuales || null,
       asesor_asignado || null,
       observaciones_asesor || null,
-      coordenadas || null,
-      campania || null,
-      canal || null,
-      comentarios_iniciales || null
+      'nuevo',
+      // Campos del wizard
+      tipo_cliente_wizard || null,
+      lead_score || null,
+      telefono_registro || null,
+      fecha_nacimiento || null,
+      dni_nombre_titular || null,
+      parentesco_titular || null,
+      telefono_referencia_wizard || null,
+      telefono_grabacion_wizard || null,
+      direccion_completa || null,
+      numero_piso_wizard || null,
+      tipo_plan || null,
+      servicio_contratado || null,
+      velocidad_contratada || null,
+      precio_plan || null,
+      dispositivos_adicionales_wizard || null,
+      plataforma_digital_wizard || null,
+      pago_adelanto_instalacion_wizard || null,
+      wizard_completado ? 1 : 0,
+      wizard_completado ? new Date() : null,
+      wizard_data_json ? JSON.stringify(wizard_data_json) : null
     ]);
 
     // Obtener el cliente recién creado
@@ -190,11 +217,231 @@ const createCliente = async (req, res) => {
   }
 };
 
+// PUT /api/clientes/:id (actualizar cliente existente)
+const updateCliente = async (req, res) => {
+  const { id } = req.params;
+  const { 
+    // Campos básicos del CRM
+    nombre, apellidos, telefono, dni, email, direccion, ciudad,
+    edad, genero, estado_civil, ocupacion, ingresos_mensuales,
+    asesor_asignado, observaciones_asesor,
+    
+    // Campos específicos del wizard
+    tipo_cliente_wizard, lead_score, telefono_registro, fecha_nacimiento,
+    dni_nombre_titular, parentesco_titular, telefono_referencia_wizard, telefono_grabacion_wizard,
+    direccion_completa, numero_piso_wizard, tipo_plan, servicio_contratado, velocidad_contratada,
+    precio_plan, dispositivos_adicionales_wizard, plataforma_digital_wizard,
+    pago_adelanto_instalacion_wizard, wizard_completado, wizard_data_json
+  } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'ID de cliente es obligatorio' 
+    });
+  }
+
+  try {
+    console.log('📋 Backend: Actualizando cliente ID:', id, 'con datos del wizard:', {
+      nombre, apellidos, telefono, tipo_cliente_wizard, lead_score, wizard_completado
+    });
+
+    // Obtener los datos actuales del cliente
+    const [currentClient] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+    if (currentClient.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Cliente no encontrado' 
+      });
+    }
+
+    const clienteActual = currentClient[0];
+
+    // Verificar duplicados de DNI si se está actualizando
+    if (dni && dni !== clienteActual.dni) {
+      const [existingByDni] = await pool.query('SELECT id FROM clientes WHERE dni = ? AND id != ? LIMIT 1', [dni, id]);
+      if (existingByDni.length > 0) {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'Ya existe otro cliente con este DNI' 
+        });
+      }
+    }
+
+    // Verificar duplicados de teléfono si se está actualizando
+    if (telefono && telefono !== clienteActual.telefono) {
+      const [existingByPhone] = await pool.query('SELECT id FROM clientes WHERE telefono = ? AND id != ? LIMIT 1', [telefono, id]);
+      if (existingByPhone.length > 0) {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'Ya existe otro cliente con este teléfono' 
+        });
+      }
+    }
+
+    // Crear objeto con datos actualizados (mantener valores actuales si no se envían nuevos)
+    const datosActualizados = {
+      nombre: nombre !== undefined ? nombre : clienteActual.nombre,
+      apellidos: apellidos !== undefined ? apellidos : clienteActual.apellidos,
+      telefono: telefono !== undefined ? telefono : clienteActual.telefono,
+      dni: dni !== undefined ? dni : clienteActual.dni,
+      email: email !== undefined ? email : clienteActual.email,
+      direccion: direccion !== undefined ? direccion : clienteActual.direccion,
+      ciudad: ciudad !== undefined ? ciudad : clienteActual.ciudad,
+      edad: edad !== undefined ? edad : clienteActual.edad,
+      genero: genero !== undefined ? genero : clienteActual.genero,
+      estado_civil: estado_civil !== undefined ? estado_civil : clienteActual.estado_civil,
+      ocupacion: ocupacion !== undefined ? ocupacion : clienteActual.ocupacion,
+      ingresos_mensuales: ingresos_mensuales !== undefined ? ingresos_mensuales : clienteActual.ingresos_mensuales,
+      asesor_asignado: asesor_asignado !== undefined ? asesor_asignado : clienteActual.asesor_asignado,
+      observaciones_asesor: observaciones_asesor !== undefined ? observaciones_asesor : clienteActual.observaciones_asesor,
+      // Campos del wizard
+      tipo_cliente_wizard: tipo_cliente_wizard !== undefined ? tipo_cliente_wizard : clienteActual.tipo_cliente_wizard,
+      lead_score: lead_score !== undefined ? lead_score : clienteActual.lead_score,
+      telefono_registro: telefono_registro !== undefined ? telefono_registro : clienteActual.telefono_registro,
+      fecha_nacimiento: fecha_nacimiento !== undefined ? fecha_nacimiento : clienteActual.fecha_nacimiento,
+      dni_nombre_titular: dni_nombre_titular !== undefined ? dni_nombre_titular : clienteActual.dni_nombre_titular,
+      parentesco_titular: parentesco_titular !== undefined ? parentesco_titular : clienteActual.parentesco_titular,
+      telefono_referencia_wizard: telefono_referencia_wizard !== undefined ? telefono_referencia_wizard : clienteActual.telefono_referencia_wizard,
+      telefono_grabacion_wizard: telefono_grabacion_wizard !== undefined ? telefono_grabacion_wizard : clienteActual.telefono_grabacion_wizard,
+      direccion_completa: direccion_completa !== undefined ? direccion_completa : clienteActual.direccion_completa,
+      numero_piso_wizard: numero_piso_wizard !== undefined ? numero_piso_wizard : clienteActual.numero_piso_wizard,
+      tipo_plan: tipo_plan !== undefined ? tipo_plan : clienteActual.tipo_plan,
+      servicio_contratado: servicio_contratado !== undefined ? servicio_contratado : clienteActual.servicio_contratado,
+      velocidad_contratada: velocidad_contratada !== undefined ? velocidad_contratada : clienteActual.velocidad_contratada,
+      precio_plan: precio_plan !== undefined ? precio_plan : clienteActual.precio_plan,
+      dispositivos_adicionales_wizard: dispositivos_adicionales_wizard !== undefined ? dispositivos_adicionales_wizard : clienteActual.dispositivos_adicionales_wizard,
+      plataforma_digital_wizard: plataforma_digital_wizard !== undefined ? plataforma_digital_wizard : clienteActual.plataforma_digital_wizard,
+      pago_adelanto_instalacion_wizard: pago_adelanto_instalacion_wizard !== undefined ? pago_adelanto_instalacion_wizard : clienteActual.pago_adelanto_instalacion_wizard,
+      wizard_completado: wizard_completado !== undefined ? (wizard_completado ? 1 : 0) : clienteActual.wizard_completado,
+      wizard_data_json: wizard_data_json !== undefined ? (wizard_data_json ? JSON.stringify(wizard_data_json) : null) : (clienteActual.wizard_data_json ? (typeof clienteActual.wizard_data_json === 'string' ? clienteActual.wizard_data_json : JSON.stringify(clienteActual.wizard_data_json)) : null)
+    };
+
+    // Actualizar el cliente con datos combinados
+    await pool.query(`
+      UPDATE clientes SET
+        nombre = ?, apellidos = ?, telefono = ?, dni = ?, email = ?, direccion = ?, ciudad = ?,
+        edad = ?, genero = ?, estado_civil = ?, ocupacion = ?, ingresos_mensuales = ?,
+        asesor_asignado = ?, observaciones_asesor = ?,
+        tipo_cliente_wizard = ?, lead_score = ?, telefono_registro = ?, fecha_nacimiento = ?,
+        dni_nombre_titular = ?, parentesco_titular = ?, telefono_referencia_wizard = ?, telefono_grabacion_wizard = ?,
+        direccion_completa = ?, numero_piso_wizard = ?, tipo_plan = ?, servicio_contratado = ?, velocidad_contratada = ?,
+        precio_plan = ?, dispositivos_adicionales_wizard = ?, plataforma_digital_wizard = ?,
+        pago_adelanto_instalacion_wizard = ?, wizard_completado = ?, 
+        fecha_wizard_completado = CASE WHEN ? = 1 AND wizard_completado = 0 THEN NOW() ELSE fecha_wizard_completado END,
+        wizard_data_json = ?,
+        updated_at = NOW()
+      WHERE id = ?
+    `, [
+      datosActualizados.nombre, datosActualizados.apellidos, datosActualizados.telefono, datosActualizados.dni,
+      datosActualizados.email, datosActualizados.direccion, datosActualizados.ciudad,
+      datosActualizados.edad, datosActualizados.genero, datosActualizados.estado_civil, datosActualizados.ocupacion,
+      datosActualizados.ingresos_mensuales, datosActualizados.asesor_asignado,
+      datosActualizados.observaciones_asesor,
+      // Campos del wizard
+      datosActualizados.tipo_cliente_wizard, datosActualizados.lead_score, datosActualizados.telefono_registro,
+      datosActualizados.fecha_nacimiento, datosActualizados.dni_nombre_titular,
+      datosActualizados.parentesco_titular, datosActualizados.telefono_referencia_wizard, datosActualizados.telefono_grabacion_wizard,
+      datosActualizados.direccion_completa, datosActualizados.numero_piso_wizard, datosActualizados.tipo_plan,
+      datosActualizados.servicio_contratado, datosActualizados.velocidad_contratada, datosActualizados.precio_plan,
+      datosActualizados.dispositivos_adicionales_wizard, datosActualizados.plataforma_digital_wizard,
+      datosActualizados.pago_adelanto_instalacion_wizard, datosActualizados.wizard_completado,
+      datosActualizados.wizard_completado, // Para la condición CASE WHEN
+      datosActualizados.wizard_data_json,
+      id
+    ]);
+
+    // Obtener el cliente actualizado
+    const [updatedClient] = await pool.query('SELECT * FROM clientes WHERE id = ?', [id]);
+    
+    console.log(`✅ Cliente actualizado con ID: ${id}`);
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Cliente actualizado exitosamente',
+      cliente: updatedClient[0]
+    });
+
+  } catch (err) {
+    console.error('Error updateCliente', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor',
+      error: err.message 
+    });
+  }
+};
+
+// GET /api/clientes/asesor/:asesorId - Obtener clientes específicos de un asesor
+const getClientesByAsesor = async (req, res) => {
+  const { asesorId } = req.params;
+  
+  if (!asesorId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'ID de asesor es obligatorio' 
+    });
+  }
+
+  try {
+    console.log(`👤 Obteniendo clientes para asesor ID: ${asesorId}`);
+    
+    // Verificar que el usuario existe y es un asesor
+    const [asesorInfo] = await pool.query(`
+      SELECT id, nombre as asesor_nombre 
+      FROM usuarios 
+      WHERE id = ? AND tipo = 'asesor'
+    `, [asesorId]);
+    
+    if (asesorInfo.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Asesor no encontrado' 
+      });
+    }
+    
+    const asesorNombre = asesorInfo[0].asesor_nombre;
+    
+    // Obtener todos los clientes asignados a este asesor específico (usando usuario_id)
+    const [clientes] = await pool.query(`
+      SELECT 
+        c.id, c.nombre, c.telefono, c.dni, c.email, 
+        c.direccion, c.estado, c.observaciones_asesor,
+        c.created_at as fecha, c.fecha_ultimo_contacto as seguimiento,
+        c.servicio_contratado as servicio
+      FROM clientes c 
+      WHERE c.asesor_asignado = ?
+      ORDER BY c.created_at DESC
+    `, [asesorId]);
+    
+    console.log(`✅ Encontrados ${clientes.length} clientes para asesor ${asesorNombre} (ID: ${asesorId})`);
+    
+    return res.json({ 
+      success: true, 
+      clientes: clientes,
+      asesor: {
+        id: asesorId,
+        nombre: asesorNombre,
+        total_clientes: clientes.length
+      }
+    });
+    
+  } catch (err) {
+    console.error('Error getClientesByAsesor:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor',
+      error: err.message 
+    });
+  }
+};
+
 module.exports = {
-  getClienteByLead,
+  getClienteByTelefono,
   getClienteByDni,
   searchClientes,
   getAllClientes,
   getClienteById,
-  createCliente
+  createCliente,
+  updateCliente,
+  getClientesByAsesor
 };

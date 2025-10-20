@@ -1,13 +1,16 @@
 import React from 'react';
-import AppRoutes from './routes/AppRoutes';
+import ProfessionalRoutes from './routes/ProfessionalRoutes';
 import { ClientesProvider } from './context/ClientesContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider } from './context/UnifiedAuthContext';
+import DynamicThemeProvider from './components/DynamicThemeProvider';
 
 const App: React.FC = () => (
   <AuthProvider>
-    <ClientesProvider>
-      <AppRoutes />
-    </ClientesProvider>
+    <DynamicThemeProvider>
+      <ClientesProvider>
+        <ProfessionalRoutes />
+      </ClientesProvider>
+    </DynamicThemeProvider>
   </AuthProvider>
 );
 

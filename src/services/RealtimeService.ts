@@ -32,13 +32,13 @@ class RealtimeService {
         
         // En producción
         const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-        const backendHost = import.meta.env?.VITE_BACKEND_URL || `${protocol}//${hostname}:3000`;
+        const backendHost = import.meta.env?.VITE_BACKEND_URL || `${protocol}//${hostname}:3001`;
         
         // Convertir HTTP/HTTPS URL a WebSocket URL
         return backendHost.replace(/^https?:/, wsProtocol);
       }
       
-      return 'ws://localhost:3000';
+      return 'ws://localhost:3001';
     };
 
     const wsUrl = getWebSocketURL();

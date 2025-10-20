@@ -15,8 +15,8 @@ services:
       - "${MYSQL_PORT:-3307}:3306"
     volumes:
       - db_data:/var/lib/mysql
-      # Import SQL on first run: map local file to container's init directory
-      - ./src/database/albru_produccion_limpia.sql:/docker-entrypoint-initdb.d/albru_produccion_limpia.sql:ro
+      # Import SQL on first run: map nueva estructura SQL file to container's init directory
+      - ./src/database/albru_nueva_estructura.sql:/docker-entrypoint-initdb.d/albru_nueva_estructura.sql:ro
 
   backend:
     build:
@@ -33,13 +33,15 @@ services:
       DB_USER: ${DB_USER:-albru}
       DB_PASSWORD: ${DB_PASSWORD:-albru_pass}
       DB_NAME: ${DB_NAME:-albru}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-albru_jwt_secret_2025}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       NODE_ENV: ${NODE_ENV:-production}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
     ports:
-      - "${BACKEND_PORT:-3001}:${BACKEND_PORT:-3001}"
+      - "${BACKEND_PORT:-3001}:3001"
     depends_on:
       - db
+    volumes:
+      - ./backend:/app:ro
 
   frontend:
     build:

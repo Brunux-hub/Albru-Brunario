@@ -1,13 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { getClienteByLead, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente } = require('../controllers/clientesController');
+const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor } = require('../controllers/clientesController');
 
 // Rutas POST
 router.post('/', createCliente);
 
+// Rutas PUT
+router.put('/:id', updateCliente);
+
 // Rutas específicas primero
-router.get('/lead/:leadId', getClienteByLead);
+router.get('/telefono/:telefono', getClienteByTelefono);
 router.get('/dni/:dni', getClienteByDni);
+router.get('/asesor/:asesorId', getClientesByAsesor);
 router.get('/search', searchClientes);
 
 // Ruta general (debe ir después de las específicas)

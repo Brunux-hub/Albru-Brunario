@@ -25,12 +25,28 @@ app.use('/api/clientes', clientesRoutes);
 // Mount usuarios/auth routes
 const usuariosRoutes = require('./routes/usuarios');
 app.use('/api/auth', usuariosRoutes);
-app.use('/api', usuariosRoutes);
+// Evitar montar en '/api' genérico para prevenir colisiones con rutas simples
+app.use('/api/usuarios', usuariosRoutes);
 
 // Simple endpoints
 app.get('/api/asesores', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, nombre, email, tipo, clientes_asignados FROM asesores WHERE estado = "activo"');
+    const [rows] = await pool.query(`
+      SELECT 
+        a.id as asesor_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado,
+        a.clientes_asignados,
+        a.meta_mensual,
+        a.ventas_realizadas,
+        a.comision_porcentaje
+      FROM asesores a
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE u.estado = 'activo' AND u.tipo = 'asesor'
+    `);
     res.json({ success: true, asesores: rows });
   } catch (error) {
     console.error('Error obteniendo asesores:', error);
@@ -41,7 +57,18 @@ app.get('/api/asesores', async (req, res) => {
 app.get('/api/asesores/buscar/:nombre', async (req, res) => {
   try {
     const nombre = req.params.nombre || '';
-    const [rows] = await pool.query('SELECT id, nombre, email, tipo FROM asesores WHERE UPPER(nombre) LIKE UPPER(?) AND estado = "activo"', [`%${nombre}%`]);
+    const [rows] = await pool.query(`
+      SELECT 
+        a.id as asesor_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado
+      FROM asesores a
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE UPPER(u.nombre) LIKE UPPER(?) AND u.estado = 'activo' AND u.tipo = 'asesor'
+    `, [`%${nombre}%`]);
     res.json({ success: true, resultados: rows });
   } catch (error) {
     console.error('Error buscando asesores:', error);
@@ -52,19 +79,12 @@ app.get('/api/asesores/buscar/:nombre', async (req, res) => {
 app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
   try {
     const asesorId = req.params.asesorId;
-    const [rows] = await pool.query('SELECT id, nombre, telefono, dni, correo_electronico, direccion, distrito, plan_seleccionado, precio_final, estado_cliente as estado, observaciones_asesor as gestion, fecha_asignacion as fecha, fecha_cita as seguimiento FROM clientes WHERE asesor_asignado = ? ORDER BY fecha_asignacion DESC', [asesorId]);
+    const [rows] = await pool.query('SELECT id, nombre, telefono, dni, email, direccion, estado, observaciones_asesor as gestion, fecha_primer_contacto as fecha, fecha_ultimo_contacto as seguimiento FROM clientes WHERE asesor_asignado = ? ORDER BY created_at DESC', [asesorId]);
     res.json({ success: true, clientes: rows });
   } catch (error) {
     console.error('Error obteniendo clientes:', error);
     res.status(500).json({ success: false, message: 'Error al obtener clientes', error: error.message });
   }
-});
-
-// Exponer endpoint de actualización de cliente usando el controlador existente
-// Se deja sin middleware de auth para desarrollo local (coincide con otras rutas públicas)
-app.put('/api/asesores/actualizar-cliente', async (req, res) => {
-  // Delegar en el controlador que ya maneja la validación y la query dinámica
-  return actualizarDatosCliente(req, res);
 });
 
 // Exponer endpoint para cambiar estado del asesor (activo/inactivo)
@@ -76,16 +96,35 @@ app.put('/api/asesores/:id/estado', async (req, res) => {
 app.post('/api/clientes/reasignar', async (req, res) => {
   const { clienteId, nuevoAsesorId, gtrId, comentario } = req.body || {};
 
-  if (!clienteId || !nuevoAsesorId) {
-    return res.status(400).json({ success: false, message: 'clienteId y nuevoAsesorId son requeridos' });
+  console.log('🎯 Backend: Reasignación solicitada. Payload recibido:', JSON.stringify(req.body, null, 2));
+
+  // Validaciones específicas
+  if (!clienteId) {
+    console.error('❌ Backend: clienteId faltante o inválido:', clienteId);
+    return res.status(400).json({ 
+      success: false, 
+      message: 'clienteId es requerido',
+      received: { clienteId, nuevoAsesorId, gtrId }
+    });
   }
+
+  if (!nuevoAsesorId) {
+    console.error('❌ Backend: nuevoAsesorId faltante o inválido:', nuevoAsesorId);
+    return res.status(400).json({ 
+      success: false, 
+      message: 'nuevoAsesorId es requerido',
+      received: { clienteId, nuevoAsesorId, gtrId }
+    });
+  }
+
+  console.log('✅ Backend: Validaciones iniciales pasadas');
 
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
     // Obtener datos del cliente actual
-    const [clienteRows] = await connection.query('SELECT id, nombre, telefono, dni, lead_id, estado_cliente, asesor_asignado FROM clientes WHERE id = ?', [clienteId]);
+    const [clienteRows] = await connection.query('SELECT id, nombre, telefono, dni, estado, asesor_asignado FROM clientes WHERE id = ?', [clienteId]);
     const cliente = clienteRows[0];
 
     if (!cliente) {
@@ -100,7 +139,7 @@ app.post('/api/clientes/reasignar', async (req, res) => {
 
     // Registrar en historial si la tabla existe
     try {
-      await connection.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, estado_nuevo, comentarios) VALUES (?, ?, ?, ?, ?)', [clienteId, gtrId || null, 'reasignado_asesor', cliente.estado_cliente || null, comentario || `Reasignado a asesor ${nuevoAsesorId}`]);
+      await connection.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)', [clienteId, gtrId || null, 'reasignado_asesor', comentario || `Reasignado a asesor ${nuevoAsesorId}`, cliente.estado || null]);
     } catch (e) {
       // Si la tabla no existe, no falle la operación completa
       console.warn('No se pudo insertar en historial_cliente (posible ausencia de tabla):', e.message);
@@ -113,7 +152,7 @@ app.post('/api/clientes/reasignar', async (req, res) => {
     await connection.query('UPDATE asesores SET clientes_asignados = IFNULL(clientes_asignados,0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nuevoAsesorId]);
 
     // Obtener datos del nuevo asesor
-    const [asesorRows] = await connection.query('SELECT id, nombre FROM asesores WHERE id = ?', [nuevoAsesorId]);
+    const [asesorRows] = await connection.query('SELECT a.id, u.nombre FROM asesores a JOIN usuarios u ON a.usuario_id = u.id WHERE a.id = ?', [nuevoAsesorId]);
 
     await connection.commit();
 
@@ -126,8 +165,7 @@ app.post('/api/clientes/reasignar', async (req, res) => {
           nombre: cliente.nombre,
           telefono: cliente.telefono,
           dni: cliente.dni,
-          lead_id: cliente.lead_id,
-          estado: cliente.estado_cliente
+          estado: cliente.estado
         },
         asesor: asesorRows[0] || { id: nuevoAsesorId },
         fecha_reasignacion: new Date()
@@ -142,8 +180,7 @@ app.post('/api/clientes/reasignar', async (req, res) => {
         nombre: cliente.nombre,
         telefono: cliente.telefono,
         dni: cliente.dni,
-        lead_id: cliente.lead_id,
-        estado: cliente.estado_cliente
+        estado: cliente.estado
       },
       nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
       antiguoAsesor: { id: antiguoAsesorId },
@@ -158,6 +195,233 @@ app.post('/api/clientes/reasignar', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al reasignar cliente', error: error.message });
   } finally {
     connection.release();
+  }
+});
+
+// Endpoints específicos para tipos de usuarios
+app.get('/api/usuarios/todos', async (req, res) => {
+  try {
+    const [usuarios] = await pool.query(`
+      SELECT 
+        u.id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.tipo,
+        u.estado,
+        u.created_at,
+        us.username,
+        us.activo,
+        us.ultimo_acceso,
+        CASE 
+          WHEN u.tipo = 'admin' THEN a.nivel_acceso
+          WHEN u.tipo = 'gtr' THEN g.region
+          WHEN u.tipo = 'asesor' THEN CONCAT('Meta: $', ases.meta_mensual)
+          WHEN u.tipo = 'supervisor' THEN s.area_supervision
+          WHEN u.tipo = 'validador' THEN v.tipo_validacion
+          ELSE 'Sin detalle'
+        END as detalle_rol
+      FROM usuarios u
+      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      LEFT JOIN administradores a ON u.id = a.usuario_id
+      LEFT JOIN gtr g ON u.id = g.usuario_id  
+      LEFT JOIN asesores ases ON u.id = ases.usuario_id
+      LEFT JOIN supervisores s ON u.id = s.usuario_id
+      LEFT JOIN validadores v ON u.id = v.usuario_id
+      ORDER BY u.tipo, u.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      usuarios
+    });
+  } catch (error) {
+    console.error('Error obteniendo usuarios:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener usuarios' 
+    });
+  }
+});
+
+app.get('/api/usuarios/asesores', async (req, res) => {
+  try {
+    const [asesores] = await pool.query(`
+      SELECT 
+        a.id as asesor_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado,
+        a.clientes_asignados,
+        a.meta_mensual,
+        a.ventas_realizadas,
+        a.comision_porcentaje,
+        a.created_at,
+        us.username,
+        us.activo,
+        us.ultimo_acceso,
+        g.nombre as gtr_nombre
+      FROM asesores a
+      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      LEFT JOIN gtr gt ON a.gtr_asignado = gt.id
+      LEFT JOIN usuarios g ON gt.usuario_id = g.id
+      WHERE u.tipo = 'asesor'
+      ORDER BY a.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      asesores
+    });
+  } catch (error) {
+    console.error('Error obteniendo asesores:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener asesores' 
+    });
+  }
+});
+
+app.get('/api/usuarios/administradores', async (req, res) => {
+  try {
+    const [administradores] = await pool.query(`
+      SELECT 
+        a.id as admin_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado,
+        a.nivel_acceso,
+        a.permisos_especiales,
+        a.created_at,
+        us.username,
+        us.activo
+      FROM administradores a
+      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      WHERE u.tipo = 'admin'
+      ORDER BY a.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      administradores
+    });
+  } catch (error) {
+    console.error('Error obteniendo administradores:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener administradores' 
+    });
+  }
+});
+
+app.get('/api/usuarios/gtr', async (req, res) => {
+  try {
+    const [gtr] = await pool.query(`
+      SELECT 
+        g.id as gtr_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado,
+        g.asesores_a_cargo,
+        g.region,
+        g.created_at,
+        us.username,
+        us.activo
+      FROM gtr g
+      JOIN usuarios u ON g.usuario_id = u.id
+      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      WHERE u.tipo = 'gtr'
+      ORDER BY g.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      gtr
+    });
+  } catch (error) {
+    console.error('Error obteniendo GTR:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener GTR' 
+    });
+  }
+});
+
+app.get('/api/usuarios/validadores', async (req, res) => {
+  try {
+    const [validadores] = await pool.query(`
+      SELECT 
+        v.id as validador_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado,
+        v.tipo_validacion,
+        v.validaciones_realizadas,
+        v.created_at,
+        us.username,
+        us.activo
+      FROM validadores v
+      JOIN usuarios u ON v.usuario_id = u.id
+      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      WHERE u.tipo = 'validador'
+      ORDER BY v.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      validadores
+    });
+  } catch (error) {
+    console.error('Error obteniendo validadores:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener validadores' 
+    });
+  }
+});
+
+app.get('/api/usuarios/supervisores', async (req, res) => {
+  try {
+    const [supervisores] = await pool.query(`
+      SELECT 
+        s.id as supervisor_id,
+        u.id as usuario_id,
+        u.nombre,
+        u.email,
+        u.telefono,
+        u.estado,
+        s.area_supervision,
+        s.asesores_supervisados,
+        s.created_at,
+        us.username,
+        us.activo
+      FROM supervisores s
+      JOIN usuarios u ON s.usuario_id = u.id
+      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      WHERE u.tipo = 'supervisor'
+      ORDER BY s.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      supervisores
+    });
+  } catch (error) {
+    console.error('Error obteniendo supervisores:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener supervisores' 
+    });
   }
 });
 

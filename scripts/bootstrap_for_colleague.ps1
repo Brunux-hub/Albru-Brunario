@@ -39,7 +39,7 @@ Write-Host "Bootstrap iniciado. Opciones: ImportDb=$ImportDb UseWorkbench=$UseWo
 
 if ($UseWorkbench) {
   Write-Host "==> Has elegido usar MySQL Workbench/PhpMyAdmin para importar la BD."
-  Write-Host "Importa el fichero: src\database\albru_completo_mysql.sql en el schema '$DBName'."
+  Write-Host "Importa el fichero: src\database\albru_consolidado_completo.sql en el schema '$DBName'."
   Confirm-OrExit "¿Confirmas que ya importaste la base de datos con Workbench?"
 } elseif ($ImportDb) {
   # Llamar al import_mysql.ps1

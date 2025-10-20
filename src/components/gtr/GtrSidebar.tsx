@@ -1,11 +1,11 @@
 import React from 'react';
 import { List, ListItemIcon, ListItemText, ListItemButton, ListItem, Typography, Box, Button, Divider } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
 import PeopleIcon from '@mui/icons-material/People';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { useAuth } from '../../context/UnifiedAuthContext';
 
 const menuItems = [
   { text: 'Clientes', icon: <PeopleIcon /> },
@@ -15,10 +15,11 @@ const menuItems = [
 ];
 
 const GtrSidebar: React.FC<{ onSelect: (section: string) => void, selected: string }> = ({ onSelect, selected }) => {
-  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleLogout = () => {
-    navigate('/');
+    console.log('🚪 GtrSidebar - Logout iniciado');
+    logout();
   };
 
   return (

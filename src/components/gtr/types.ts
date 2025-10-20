@@ -1,9 +1,14 @@
 export interface Asesor {
-  id: number;
+  asesor_id: number;
+  usuario_id: number;
   nombre: string;
   email: string;
+  telefono: string;
   estado: string;
-  tipo: string;
+  clientes_asignados: number;
+  meta_mensual: string;
+  ventas_realizadas: string;
+  comision_porcentaje: string;
 }
 // Tipos compartidos para componentes GTR
 

@@ -11,6 +11,9 @@ const server = http.createServer(app);
 // Importar rutas
 const clientesRoutes = require('./routes/clientes');
 const asesoresRoutes = require('./routes/asesores');
+const usuariosRoutes = require('./routes/usuarios');
+const userRoutes = require('./routes/user');
+const authRoutes = require('./routes/auth'); // Nueva ruta auth
 const pool = require('./config/database');
 
 // Middleware para parsear el cuerpo de las peticiones como JSON
@@ -22,23 +25,27 @@ const corsOptions = {
     // Permitir solicitudes sin origen (aplicaciones móviles, Postman, etc.)
     if (!origin) return callback(null, true);
     
-    // Lista de orígenes permitidos
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-      'https://albru-brunario.vercel.app',
-      process.env.FRONTEND_URL || 'http://localhost:3000'
-    ];
+    // Permitir cualquier IP local en puerto 5173 (frontend)
+    const localPattern = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):5173$/;
     
-    if (allowedOrigins.includes(origin)) {
+    if (localPattern.test(origin)) {
+      console.log('✅ Permitiendo origen IP local:', origin);
       callback(null, true);
     } else {
-      console.log('✅ Permitiendo origen:', origin);
-      // Permitir cualquier origen durante desarrollo
-      callback(null, true);
+      // Lista de orígenes específicos permitidos
+      const allowedOrigins = [
+        'https://albru-brunario.vercel.app',
+        process.env.FRONTEND_URL
+      ].filter(Boolean);
+      
+      if (allowedOrigins.includes(origin)) {
+        console.log('✅ Permitiendo origen específico:', origin);
+        callback(null, true);
+      } else {
+        console.log('🔒 Origen no permitido:', origin);
+        // Para desarrollo, permitir cualquier origen
+        callback(null, true);
+      }
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -49,8 +56,11 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Rutas
-app.use('/clientes', clientesRoutes);
-app.use('/asesores', asesoresRoutes);
+app.use('/api/clientes', clientesRoutes);
+app.use('/api/asesores', asesoresRoutes);
+app.use('/api/usuarios', usuariosRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/auth', authRoutes); // Nueva ruta auth compatible
 
 // Ruta raíz
 app.get('/', (req, res) => {
@@ -77,7 +87,26 @@ app.get('/api/ws-stats', (req, res) => {
   res.json(WebSocketService.getStats());
 });
 
-server.listen(port, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
-  console.log(`🔌 WebSocket disponible en ws://localhost:${port}`);
+server.listen(port, '0.0.0.0', () => {
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  
+  console.log(`🚀 Servidor ALBRU iniciado correctamente`);
+  console.log(`📍 Puerto: ${port}`);
+  console.log(`🌐 Accesible desde:`);
+  console.log(`   - Local: http://localhost:${port}`);
+  
+  // Mostrar todas las IPs de red local disponibles
+  Object.keys(networkInterfaces).forEach(interfaceName => {
+    const interfaces = networkInterfaces[interfaceName];
+    interfaces.forEach(interface => {
+      if (interface.family === 'IPv4' && !interface.internal) {
+        console.log(`   - Red Local: http://${interface.address}:${port}`);
+        console.log(`   - Frontend: http://${interface.address}:5173`);
+      }
+    });
+  });
+  
+  console.log(`🔌 WebSocket disponible en todas las IPs de red local`);
+  console.log(`🔐 CORS configurado para red local automáticamente`);
 });

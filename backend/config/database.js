@@ -9,7 +9,12 @@ const dbConfig = {
   database: process.env.DB_NAME || 'albru',
   port: Number(process.env.DB_PORT || 3306),
   waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONN_LIMIT || 10),
+  connectionLimit: Number(process.env.DB_CONN_LIMIT || 50),
+  queueLimit: 0,
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true,
+  charset: 'utf8mb4'
 };
 
 const pool = mysql.createPool(dbConfig);

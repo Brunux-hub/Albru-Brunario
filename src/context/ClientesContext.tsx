@@ -80,15 +80,15 @@ export const ClientesProvider: React.FC<{ children: ReactNode }> = ({ children }
         // Mapear todos los campos del frontend a los campos esperados por el backend
         const datosBackend: any = {};
         
-        // Campos básicos
+        // Campos básicos - CORREGIDOS para coincidir con la BD
         if (clienteActualizado.nombre) datosBackend.nombre = clienteActualizado.nombre;
         if (clienteActualizado.telefono) datosBackend.telefono = clienteActualizado.telefono;
         if (clienteActualizado.dni) datosBackend.dni = clienteActualizado.dni;
         if (clienteActualizado.direccion) datosBackend.direccion = clienteActualizado.direccion;
-        if (clienteActualizado.estado) datosBackend.estado_cliente = clienteActualizado.estado;
-        if (clienteActualizado.servicio) datosBackend.servicio = clienteActualizado.servicio;
-        if (clienteActualizado.seguimiento) datosBackend.fecha_cita = clienteActualizado.seguimiento;
-        if (clienteActualizado.comentariosIniciales) datosBackend.comentarios_iniciales = clienteActualizado.comentariosIniciales;
+        if (clienteActualizado.estado) datosBackend.estado = clienteActualizado.estado;
+        if (clienteActualizado.servicio) datosBackend.servicio_contratado = clienteActualizado.servicio; // CORREGIDO: servicio va a servicio_contratado
+        if (clienteActualizado.seguimiento) datosBackend.fecha_ultimo_contacto = clienteActualizado.seguimiento;
+        if (clienteActualizado.comentariosIniciales) datosBackend.notas = clienteActualizado.comentariosIniciales;
         
         // Campos del wizard (si están presentes en el objeto cliente actualizado)
         const camposWizard = [
@@ -113,14 +113,13 @@ export const ClientesProvider: React.FC<{ children: ReactNode }> = ({ children }
           }
         });
 
-        const payload = { clienteId: clienteId, datos: datosBackend };
+        console.log('🔄 Enviando actualización al backend para cliente ID:', clienteId);
+        console.log('� Datos a enviar:', datosBackend);
         
-        console.log('🔄 Enviando actualización al backend:', payload);
-        
-        const response = await fetch((import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001') + '/api/asesores/actualizar-cliente', {
+        const response = await fetch((import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001') + `/api/clientes/${clienteId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(datosBackend)
         });
 
         if (response.ok) {

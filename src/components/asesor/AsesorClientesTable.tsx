@@ -65,11 +65,18 @@ const AsesorClientesTable = forwardRef<any, {}>((_, ref) => {
     try {
       console.log('📡 Cargando clientes asignados al asesor desde BD...');
       
-      // Para demo, usamos el asesor Carlos López (ID: 1)
-      // En producción esto vendría del token o usuario autenticado
-      const asesorId = 1; // Carlos López
+      // Obtener el ID del usuario autenticado desde localStorage
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const asesorId = userData.id;
       
-      // Obtener solo los clientes asignados a este asesor
+      if (!asesorId) {
+        console.error('❌ No se encontró ID de usuario autenticado');
+        return;
+      }
+      
+      console.log(`👤 Cargando clientes para asesor ID: ${asesorId} (${userData.nombre})`);
+      
+      // Obtener solo los clientes asignados a este asesor específico
       const response = await fetch(`/api/clientes/asesor/${asesorId}`);
       
       if (!response.ok) {
@@ -88,9 +95,9 @@ const AsesorClientesTable = forwardRef<any, {}>((_, ref) => {
           const clienteFormateado: Cliente = {
             id: cliente.id,
             fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : new Date().toLocaleDateString('es-PE'),
-            nombre: cliente.nombre ?? 'Sin nombre',
-            telefono: cliente.telefono ?? 'Sin teléfono',
-            dni: cliente.dni ?? 'Sin DNI',
+            nombre: cliente.nombre ?? '',
+            telefono: cliente.telefono ?? '',
+            dni: cliente.dni ?? '',
             servicio: cliente.servicio ?? 'Internet',
             estado: cliente.estado === 'nuevo' ? 'Nuevo' : (cliente.estado ?? 'Nuevo'),
             gestion: 'En proceso',

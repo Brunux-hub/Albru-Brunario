@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Crea la base de datos MySQL y la importa desde un archivo SQL.
+  Importa un archivo SQL a MySQL local (XAMPP/MySQL Workbench).
 
 .DESCRIPTION
-  Script idempotente para entornos Windows. Comprueba que el cliente 'mysql' está en PATH,
-  crea la base de datos si no existe e importa el archivo SQL especificado.
+  Script para MySQL local instalado en el sistema (XAMPP, MySQL Workbench, etc).
+  Para Docker, usa import_mysql_docker.ps1 en su lugar.
 
 .PARAMETER User
   Usuario MySQL (por defecto: root)
@@ -16,19 +16,23 @@
   Nombre de la base de datos a crear/importar (por defecto: albru)
 
 .PARAMETER SqlFile
-  Ruta al archivo SQL a importar. Por defecto: src/database/albru_completo_mysql.sql
+  Ruta al archivo SQL a importar. Por defecto: src/database/albru_consolidado_completo.sql
 
-USAGE
+.EXAMPLE
   .\import_mysql.ps1 -User root -Password "miPass" -DbName albru
-  # o interactivo
+  
+.EXAMPLE
   .\import_mysql.ps1
+
+.NOTES
+  Para Docker usa: .\import_mysql_docker.ps1
 #>
 
 param(
   [string]$User = 'root',
   [string]$Password = '',
   [string]$DbName = 'albru',
-  [string]$SqlFile = (Join-Path $PSScriptRoot '..\src\database\albru_completo_mysql.sql')
+  [string]$SqlFile = (Join-Path $PSScriptRoot '..\src\database\albru_consolidado_completo.sql')
 )
 
 Write-Host "[import_mysql] Inicio: usuario=$User, db=$DbName, sqlFile=$SqlFile"
@@ -46,7 +50,7 @@ if (-not (Test-Path $SqlFile)) {
 
 try {
   # Crear base de datos si no existe
-  $createCmd = "CREATE DATABASE IF NOT EXISTS `$DbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+  $createCmd = "CREATE DATABASE IF NOT EXISTS $DbName CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
   $argsCreate = @("--user=$User")
   if ($Password -ne '') { $argsCreate += "--password=$Password" }
   $argsCreate += @("-e", $createCmd)
@@ -58,13 +62,14 @@ try {
   # Importar SQL
   Write-Host "[import_mysql] Importando archivo SQL a la base de datos '$DbName'... (esto puede tardar)"
 
-  # Construir comando de importación con cmd.exe para usar redirección '<'
-  $pwdEscaped = $SqlFile -replace '/', '\\'
-  $cmd = "mysql --user=$User " + (if ($Password -ne '') { "--password=$Password " } else { "" }) + "$DbName < \"$pwdEscaped\""
+  # Usar Get-Content y pipeline para importar (más compatible con PowerShell)
+  $mysqlArgs = @("--user=$User")
+  if ($Password -ne '') { $mysqlArgs += "--password=$Password" }
+  $mysqlArgs += $DbName
 
-  $full = "cmd /c $cmd"
-  $proc2 = Start-Process -FilePath cmd -ArgumentList '/c', $cmd -NoNewWindow -Wait -PassThru -ErrorAction Stop
-  if ($proc2.ExitCode -ne 0) { Throw "Import failed, mysql returned exit code $($proc2.ExitCode)" }
+  Write-Host "[import_mysql] Ejecutando: Get-Content '$SqlFile' | mysql $($mysqlArgs -join ' ')"
+  Get-Content $SqlFile -Encoding UTF8 | mysql @mysqlArgs
+  if ($LASTEXITCODE -ne 0) { Throw "Import failed, mysql returned exit code $LASTEXITCODE" }
 
   Write-Host "[import_mysql] Import completed successfully."
   exit 0

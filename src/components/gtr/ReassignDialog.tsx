@@ -16,14 +16,19 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
   // Filtrar solo asesores activos
   console.log('🔍 ReassignDialog: Asesores recibidos:', asesores);
   const asesoresActivos = asesores?.filter(asesor => 
-    asesor.estado === 'Activo' || asesor.estado === 'Ocupado'
+    asesor.estado === 'activo' || asesor.estado === 'Activo' || asesor.estado === 'Ocupado'
   ) || [];
   console.log('🔍 ReassignDialog: Asesores activos filtrados:', asesoresActivos);
+  console.log('🔍 ReassignDialog: Primer asesor activo:', asesoresActivos[0]);
 
   const handleConfirm = () => {
-    if (newAdvisor) {
+    if (newAdvisor && newAdvisor.trim() !== '') {
+      console.log('🎯 ReassignDialog: Enviando asesor seleccionado:', newAdvisor);
       onConfirm(newAdvisor);
       setNewAdvisor('');
+    } else {
+      console.error('❌ ReassignDialog: No se ha seleccionado un asesor válido');
+      alert('Por favor selecciona un asesor válido');
     }
   };
 
@@ -51,11 +56,16 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
                 No hay asesores disponibles
               </MenuItem>
             ) : (
-              asesoresActivos.map((asesor) => (
-                <MenuItem key={asesor.id || asesor.nombre} value={asesor.nombre}>
-                  {asesor.nombre} - {asesor.estado}
-                </MenuItem>
-              ))
+              asesoresActivos.map((asesor) => {
+                // Siempre usar asesor_id como valor - nunca el nombre
+                const value = String(asesor.asesor_id);
+                console.log('🎯 ReassignDialog: MenuItem para', asesor.nombre, '- value:', value, '- asesor_id:', asesor.asesor_id);
+                return (
+                  <MenuItem key={asesor.asesor_id} value={value}>
+                    {asesor.nombre} - {asesor.estado}
+                  </MenuItem>
+                );
+              })
             )}
           </Select>
         </FormControl>

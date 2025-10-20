@@ -6,15 +6,18 @@ import HistoryIcon from '@mui/icons-material/History';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { useAuth } from '../../context/UnifiedAuthContext';
 
 const AsesorSidebar: React.FC = () => {
+  const { logout, user } = useAuth();
+  
   const handleCerrarSesion = () => {
-    window.location.href = '/';
+    console.log('🚪 AsesorSidebar - Logout iniciado');
+    logout();
   };
 
-  // Obtener datos del usuario autenticado
-  const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-  const nombreAsesor = userData.nombre || 'Asesor';
+  // Obtener datos del usuario desde el contexto unificado
+  const nombreAsesor = user?.nombre || 'Asesor';
   const iniciales = nombreAsesor.split(' ').map((n: string) => n[0]).join('').toUpperCase();
 
   return (

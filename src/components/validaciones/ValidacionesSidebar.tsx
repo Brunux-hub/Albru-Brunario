@@ -1,6 +1,7 @@
 import React from 'react';
-import { List, ListItemIcon, ListItemText, ListItemButton, ListItem, Typography, Box, Button, Divider } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { List, ListItemIcon, ListItemText, ListItemButton, ListItem, Typography, Box, Button, Divider, Avatar } from '@mui/material';
+
+import { useAuth } from '../../context/UnifiedAuthContext';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import SearchIcon from '@mui/icons-material/Search';
 import AssignmentIcon from '@mui/icons-material/Assignment';
@@ -17,11 +18,15 @@ const menuItems = [
 ];
 
 const ValidacionesSidebar: React.FC<{ onSelect: (section: string) => void, selected: string }> = ({ onSelect, selected }) => {
-  const navigate = useNavigate();
+  const { logout, user } = useAuth();
 
   const handleLogout = () => {
-    navigate('/');
+    logout();
   };
+
+  // Obtener nombre del contexto unificado
+  const nombreValidador = user?.nombre || 'Validador';
+  const iniciales = nombreValidador.split(' ').map((n: string) => n[0]).join('').toUpperCase();
 
   return (
     <Box
@@ -39,7 +44,15 @@ const ValidacionesSidebar: React.FC<{ onSelect: (section: string) => void, selec
       }}
     >
       <Box sx={{ p: 3, borderBottom: '1px solid #065f46' }}>
-        <Typography variant="h6" fontWeight="bold">Validaciones</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Avatar sx={{ bgcolor: '#10b981', mr: 2 }}>{iniciales}</Avatar>
+          <Box>
+            <Typography variant="h6" fontWeight="bold">Validaciones</Typography>
+            <Typography variant="caption" sx={{ color: '#a7f3d0' }}>
+              {nombreValidador}
+            </Typography>
+          </Box>
+        </Box>
       </Box>
       
       <List sx={{ flex: 1 }}>

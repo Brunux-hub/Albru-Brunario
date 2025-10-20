@@ -5,7 +5,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
-import type { ClientHistoryData } from './types';
+import type { ClientHistoryData, Asesor } from './types';
 
 
 interface Historial {
@@ -26,14 +26,6 @@ interface Cliente {
   historial?: Historial[];
   fecha: string;
   comentarios?: string;
-}
-
-interface Asesor {
-  id: number;
-  nombre: string;
-  email: string;
-  estado: string;
-  tipo: string;
 }
 
 
@@ -110,103 +102,112 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     setReassignDialogOpen(true);
   };
 
-  const handleReassignConfirm = async (newAdvisor: string) => {
-    if (clientToReassign) {
-        console.log('🎯 GTR: Confirmando reasignación...');
-        console.log('📋 GTR: Cliente seleccionado:', clientToReassign);
-        console.log('📋 GTR: Cliente ID:', clientToReassign.id);
-        console.log('📋 GTR: Tipo de Cliente ID:', typeof clientToReassign.id);
-        console.log('🎯 GTR: Nuevo asesor seleccionado:', newAdvisor);
-        console.log('📋 GTR: Lista de asesores disponibles:', asesores);
+  const handleReassignConfirm = async (newAsesorId: string) => {
+    if (!clientToReassign) {
+        console.error('❌ GTR: No hay cliente seleccionado para reasignar');
+        alert('Error: No se ha seleccionado ningún cliente');
+        return;
+    }
 
-        try {
-            // Validar que el cliente tenga ID
-            if (!clientToReassign.id) {
-                throw new Error('Cliente no tiene ID válido');
-            }
+    console.log('🎯 GTR: Iniciando proceso de reasignación...');
+    console.log('📋 GTR: Cliente seleccionado:', JSON.stringify(clientToReassign, null, 2));
+    console.log('📋 GTR: Cliente ID:', clientToReassign.id, 'Tipo:', typeof clientToReassign.id);
+    console.log('🎯 GTR: Nuevo asesor ID recibido:', newAsesorId, 'Tipo:', typeof newAsesorId);
 
-            // 1. Buscar ID del asesor en la base de datos
-            const asesorResponse = await fetch(`/api/asesores/buscar/${newAdvisor}`);
-
-            if (!asesorResponse.ok) {
-                const errorData = await asesorResponse.json();
-                throw new Error(errorData.message || `Asesor "${newAdvisor}" no encontrado en la base de datos`);
-            }
-
-            const asesorData = await asesorResponse.json();
-            
-            if (!asesorData.success || !asesorData.resultados || asesorData.resultados.length === 0) {
-                throw new Error(`Asesor "${newAdvisor}" no encontrado`);
-            }
-            
-            const asesor = asesorData.resultados[0];
-            const asesorId = asesor.id;
-
-            console.log('👤 GTR: Asesor encontrado:', asesor);
-
-            // 2. Realizar reasignación en el backend
-            const reasignacionResponse = await fetch('/api/clientes/reasignar', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    clienteId: clientToReassign.id,
-                    nuevoAsesorId: asesorId,
-                    gtrId: 1, // ID del GTR (puede ser dinámico)
-                    comentario: `Reasignado desde GTR a ${newAdvisor}`
-                }),
-            });
-
-            if (!reasignacionResponse.ok) {
-                const errorData = await reasignacionResponse.json();
-                throw new Error(errorData.message || 'Error al reasignar en el servidor');
-            }
-
-            const result = await reasignacionResponse.json();
-            console.log('✅ GTR: Reasignación exitosa en BD:', result);
-
-            // 3. Enviar notificación por WebSocket
-            // La notificación ya se envía desde el backend automáticamente
-
-            // 4. Actualizar la tabla local
-            const previousAdvisor = clientToReassign.asesor;
-            const currentDate = new Date();
-            const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
-            const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
-
-            const reassignmentEntry = {
-                fecha: formattedDateTime,
-                asesor: newAdvisor,
-                accion: 'Reasignación',
-                estadoAnterior: previousAdvisor,
-                estadoNuevo: newAdvisor,
-                comentarios: `Reasignado de ${previousAdvisor} a ${newAdvisor}`
-            };
-
-            setClients(prev => prev.map(c => {
-                if (c.id === clientToReassign.id) {
-                    const updatedHistorial = c.historial ? [reassignmentEntry, ...c.historial] : [reassignmentEntry];
-                    return {
-                        ...c,
-                        asesor: newAdvisor,
-                        historial: updatedHistorial
-                    };
-                }
-                return c;
-            }));
-
-            console.log('🎉 GTR: Reasignación completada exitosamente');
-
-        } catch (error) {
-            console.error('❌ GTR: Error en reasignación:', error);
-            alert(`Error al reasignar cliente: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-        } finally {
-            setReassignDialogOpen(false);
+    try {
+        // Validaciones exhaustivas
+        const clienteId = clientToReassign.id;
+        if (!clienteId || clienteId === undefined || clienteId === null) {
+            console.error('❌ GTR: Cliente ID inválido:', clienteId);
+            throw new Error(`Cliente no tiene ID válido. ID recibido: ${clienteId}`);
         }
+
+        if (!newAsesorId || newAsesorId.trim() === '') {
+            console.error('❌ GTR: Asesor ID inválido:', newAsesorId);
+            throw new Error('Debe seleccionar un asesor válido');
+        }
+
+        // Convertir IDs a números para asegurar tipo correcto
+        const clienteIdNum = parseInt(String(clienteId));
+        const asesorIdNum = parseInt(newAsesorId);
+
+        if (isNaN(clienteIdNum) || isNaN(asesorIdNum)) {
+            console.error('❌ GTR: Error de conversión:', { clienteIdNum, asesorIdNum });
+            throw new Error(`IDs no son números válidos. Cliente: ${clienteIdNum}, Asesor: ${asesorIdNum}`);
+        }
+
+        console.log('✅ GTR: Validaciones pasadas. Procediendo con:', { clienteIdNum, asesorIdNum });
+
+        // Buscar el nombre del nuevo asesor para actualizar la UI
+        const nuevoAsesor = asesores.find(a => String(a.asesor_id) === newAsesorId);
+        const nuevoAsesorNombre = nuevoAsesor?.nombre || `Asesor ID: ${newAsesorId}`;
+
+        // Preparar payload para el backend
+        const payload = {
+            clienteId: clienteIdNum,
+            nuevoAsesorId: asesorIdNum,
+            gtrId: 2, // GTR María García ID
+            comentario: `Cliente reasignado por GTR desde panel de gestión`
+        };
+
+        console.log('� GTR: Enviando payload al backend:', JSON.stringify(payload, null, 2));
+
+        // Realizar reasignación en el backend
+        const reasignacionResponse = await fetch('/api/clientes/reasignar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!reasignacionResponse.ok) {
+            const errorData = await reasignacionResponse.json();
+            console.error('❌ GTR: Error del servidor:', errorData);
+            throw new Error(errorData.message || 'Error al reasignar en el servidor');
+        }
+
+        const result = await reasignacionResponse.json();
+        console.log('✅ GTR: Reasignación exitosa en BD:', result);
+
+        // Actualizar la tabla local
+        const previousAdvisor = clientToReassign.asesor;
+        const currentDate = new Date();
+        const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}/${(currentDate.getMonth() + 1).toString().padStart(2, '0')}/${currentDate.getFullYear()}`;
+        const formattedDateTime = `${formattedDate} ${currentDate.getHours().toString().padStart(2, '0')}:${currentDate.getMinutes().toString().padStart(2, '0')}`;
+
+        const reassignmentEntry = {
+            fecha: formattedDateTime,
+            asesor: nuevoAsesorNombre,
+            accion: 'Reasignación',
+            estadoAnterior: previousAdvisor,
+            estadoNuevo: nuevoAsesorNombre,
+            comentarios: `Reasignado de ${previousAdvisor} a ${nuevoAsesorNombre}`
+        };
+
+        setClients(prev => prev.map(c => {
+            if (c.id === clientToReassign.id) {
+                const updatedHistorial = c.historial ? [reassignmentEntry, ...c.historial] : [reassignmentEntry];
+                return {
+                    ...c,
+                    asesor: nuevoAsesorNombre,
+                    historial: updatedHistorial
+                };
+            }
+            return c;
+        }));
+
+        console.log('🎉 GTR: Reasignación completada exitosamente');
+        alert(`Cliente reasignado exitosamente a ${nuevoAsesorNombre}`);
+
+    } catch (error) {
+        console.error('❌ GTR: Error en reasignación:', error);
+        alert(`Error al reasignar cliente: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+        setReassignDialogOpen(false);
         setClientToReassign(null);
     }
-};
+  };
   
   return (
     <Paper sx={{ 
