@@ -210,9 +210,9 @@ app.get('/api/usuarios/todos', async (req, res) => {
         u.tipo,
         u.estado,
         u.created_at,
-        us.username,
-        us.activo,
-        us.ultimo_acceso,
+        u.username,
+        CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END as activo,
+        u.ultimo_acceso,
         CASE 
           WHEN u.tipo = 'admin' THEN a.nivel_acceso
           WHEN u.tipo = 'gtr' THEN g.region
@@ -222,7 +222,7 @@ app.get('/api/usuarios/todos', async (req, res) => {
           ELSE 'Sin detalle'
         END as detalle_rol
       FROM usuarios u
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      -- usuarios_sistema removed (consolidated)
       LEFT JOIN administradores a ON u.id = a.usuario_id
       LEFT JOIN gtr g ON u.id = g.usuario_id  
       LEFT JOIN asesores ases ON u.id = ases.usuario_id
@@ -259,13 +259,13 @@ app.get('/api/usuarios/asesores', async (req, res) => {
         a.ventas_realizadas,
         a.comision_porcentaje,
         a.created_at,
-        us.username,
-        us.activo,
-        us.ultimo_acceso,
+        u.username,
+        CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END as activo,
+        u.ultimo_acceso,
         g.nombre as gtr_nombre
       FROM asesores a
       JOIN usuarios u ON a.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      -- usuarios_sistema removed (consolidated)
       LEFT JOIN gtr gt ON a.gtr_asignado = gt.id
       LEFT JOIN usuarios g ON gt.usuario_id = g.id
       WHERE u.tipo = 'asesor'
@@ -298,11 +298,11 @@ app.get('/api/usuarios/administradores', async (req, res) => {
         a.nivel_acceso,
         a.permisos_especiales,
         a.created_at,
-        us.username,
-        us.activo
+        u.username,
+        CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END as activo
       FROM administradores a
       JOIN usuarios u ON a.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      -- usuarios_sistema removed (consolidated)
       WHERE u.tipo = 'admin'
       ORDER BY a.created_at DESC
     `);
@@ -333,11 +333,11 @@ app.get('/api/usuarios/gtr', async (req, res) => {
         g.asesores_a_cargo,
         g.region,
         g.created_at,
-        us.username,
-        us.activo
+        u.username,
+        CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END as activo
       FROM gtr g
       JOIN usuarios u ON g.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      -- usuarios_sistema removed (consolidated)
       WHERE u.tipo = 'gtr'
       ORDER BY g.created_at DESC
     `);
@@ -368,11 +368,11 @@ app.get('/api/usuarios/validadores', async (req, res) => {
         v.tipo_validacion,
         v.validaciones_realizadas,
         v.created_at,
-        us.username,
-        us.activo
+        u.username,
+        CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END as activo
       FROM validadores v
       JOIN usuarios u ON v.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      -- usuarios_sistema removed (consolidated)
       WHERE u.tipo = 'validador'
       ORDER BY v.created_at DESC
     `);
@@ -403,11 +403,11 @@ app.get('/api/usuarios/supervisores', async (req, res) => {
         s.area_supervision,
         s.asesores_supervisados,
         s.created_at,
-        us.username,
-        us.activo
+        u.username,
+        CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END as activo
       FROM supervisores s
       JOIN usuarios u ON s.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
+      -- usuarios_sistema removed (consolidated)
       WHERE u.tipo = 'supervisor'
       ORDER BY s.created_at DESC
     `);
@@ -500,7 +500,8 @@ app.post('/api/auth/bypass-login', async (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.resolve(__dirname, '..', 'dist');
   app.use(express.static(distPath));
-  app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+  // Catch-all SOLO para rutas que NO sean API (para SPA routing)
+  app.get(/^(?!\/api).*/, (req, res) => res.sendFile(path.join(distPath, 'index.html')));
 }
 
 const http = require('http');
