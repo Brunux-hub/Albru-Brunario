@@ -1,7 +1,7 @@
 import React from 'react';
 import { List, ListItemIcon, ListItemText, ListItemButton, ListItem, Typography, Box, Button, Divider, Avatar } from '@mui/material';
 
-import { useAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth as useAuth } from '../../hooks/useAuth';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import SearchIcon from '@mui/icons-material/Search';
 import AssignmentIcon from '@mui/icons-material/Assignment';

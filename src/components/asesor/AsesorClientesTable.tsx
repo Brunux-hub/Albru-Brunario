@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
 import {
   Box,
   Table,
@@ -23,7 +23,18 @@ import type { Cliente } from '../../context/ClientesContext';
 const estados = ['Todos los estados', 'En gestión', 'En seguimiento', 'Nuevo'];
 const gestiones = ['Todas las gestiones', 'En proceso', 'Derivado'];
 
-const AsesorClientesTable = forwardRef<any, {}>((_, ref) => {
+// Interface para el ref
+interface AsesorClientesTableRef {
+  refreshClientes: () => Promise<void>;
+}
+
+// Props del componente (vacío por ahora, pero permite extensión futura)
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface AsesorClientesTableProps {
+  // Props futuras si las necesitas
+}
+
+const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTableProps>((_props, ref) => {
   const { clientes, actualizarCliente, agregarCliente, recargarClientes } = useClientes();
   const agregarClienteRef = useRef(agregarCliente);
   
@@ -50,18 +61,8 @@ const AsesorClientesTable = forwardRef<any, {}>((_, ref) => {
     agregarClienteRef.current = agregarCliente;
   }, [agregarCliente]);
 
-  // Cargar clientes del asesor autenticado
-  useEffect(() => {
-    cargarClientesAsignados();
-  }, []);
-
-  // Exponer funciones al componente padre
-  useImperativeHandle(ref, () => ({
-    refreshClientes: cargarClientesAsignados
-  }));
-
   // Función para cargar clientes desde la BD
-  const cargarClientesAsignados = async () => {
+  const cargarClientesAsignados = useCallback(async () => {
     try {
       console.log('📡 Cargando clientes asignados al asesor desde BD...');
       
@@ -112,7 +113,17 @@ const AsesorClientesTable = forwardRef<any, {}>((_, ref) => {
     } catch (error) {
       console.error('❌ JUAN: Error cargando clientes:', error);
     }
-  };
+  }, [recargarClientes]);
+
+  // Cargar clientes del asesor autenticado
+  useEffect(() => {
+    cargarClientesAsignados();
+  }, [cargarClientesAsignados]);
+
+  // Exponer funciones al componente padre
+  useImperativeHandle(ref, () => ({
+    refreshClientes: cargarClientesAsignados
+  }));
 
   // TODO: Implementar monitoreo de reasignaciones en tiempo real con WebSockets cuando sea necesario  // Filtrar clientes
   const clientesFiltrados = clientes.filter(cliente => {

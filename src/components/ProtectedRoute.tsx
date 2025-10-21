@@ -1,7 +1,14 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { jwtDecode } from 'jwt-decode';
+
+interface JWTPayload {
+  userId: number;
+  tipo: string;
+  exp: number;
+  iat: number;
+}
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -38,7 +45,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     const token = localStorage.getItem('albru_token');
     if (!token) return false;
     try {
-      const decoded: any = jwtDecode(token);
+      const decoded = jwtDecode<JWTPayload>(token);
       return decoded.exp * 1000 > Date.now();
     } catch {
       return false;

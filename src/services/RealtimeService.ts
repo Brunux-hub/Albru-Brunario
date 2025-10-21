@@ -1,8 +1,31 @@
+// Tipos para los mensajes WebSocket
+type MessageCallback = (data: unknown) => void;
+
+interface WebSocketMessage {
+  type: string;
+  data?: unknown;
+  clientType?: 'GTR' | 'ASESOR';
+  advisorName?: string;
+  payload?: unknown;
+}
+
+interface ReassignmentData {
+  clientId: number;
+  previousAdvisor: string;
+  newAdvisor: string;
+  client: unknown;
+}
+
+interface NewClientData {
+  client: unknown;
+  assignedTo: string;
+}
+
 // Servicio para manejar la comunicación en tiempo real entre GTR y Asesor usando WebSockets
 class RealtimeService {
   private static instance: RealtimeService;
   private ws: WebSocket | null = null;
-  private listeners: Map<string, Function[]> = new Map();
+  private listeners: Map<string, MessageCallback[]> = new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private clientType: 'GTR' | 'ASESOR' | null = null;
@@ -54,8 +77,8 @@ class RealtimeService {
         // Identificarse con el servidor
         this.send({
           type: 'IDENTIFY',
-          clientType: this.clientType,
-          advisorName: this.advisorName
+          clientType: this.clientType ?? undefined,
+          advisorName: this.advisorName ?? undefined
         });
       };
 
@@ -100,7 +123,7 @@ class RealtimeService {
   }
 
   // Manejar mensajes del servidor
-  private handleMessage(message: any) {
+  private handleMessage(message: WebSocketMessage) {
     console.log('📨 Mensaje recibido:', message);
     
     switch (message.type) {
@@ -138,7 +161,7 @@ class RealtimeService {
   }
 
   // Enviar mensaje al servidor
-  private send(message: any) {
+  private send(message: WebSocketMessage) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
@@ -147,12 +170,7 @@ class RealtimeService {
   }
 
   // Emitir evento de reasignación
-  emitClientReassigned(data: {
-    clientId: number;
-    previousAdvisor: string;
-    newAdvisor: string;
-    client: any;
-  }) {
+  emitClientReassigned(data: ReassignmentData) {
     console.log('📡 Enviando reasignación al servidor:', data);
     this.send({
       type: 'CLIENT_REASSIGNED',
@@ -161,10 +179,7 @@ class RealtimeService {
   }
 
   // Emitir evento de nuevo cliente
-  emitNewClient(data: {
-    client: any;
-    assignedTo: string;
-  }) {
+  emitNewClient(data: NewClientData) {
     console.log('📡 Enviando nuevo cliente al servidor:', data);
     this.send({
       type: 'NEW_CLIENT',
@@ -173,7 +188,7 @@ class RealtimeService {
   }
 
   // Suscribirse a eventos
-  subscribe(eventType: string, callback: Function) {
+  subscribe(eventType: string, callback: MessageCallback): () => void {
     if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, []);
     }
@@ -192,7 +207,7 @@ class RealtimeService {
   }
 
   // Notificar a todos los listeners
-  private notify(eventType: string, data: any) {
+  private notify(eventType: string, data: unknown) {
     const callbacks = this.listeners.get(eventType);
     if (callbacks) {
       callbacks.forEach(callback => {

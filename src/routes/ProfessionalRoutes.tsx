@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/UnifiedAuthContext';
+import { useUnifiedAuth as useAuth } from '../hooks/useAuth';
 import LoginPage from '../pages/LoginPage';
 import AdminDashboard from '../pages/AdminDashboard';
 import GtrDashboard from '../pages/GtrDashboard';
@@ -18,8 +18,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Verificando autenticación...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-gray-600 mt-2">Verificando autenticación...</p>
+        </div>
       </div>
     );
   }
@@ -46,8 +49,11 @@ const HomeRedirect: React.FC = () => {
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Cargando...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-gray-600 mt-2">Cargando dashboard personalizado...</p>
+        </div>
       </div>
     );
   }
@@ -60,17 +66,32 @@ const HomeRedirect: React.FC = () => {
   // Redireccionar según el tipo de usuario
   switch (user.tipo) {
     case 'admin':
-      console.log('➡️ HomeRedirect - Redirigiendo a admin');
+      console.log('👑 HomeRedirect - Redirigiendo a admin dashboard');
       return <Navigate to="/dashboard/admin" replace />;
     case 'gtr':
-      console.log('➡️ HomeRedirect - Redirigiendo a gtr');
+      console.log('📊 HomeRedirect - Redirigiendo a gtr dashboard');
       return <Navigate to="/dashboard/gtr" replace />;
     case 'asesor':
-      console.log('➡️ HomeRedirect - Redirigiendo a asesor');
+      console.log('🎯 HomeRedirect - Redirigiendo a asesor dashboard');
       return <Navigate to="/dashboard/asesor" replace />;
     default:
-      console.log('❌ HomeRedirect - Tipo de usuario desconocido:', user.tipo);
-      return <Navigate to="/login" replace />;
+      console.warn('⚠️ Tipo de usuario no reconocido:', user.tipo);
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center card max-w-md p-6">
+            <div className="text-yellow-500 text-6xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">
+              Tipo de Usuario No Reconocido
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Tu tipo de usuario "{user.tipo}" no tiene un dashboard asignado.
+            </p>
+            <p className="text-sm text-gray-500">
+              Contacta al administrador para resolver este problema.
+            </p>
+          </div>
+        </div>
+      );
   }
 };
 
@@ -108,11 +129,20 @@ const ProfessionalRoutes: React.FC = () => (
         } 
       />
       
-      {/* Rutas legacy para compatibilidad */}
-      <Route path="/dashboard" element={<HomeRedirect />} />
+      {/* Ruta /dashboard con redirección automática según tipo de usuario */}
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <HomeRedirect />
+        </ProtectedRoute>
+      } />
+      
+      {/* Rutas legacy (sin /dashboard) para compatibilidad */}
+      <Route path="/admin" element={<Navigate to="/dashboard/admin" replace />} />
+      <Route path="/gtr" element={<Navigate to="/dashboard/gtr" replace />} />
+      <Route path="/asesor" element={<Navigate to="/dashboard/asesor" replace />} />
       
       {/* Ruta por defecto */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   </BrowserRouter>
 );

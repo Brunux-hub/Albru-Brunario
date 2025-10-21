@@ -5,7 +5,7 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { useAuth } from '../../context/UnifiedAuthContext';
+import { useUnifiedAuth as useAuth } from '../../hooks/useAuth';
 
 const menuItems = [
   { text: 'Clientes', icon: <PeopleIcon /> },

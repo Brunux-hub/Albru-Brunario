@@ -7,14 +7,46 @@ import GtrStatusMenu from '../components/gtr/GtrStatusMenu';
 import GtrClientsTable from '../components/gtr/GtrClientsTable';
 import GtrAsesoresTable from '../components/gtr/GtrAsesoresTable';
 import AddClientDialog from '../components/gtr/AddClientDialog';
+import type { Asesor, Cliente } from '../components/gtr/types';
+
+// Interfaces adicionales
+interface AsesorAPI {
+  asesor_id: number;
+  usuario_id: number;
+  nombre: string;
+  email: string;
+  telefono: string | number;
+  estado: string;
+  clientes_asignados: number;
+  meta_mensual: string;
+  ventas_realizadas: string;
+  comision_porcentaje: string;
+}
+
+interface ClienteAPI {
+  id: number;
+  created_at?: string;
+  fecha_asignacion?: string;
+  telefono: string | null;
+  nombre: string | null;
+  lead_id?: number;
+  distrito: string | null;
+  plan_seleccionado: string | null;
+  precio_final: number | null;
+  estado_cliente: string | null;
+  asesor_nombre: string | null;
+  observaciones_asesor: string | null;
+  correo_electronico: string | null;
+  direccion: string | null;
+}
 
 const GtrDashboard: React.FC = () => {
   const [section, setSection] = useState('Clientes');
   const [status, setStatus] = useState('Todos');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newClient, setNewClient] = useState<any>(null);
-  const [clients, setClients] = useState<any[]>([]);
-  const [asesores, setAsesores] = useState<any[]>([]);
+  const [newClient, setNewClient] = useState<Cliente | null>(null);
+  const [clients, setClients] = useState<Cliente[]>([]);
+  const [asesores, setAsesores] = useState<Asesor[]>([]);
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,12 +60,12 @@ const GtrDashboard: React.FC = () => {
         const data = await response.json();
         
         if (data.success && data.asesores) {
-          const asesoresFormateados = data.asesores.map((asesor: any) => ({
+          const asesoresFormateados: Asesor[] = data.asesores.map((asesor: AsesorAPI) => ({
             asesor_id: asesor.asesor_id,
             usuario_id: asesor.usuario_id,
             nombre: asesor.nombre,
             email: asesor.email,
-            telefono: asesor.telefono || 'Sin teléfono',
+            telefono: String(asesor.telefono || 'Sin teléfono'),
             estado: asesor.estado === 'activo' ? 'Activo' : 'Offline',
             clientes_asignados: asesor.clientes_asignados || 0,
             meta_mensual: asesor.meta_mensual || '50000.00',
@@ -66,12 +98,13 @@ const GtrDashboard: React.FC = () => {
         const data = await response.json();
         
         if (data.success && data.clientes) {
-          const clientesFormateados = data.clientes.map((cliente: any) => ({
+          const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
             id: cliente.id,
-            fecha: new Date(cliente.created_at || cliente.fecha_asignacion).toLocaleDateString('es-ES'),
+            fecha: new Date(cliente.created_at || cliente.fecha_asignacion || Date.now()).toLocaleDateString('es-ES'),
             cliente: cliente.telefono || 'Sin teléfono',
             nombre: cliente.nombre || 'Sin nombre',
-            lead: cliente.lead_id || cliente.id.toString(),
+            lead_id: cliente.lead_id,
+            lead: cliente.lead_id?.toString() || cliente.id.toString(),
             ciudad: cliente.distrito || 'Sin ciudad',
             plan: cliente.plan_seleccionado || 'Sin plan',
             precio: cliente.precio_final || 0,
@@ -115,7 +148,7 @@ const GtrDashboard: React.FC = () => {
     }
     
     // Suscribirse a confirmaciones de reasignación
-    const unsubscribe = realtimeService.subscribe('REASSIGNMENT_CONFIRMED', (data: any) => {
+    const unsubscribe = realtimeService.subscribe('REASSIGNMENT_CONFIRMED', (data: unknown) => {
       console.log('✅ GTR: Reasignación confirmada por WebSocket:', data);
     });
 
@@ -302,7 +335,21 @@ const GtrDashboard: React.FC = () => {
         
         {section === 'Asesores' && (
           <GtrAsesoresTable 
-            asesores={asesores}
+            asesores={asesores.map(asesor => ({
+              id: asesor.asesor_id || asesor.usuario_id || 0,
+              nombre: asesor.nombre || 'Sin nombre',
+              email: asesor.email || '',
+              telefono: asesor.telefono || '',
+              estado: (asesor.estado || 'Offline') as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
+              clientesAsignados: asesor.clientes_asignados || 0,
+              clientesAtendidos: 0,
+              ventasHoy: 0,
+              ventasMes: parseInt(asesor.ventas_realizadas) || 0,
+              metaMensual: parseInt(asesor.meta_mensual) || 100,
+              eficiencia: 0,
+              ultimaActividad: new Date().toISOString(),
+              sala: 'Sala 1' as const
+            }))}
           />
         )}
       </Box>

@@ -17,9 +17,9 @@ const verifyToken = async (req, res, next) => {
 
     const decoded = jwt.verify(token, JWT_SECRET);
     
-    // Verificar que el usuario sigue siendo válido
+    // Verificar que el usuario sigue siendo válido en la tabla unificada
     const [users] = await pool.query(
-      'SELECT u.*, a.nombre, a.email FROM usuarios_sistema u JOIN asesores a ON u.asesor_id = a.id WHERE u.id = ? AND u.estado_acceso = "aprobado"',
+      'SELECT * FROM usuarios WHERE id = ? AND estado = "activo"',
       [decoded.userId]
     );
 
@@ -42,7 +42,7 @@ const verifyToken = async (req, res, next) => {
 
 // Middleware para verificar rol de administrador
 const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
+  if (req.user.tipo !== 'admin') {
     return res.status(403).json({ 
       success: false, 
       message: 'Acceso denegado. Solo administradores.' 
@@ -54,7 +54,7 @@ const requireAdmin = (req, res, next) => {
 // Middleware para verificar múltiples roles
 const requireRoles = (roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!roles.includes(req.user.tipo)) {
       return res.status(403).json({ 
         success: false, 
         message: `Acceso denegado. Roles requeridos: ${roles.join(', ')}` 

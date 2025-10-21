@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext } from 'react';
 import type { ReactNode } from 'react';
 
 interface AuthContextType {
@@ -6,6 +6,9 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Exportar el contexto para el hook personalizado
+export { AuthContext };
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const logout = () => {
@@ -26,12 +29,4 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

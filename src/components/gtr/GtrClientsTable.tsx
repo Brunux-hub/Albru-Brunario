@@ -26,6 +26,15 @@ interface Cliente {
   historial?: Historial[];
   fecha: string;
   comentarios?: string;
+  // Campos adicionales necesarios para la tabla
+  telefono?: string;
+  cliente?: string;
+  lead?: string;
+  ciudad?: string;
+  plan?: string;
+  precio?: number;
+  canal?: string;
+  distrito?: string;
 }
 
 
@@ -243,8 +252,10 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
               <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
                 <TableCell>{client.fecha}</TableCell>
                 <TableCell>
-                  {client.lead_id ? (
-                    <span style={{ fontWeight: 600, color: '#1976d2' }}>{client.lead_id}</span>
+                  {client.telefono || client.cliente || client.lead ? (
+                    <span style={{ fontWeight: 600, color: '#1976d2' }}>
+                      {client.telefono || client.cliente || client.lead}
+                    </span>
                   ) : (
                     <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin lead</span>
                   )}

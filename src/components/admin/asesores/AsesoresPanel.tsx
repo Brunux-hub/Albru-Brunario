@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
@@ -18,7 +18,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '../../../hooks/useAuth';
 import FormularioAsesor from '../usuarios/FormularioAsesor';
 
 interface Asesor {
@@ -41,7 +41,7 @@ const AsesoresPanel: React.FC = () => {
   const [error, setError] = useState('');
   const [openFormulario, setOpenFormulario] = useState(false);
 
-  const fetchAsesores = async () => {
+  const fetchAsesores = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('http://localhost:3001/api/admin/asesores', {
@@ -63,13 +63,13 @@ const AsesoresPanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchAsesores();
-  }, [token]);
+  }, [fetchAsesores]);
 
-  const getStatusColor = (estado: string) => {
+  const getStatusColor = (estado: string): 'success' | 'warning' | 'error' | 'default' => {
     switch (estado) {
       case 'activo': return 'success';
       case 'pendiente': return 'warning';
@@ -227,7 +227,7 @@ const AsesoresPanel: React.FC = () => {
                     <TableCell>
                       <Chip 
                         label={asesor.estado_acceso.toUpperCase()} 
-                        color={getStatusColor(asesor.estado_acceso) as any}
+                        color={getStatusColor(asesor.estado_acceso)}
                         size="small"
                       />
                     </TableCell>

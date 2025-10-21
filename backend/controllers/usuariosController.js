@@ -27,14 +27,15 @@ const login = async (req, res) => {
     }
 
     // Buscar usuario en la tabla correcta con configuración completa
+    // Ahora soporta buscar por email O username (consolidación de tablas)
     const [users] = await pool.query(
       `SELECT 
-        id, nombre, email, password, telefono, tipo, estado,
+        id, nombre, email, username, password, telefono, tipo, estado,
         theme_primary, theme_secondary, theme_accent, theme_background, theme_surface,
         brand_name, logo_path, permissions, dashboard_path,
         created_at, updated_at
-       FROM usuarios WHERE email = ?`,
-      [email]
+       FROM usuarios WHERE email = ? OR username = ?`,
+      [email, email]
     );
 
     if (!users || users.length === 0) {
@@ -299,70 +300,48 @@ const crearAsesor = async (req, res) => {
       });
     }
 
-    // Verificar que username y email no existan
+    // Verificar que username y email no existan en la tabla unificada usuarios
     const [existingUser] = await pool.query(
-      'SELECT id FROM usuarios_sistema WHERE username = ?',
-      [username]
-    );
-    
-    const [existingEmail] = await pool.query(
-      'SELECT id FROM asesores WHERE email = ?',
-      [email]
+      'SELECT id FROM usuarios WHERE username = ? OR email = ?',
+      [username, email]
     );
 
     if (existingUser.length > 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'El nombre de usuario ya existe' 
+        message: 'El nombre de usuario o email ya existe' 
       });
     }
 
-    if (existingEmail.length > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'El email ya está registrado' 
-      });
-    }
+    // Hash de la contraseña con bcrypt
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    // Hash de la contraseña (temporal: sin hash para desarrollo)
-    const passwordHash = password; // TODO: Reactivar bcrypt en producción
-
-    // Iniciar transacción
-    await pool.query('START TRANSACTION');
-
+    // Insertar directamente en la tabla usuarios consolidada
     try {
-      // Crear asesor
-      const [asesorResult] = await pool.query(
-        'INSERT INTO asesores (nombre, email, telefono, tipo) VALUES (?, ?, ?, ?)',
-        [nombre, email, telefono, tipo]
+      const [usuarioResult] = await pool.query(
+        `INSERT INTO usuarios (nombre, email, username, password, telefono, tipo, estado) 
+         VALUES (?, ?, ?, ?, ?, ?, 'activo')`,
+        [nombre, email, username, passwordHash, telefono, tipo]
       );
 
-      const asesorId = asesorResult.insertId;
-
-      // Crear usuario del sistema
-      await pool.query(
-        'INSERT INTO usuarios_sistema (asesor_id, username, password_hash, role, estado_acceso, creado_por) VALUES (?, ?, ?, ?, "aprobado", ?)',
-        [asesorId, username, passwordHash, role, req.user.asesor_id]
-      );
-
-      await pool.query('COMMIT');
+      const usuarioId = usuarioResult.insertId;
 
       res.json({
         success: true,
         message: 'Asesor creado exitosamente',
         asesor: {
-          id: asesorId,
+          id: usuarioId,
           nombre,
           email,
+          username,
           telefono,
           tipo,
-          username,
           role
         }
       });
 
     } catch (error) {
-      await pool.query('ROLLBACK');
+      console.error('Error creando asesor:', error);
       throw error;
     }
 
@@ -528,16 +507,14 @@ const obtenerValidadores = async (req, res) => {
         u.id as usuario_id,
         u.nombre,
         u.email,
+        u.username,
         u.telefono,
         u.estado,
         v.tipo_validacion,
         v.validaciones_realizadas,
-        v.created_at,
-        us.username,
-        us.activo
+        v.created_at
       FROM validadores v
       JOIN usuarios u ON v.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
       WHERE u.tipo = 'validador'
       ORDER BY v.created_at DESC
     `);
@@ -564,16 +541,14 @@ const obtenerSupervisores = async (req, res) => {
         u.id as usuario_id,
         u.nombre,
         u.email,
+        u.username,
         u.telefono,
         u.estado,
         s.area_supervision,
         s.asesores_supervisados,
-        s.created_at,
-        us.username,
-        us.activo
+        s.created_at
       FROM supervisores s
       JOIN usuarios u ON s.usuario_id = u.id
-      LEFT JOIN usuarios_sistema us ON u.id = us.usuario_id
       WHERE u.tipo = 'supervisor'
       ORDER BY s.created_at DESC
     `);

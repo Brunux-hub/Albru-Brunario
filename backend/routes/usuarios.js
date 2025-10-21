@@ -20,7 +20,10 @@ const { verifyToken, requireAdmin } = require('../middleware/authMiddleware');
 
 // Validaciones
 const loginValidation = [
-  body('email').isEmail().withMessage('Email válido es requerido'),
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email o username es requerido')
+    .isLength({ min: 3 }).withMessage('Debe tener al menos 3 caracteres'),
   body('password').isLength({ min: 3 }).withMessage('Password debe tener al menos 3 caracteres')
 ];
 

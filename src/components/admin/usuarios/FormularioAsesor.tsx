@@ -16,7 +16,7 @@ import {
   Typography,
   Divider
 } from '@mui/material';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface FormularioAsesorProps {
   open: boolean;
@@ -50,7 +50,16 @@ const FormularioAsesor: React.FC<FormularioAsesorProps> = ({ open, onClose, onSu
     role: 'asesor'
   });
 
-  const handleChange = (field: keyof AsesorData) => (event: any) => {
+  const handleChange = (field: keyof AsesorData) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+    setError('');
+    setSuccess('');
+  };
+
+  const handleSelectChange = (field: keyof AsesorData) => (event: { target: { value: unknown } }) => {
     setFormData(prev => ({
       ...prev,
       [field]: event.target.value
@@ -179,7 +188,7 @@ const FormularioAsesor: React.FC<FormularioAsesorProps> = ({ open, onClose, onSu
                   <Select
                     value={formData.tipo}
                     label="Tipo de Asesor"
-                    onChange={handleChange('tipo')}
+                    onChange={handleSelectChange('tipo')}
                   >
                     <MenuItem value="asesor">Asesor</MenuItem>
                     <MenuItem value="gtr">GTR</MenuItem>
@@ -188,11 +197,11 @@ const FormularioAsesor: React.FC<FormularioAsesorProps> = ({ open, onClose, onSu
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <InputLabel>Rol del Sistema</InputLabel>
+                  <InputLabel>Role</InputLabel>
                   <Select
                     value={formData.role}
-                    label="Rol del Sistema"
-                    onChange={handleChange('role')}
+                    label="Role"
+                    onChange={handleSelectChange('role')}
                   >
                     <MenuItem value="asesor">Asesor</MenuItem>
                     <MenuItem value="gtr">GTR</MenuItem>

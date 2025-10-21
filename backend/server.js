@@ -134,8 +134,20 @@ app.post('/api/clientes/reasignar', async (req, res) => {
 
     const antiguoAsesorId = cliente.asesor_asignado;
 
-    // Actualizar asignación
-    await connection.query('UPDATE clientes SET asesor_asignado = ? WHERE id = ?', [nuevoAsesorId, clienteId]);
+    // Obtener usuario_id del nuevo asesor (nuevoAsesorId es el asesor_id de la tabla asesores)
+    const [nuevoAsesorData] = await connection.query('SELECT usuario_id FROM asesores WHERE id = ?', [nuevoAsesorId]);
+    
+    if (!nuevoAsesorData || nuevoAsesorData.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Asesor no encontrado' });
+    }
+    
+    const nuevoUsuarioId = nuevoAsesorData[0].usuario_id;
+    console.log(`✅ Backend: Asesor encontrado - asesor_id: ${nuevoAsesorId}, usuario_id: ${nuevoUsuarioId}`);
+
+    // Actualizar asignación en la tabla clientes (usa usuario_id)
+    await connection.query('UPDATE clientes SET asesor_asignado = ? WHERE id = ?', [nuevoUsuarioId, clienteId]);
+    console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoUsuarioId}`);
 
     // Registrar en historial si la tabla existe
     try {
@@ -147,12 +159,17 @@ app.post('/api/clientes/reasignar', async (req, res) => {
 
     // Actualizar contadores: decrementar en antiguo asesor (si existe) y aumentar en nuevo asesor
     if (antiguoAsesorId) {
-      await connection.query('UPDATE asesores SET clientes_asignados = GREATEST(IFNULL(clientes_asignados,0) - 1,0), updated_at = CURRENT_TIMESTAMP WHERE id = ?', [antiguoAsesorId]);
+      // Obtener asesor_id del antiguo usuario_id
+      const [antiguoAsesorData] = await connection.query('SELECT id FROM asesores WHERE usuario_id = ?', [antiguoAsesorId]);
+      if (antiguoAsesorData && antiguoAsesorData.length > 0) {
+        await connection.query('UPDATE asesores SET clientes_asignados = GREATEST(IFNULL(clientes_asignados,0) - 1,0), updated_at = CURRENT_TIMESTAMP WHERE id = ?', [antiguoAsesorData[0].id]);
+      }
     }
     await connection.query('UPDATE asesores SET clientes_asignados = IFNULL(clientes_asignados,0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nuevoAsesorId]);
+    console.log(`✅ Backend: Contadores de asesores actualizados`);
 
     // Obtener datos del nuevo asesor
-    const [asesorRows] = await connection.query('SELECT a.id, u.nombre FROM asesores a JOIN usuarios u ON a.usuario_id = u.id WHERE a.id = ?', [nuevoAsesorId]);
+    const [asesorRows] = await connection.query('SELECT a.id, u.nombre, u.id as usuario_id FROM asesores a JOIN usuarios u ON a.usuario_id = u.id WHERE a.id = ?', [nuevoAsesorId]);
 
     await connection.commit();
 
