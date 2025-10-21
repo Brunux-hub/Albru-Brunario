@@ -17,8 +17,8 @@ import {
   InputLabel
 } from '@mui/material';
 import GestionarClienteDialog from './GestionarClienteDialog';
-import { useClientes } from '../../context/ClientesContext';
-import type { Cliente } from '../../context/ClientesContext';
+import { useClientes } from '../../context/AppContext';
+import type { Cliente } from '../../context/AppContext';
 
 const estados = ['Todos los estados', 'En gestión', 'En seguimiento', 'Nuevo'];
 const gestiones = ['Todas las gestiones', 'En proceso', 'Derivado'];

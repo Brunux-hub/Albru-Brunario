@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useUnifiedAuth as useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import LoginPage from '../pages/LoginPage';
 import AdminDashboard from '../pages/AdminDashboard';
 import GtrDashboard from '../pages/GtrDashboard';

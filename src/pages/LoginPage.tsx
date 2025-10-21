@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUnifiedAuth as useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 import { getAuthUrl } from '../config/environment';
 
 const LoginPage: React.FC = () => {

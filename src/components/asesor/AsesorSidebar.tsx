@@ -6,7 +6,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { useUnifiedAuth as useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 const AsesorSidebar: React.FC = () => {
   const { logout, user } = useAuth();

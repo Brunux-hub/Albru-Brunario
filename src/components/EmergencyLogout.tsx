@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@mui/material';
-import { useUnifiedAuth as useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth';
 
 const EmergencyLogout: React.FC = () => {
   const { logout } = useAuth();

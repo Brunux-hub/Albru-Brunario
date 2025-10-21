@@ -63,7 +63,7 @@ interface Step4Data {
 }
 
 // Importar el tipo Cliente existente
-import type { Cliente } from '../../context/ClientesContext';
+import type { Cliente } from '../../context/AppContext';
 import { ubigeoService, type Departamento, type Distrito } from '../../services/UbigeoService';
 
 interface Props {
@@ -333,7 +333,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Validar el último paso antes de guardar
     if (!validateStep4()) return;
 
@@ -345,11 +345,10 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       step4: step4Data
     };
 
-    console.log('Datos completos del wizard:', wizardData);
+    console.log('📋 WIZARD: Datos completos del wizard:', wizardData);
 
     // Mapear todos los datos del wizard a los campos de la base de datos
-    const updatedCliente: Cliente & { [key: string]: any } = {
-      ...cliente!,
+    const datosParaBackend = {
       // Paso 1: Información básica
       nombre: step1Data.nombresApellidos,
       dni: step1Data.numeroDocumento,
@@ -359,6 +358,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       lead_score: step1Data.score,
       
       // Paso 2: Información de contacto y ubicación
+      telefono: step2Data.telefonoRegistro,
       telefono_registro: step2Data.telefonoRegistro,
       fecha_nacimiento: step2Data.fechaNacimiento,
       lugar_nacimiento: step2Data.lugarNacimiento,
@@ -367,8 +367,10 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       telefono_referencia_wizard: step2Data.telefonoReferencia,
       telefono_grabacion_wizard: step2Data.telefonoGrabacion,
       correo_electronico: step2Data.correoAfiliado,
+      email: step2Data.correoAfiliado,
       departamento: step2Data.departamento,
       distrito: step2Data.distrito,
+      direccion: step2Data.direccion,
       direccion_completa: step2Data.direccion,
       numero_piso_wizard: step2Data.piso,
       
@@ -385,20 +387,47 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       
       // Metadatos del wizard
       wizard_completado: true,
-      fecha_wizard_completado: new Date().toISOString(),
       wizard_data_json: JSON.stringify(wizardData),
-      comentarios_iniciales: `Wizard completado - Lead: ${step1Data.lead}`,
-      observaciones_asesor: `Parentesco titular: ${step2Data.parentescoTitular}. Velocidad: ${step3Data.velocidadContratada}`,
-      
-      // También actualizar campos básicos para compatibilidad
-      telefono: step2Data.telefonoRegistro,
-      direccion: step2Data.direccion,
-      plan_seleccionado: step3Data.tipoPlan,
-      precio_final: step3Data.precioPlan ? parseFloat(step3Data.precioPlan) : null
+      observaciones_asesor: `Lead: ${step1Data.lead}. Parentesco titular: ${step2Data.parentescoTitular}. Plan: ${step3Data.tipoPlan} ${step3Data.velocidadContratada}`
     };
+
+    console.log('🚀 WIZARD: Enviando datos al backend:', datosParaBackend);
     
-    onSave(updatedCliente);
-    onClose();
+    try {
+      // Enviar directamente al backend
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosParaBackend)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ WIZARD: Error del backend:', error);
+        alert(`Error al guardar: ${error.message || 'Error desconocido'}`);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('✅ WIZARD: Cliente actualizado exitosamente:', result);
+      
+      // Actualizar el estado local con los datos básicos
+      const updatedCliente: Cliente = {
+        ...cliente!,
+        nombre: step1Data.nombresApellidos,
+        telefono: step2Data.telefonoRegistro,
+        dni: step1Data.numeroDocumento,
+        direccion: step2Data.direccion
+      };
+      
+      onSave(updatedCliente);
+      onClose();
+      
+      alert('✅ Wizard completado exitosamente. Los datos han sido guardados.');
+    } catch (error) {
+      console.error('❌ WIZARD: Error de red:', error);
+      alert('Error de red al guardar los datos. Por favor intenta de nuevo.');
+    }
   };
 
   if (!cliente) return null;
@@ -1225,7 +1254,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         </FormLabel>
         <RadioGroup
           value={step1Data.tipoDocumento}
-          onChange={(e) => setStep1Data({ ...step1Data, tipoDocumento: e.target.value as any })}
+          onChange={(e) => setStep1Data({ ...step1Data, tipoDocumento: e.target.value as 'DNI' | 'RUC10' | 'RUC20' | 'CE' })}
         >
           <FormControlLabel 
             value="DNI" 
