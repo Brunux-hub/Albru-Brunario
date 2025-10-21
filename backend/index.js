@@ -99,10 +99,10 @@ server.listen(port, '0.0.0.0', () => {
   // Mostrar todas las IPs de red local disponibles
   Object.keys(networkInterfaces).forEach(interfaceName => {
     const interfaces = networkInterfaces[interfaceName];
-    interfaces.forEach(interface => {
-      if (interface.family === 'IPv4' && !interface.internal) {
-        console.log(`   - Red Local: http://${interface.address}:${port}`);
-        console.log(`   - Frontend: http://${interface.address}:5173`);
+    interfaces.forEach(netInterface => {
+      if (netInterface.family === 'IPv4' && !netInterface.internal) {
+        console.log(`   - Red Local: http://${netInterface.address}:${port}`);
+        console.log(`   - Frontend: http://${netInterface.address}:5173`);
       }
     });
   });
