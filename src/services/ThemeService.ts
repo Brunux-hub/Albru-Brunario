@@ -38,7 +38,7 @@ class ThemeService {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        console.log('No hay token disponible');
+        // No mostrar error si no hay token (usuario no logueado)
         return null;
       }
 
@@ -53,8 +53,12 @@ class ThemeService {
         this.notifyThemeListeners();
         return this.userConfig;
       }
-    } catch (error) {
-      console.error('Error loading user config:', error);
+    } catch (error: unknown) {
+      // Silenciar error 404 (endpoint no implementado aún) para evitar spam en consola
+      if (axios.isAxiosError(error) && error?.response?.status !== 404) {
+        console.error('Error loading user config:', error);
+      }
+      // Retornar null silenciosamente sin llenar la consola
     }
     return null;
   }
@@ -120,9 +124,19 @@ class ThemeService {
     root.style.setProperty('--color-surface', theme.surface);
 
     // Aplicar al theme de Material-UI si está disponible
-    if ((window as any).MUI_THEME) {
-      (window as any).MUI_THEME.palette.primary.main = theme.primary;
-      (window as any).MUI_THEME.palette.secondary.main = theme.secondary;
+    interface WindowWithTheme extends Window {
+      MUI_THEME?: {
+        palette: {
+          primary: { main: string };
+          secondary: { main: string };
+        };
+      };
+    }
+    
+    const win = window as WindowWithTheme;
+    if (win.MUI_THEME) {
+      win.MUI_THEME.palette.primary.main = theme.primary;
+      win.MUI_THEME.palette.secondary.main = theme.secondary;
     }
   }
 

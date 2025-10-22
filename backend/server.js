@@ -28,6 +28,10 @@ app.use('/api/auth', usuariosRoutes);
 // Evitar montar en '/api' genérico para prevenir colisiones con rutas simples
 app.use('/api/usuarios', usuariosRoutes);
 
+// Mount user theme routes
+const userRoutes = require('./routes/user');
+app.use('/api/user', userRoutes);
+
 // Simple endpoints
 app.get('/api/asesores', async (req, res) => {
   try {

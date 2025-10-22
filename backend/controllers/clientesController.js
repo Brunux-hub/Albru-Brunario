@@ -127,6 +127,9 @@ const createCliente = async (req, res) => {
       nombre, apellidos, telefono, tipo_cliente_wizard, lead_score, wizard_completado
     });
 
+    // Asegurar que 'nombre' no sea NULL si la columna tiene restricción NOT NULL en la BD
+    const safeNombre = nombre || telefono || '';
+
     // Verificar duplicados solo si los campos tienen valor
     if (dni) {
       const [existingByDni] = await pool.query('SELECT id FROM clientes WHERE dni = ? LIMIT 1', [dni]);
@@ -159,7 +162,7 @@ const createCliente = async (req, res) => {
         pago_adelanto_instalacion_wizard, wizard_completado, fecha_wizard_completado, wizard_data_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      nombre || null,
+      safeNombre,
       apellidos || null,
       telefono,
       dni || null,
@@ -281,7 +284,8 @@ const updateCliente = async (req, res) => {
 
     // Crear objeto con datos actualizados (mantener valores actuales si no se envían nuevos)
     const datosActualizados = {
-      nombre: nombre !== undefined ? nombre : clienteActual.nombre,
+      // Garantizar fallback: si no hay nombre nuevo ni nombre actual, usar teléfono o cadena vacía
+      nombre: nombre !== undefined ? nombre : (clienteActual.nombre || clienteActual.telefono || ''),
       apellidos: apellidos !== undefined ? apellidos : clienteActual.apellidos,
       telefono: telefono !== undefined ? telefono : clienteActual.telefono,
       dni: dni !== undefined ? dni : clienteActual.dni,
