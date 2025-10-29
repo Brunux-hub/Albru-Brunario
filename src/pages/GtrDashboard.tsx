@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, CircularProgress, Alert, Button } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Button, TextField, FormControlLabel, Checkbox } from '@mui/material';
 import GtrSidebar from '../components/gtr/GtrSidebar';
 import RealtimeService from '../services/RealtimeService';
 
@@ -8,6 +8,7 @@ import GtrClientsTable from '../components/gtr/GtrClientsTable';
 import GtrAsesoresTable from '../components/gtr/GtrAsesoresTable';
 import AddClientDialog from '../components/gtr/AddClientDialog';
 import type { Asesor, Cliente } from '../components/gtr/types';
+import ReportesPanel from '../components/common/ReportesPanel';
 
 // Interfaces adicionales
 interface AsesorAPI {
@@ -28,6 +29,7 @@ interface ClienteAPI {
   created_at?: string;
   fecha_asignacion?: string;
   telefono: string | null;
+  leads_original_telefono?: string | null;
   nombre: string | null;
   lead_id?: number;
   distrito: string | null;
@@ -38,14 +40,56 @@ interface ClienteAPI {
   observaciones_asesor: string | null;
   correo_electronico: string | null;
   direccion: string | null;
+  canal_adquisicion?: string | null;
+  // Campos adicionales que puede devolver el backend
+  campana?: string | null;
+  campania?: string | null;
+  compania?: string | null;
+  sala_asignada?: string | null;
+  sala?: string | null;
+  // Campos adicionales devueltos por el backend
+  ultima_fecha_gestion?: string | null;
+  fecha_ultimo_contacto?: string | null;
 }
 
 const GtrDashboard: React.FC = () => {
+  // Helpers seguros para extraer campos desde mensajes WebSocket (unknown)
+  const extractClienteId = (message: unknown): number | null => {
+    if (!message || typeof message !== 'object') return null;
+    const msg = message as Record<string, unknown>;
+    const candidates = [msg['clienteId'], msg['data'] && (msg['data'] as Record<string, unknown>)['clienteId'], msg['payload'] && (msg['payload'] as Record<string, unknown>)['clienteId']];
+    for (const c of candidates) {
+      if (typeof c === 'number') return c;
+      if (typeof c === 'string' && c.trim() !== '' && /^\d+$/.test(c)) return Number(c);
+    }
+    return null;
+  };
+
+  const extractOcupado = (message: unknown): boolean | null => {
+    if (!message || typeof message !== 'object') return null;
+    const msg = message as Record<string, unknown>;
+    const candidates = [msg['ocupado'], msg['data'] && (msg['data'] as Record<string, unknown>)['ocupado'], msg['payload'] && (msg['payload'] as Record<string, unknown>)['ocupado']];
+    for (const c of candidates) {
+      if (typeof c === 'boolean') return c;
+      if (typeof c === 'number') return !!c;
+      if (typeof c === 'string') {
+        const lc = c.toLowerCase();
+        if (lc === 'true' || lc === '1') return true;
+        if (lc === 'false' || lc === '0') return false;
+      }
+    }
+    return null;
+  };
   const [section, setSection] = useState('Clientes');
   const [status, setStatus] = useState('Todos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClient, setNewClient] = useState<Cliente | null>(null);
   const [clients, setClients] = useState<Cliente[]>([]);
+  const [filterStartDate, setFilterStartDate] = useState<string>('');
+  const [filterEndDate, setFilterEndDate] = useState<string>('');
+  const [filterMonth, setFilterMonth] = useState<string>('');
+  const [filterNoContactado, setFilterNoContactado] = useState<boolean>(false);
+  const [filtersApplied, setFiltersApplied] = useState<number>(0);
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,11 +112,11 @@ const GtrDashboard: React.FC = () => {
             telefono: String(asesor.telefono || 'Sin teléfono'),
             estado: asesor.estado === 'activo' ? 'Activo' : 'Offline',
             clientes_asignados: asesor.clientes_asignados || 0,
-            meta_mensual: asesor.meta_mensual || '50000.00',
+            meta_mensual: asesor.meta_mensual || '0.00',
             ventas_realizadas: asesor.ventas_realizadas || '0.00',
             comision_porcentaje: asesor.comision_porcentaje || '5.00'
           }));
-          console.log('🔍 GTR: Asesores cargados desde API:', data.asesores);
+          console.log('🔍 zGTR: Asesores cargados desde API:', data.asesores);
           console.log('🔍 GTR: Asesores formateados:', asesoresFormateados);
           setAsesores(asesoresFormateados);
         } else {
@@ -94,14 +138,24 @@ const GtrDashboard: React.FC = () => {
   useEffect(() => {
     const fetchClientes = async () => {
       try {
-        const response = await fetch('/api/clientes');
+        const params = new URLSearchParams();
+        if (filterStartDate) params.append('startDate', filterStartDate);
+        if (filterEndDate) params.append('endDate', filterEndDate);
+        if (filterMonth) params.append('month', filterMonth);
+        if (status && status !== 'Todos') params.append('estado', status);
+        if (filterNoContactado) params.append('no_contactado', '1');
+
+        const url = '/api/clientes' + (Array.from(params).length ? `?${params.toString()}` : '');
+
+        const response = await fetch(url);
         const data = await response.json();
-        
+
         if (data.success && data.clientes) {
           const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
             id: cliente.id,
             fecha: new Date(cliente.created_at || cliente.fecha_asignacion || Date.now()).toLocaleDateString('es-ES'),
-            cliente: cliente.telefono || 'Sin teléfono',
+            // Priorizar leads_original_telefono si está disponible
+            cliente: cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono',
             nombre: cliente.nombre || 'Sin nombre',
             lead_id: cliente.lead_id,
             lead: cliente.lead_id?.toString() || cliente.id.toString(),
@@ -110,14 +164,21 @@ const GtrDashboard: React.FC = () => {
             precio: cliente.precio_final || 0,
             estado: cliente.estado_cliente || 'nuevo',
             asesor: cliente.asesor_nombre || 'Disponible',
-            canal: 'Web',
+            canal: cliente.canal_adquisicion || 'Web',
             distrito: cliente.distrito || 'Sin distrito',
+            leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || '',
+            // Mapear campaña, sala y compañía desde la API
+            campana: cliente.campana || cliente.campania || null,
+            compania: cliente.compania || cliente.compania || null,
+            sala_asignada: cliente.sala_asignada || cliente.sala || null,
             clienteNuevo: true,
             observaciones: cliente.observaciones_asesor || '',
             telefono: cliente.telefono || '',
             email: cliente.correo_electronico || '',
             direccion: cliente.direccion || '',
-            historial: []
+            historial: [],
+            ultima_fecha_gestion: cliente.ultima_fecha_gestion || null,
+            fecha_ultimo_contacto: cliente.fecha_ultimo_contacto || null
           }));
           setClients(clientesFormateados);
         }
@@ -127,7 +188,7 @@ const GtrDashboard: React.FC = () => {
     };
 
     fetchClientes();
-  }, []);
+  }, [filterStartDate, filterEndDate, filterMonth, status, filterNoContactado, filtersApplied]);
 
   // Manejar nuevo cliente agregado
   useEffect(() => {
@@ -152,8 +213,71 @@ const GtrDashboard: React.FC = () => {
       console.log('✅ GTR: Reasignación confirmada por WebSocket:', data);
     });
 
+    // Suscribirse a notificaciones de cliente ocupado para actualizar la tabla en tiempo real
+    const unsubscribeOcupado = realtimeService.subscribe('CLIENT_OCUPADO', (data: unknown) => {
+      try {
+        console.log('📣 GTR: Evento CLIENT_OCUPADO recibido:', data);
+        const clienteId = extractClienteId(data);
+        const ocupado = extractOcupado(data);
+
+        if (clienteId == null) return;
+
+        // Actualizar el estado local de clients para reflejar el flag 'ocupado'
+        setClients(prev => prev.map(c => {
+          if (c.id === clienteId) {
+            return { ...c, ocupado: !!ocupado } as Cliente;
+          }
+          return c;
+        }));
+      } catch (e) {
+        console.error('Error procesando CLIENT_OCUPADO en GTR:', e);
+      }
+    });
+
+    // Manejar locks duraderos enviados por el backend
+    const unsubscribeLocked = realtimeService.subscribe('CLIENT_LOCKED', (data: unknown) => {
+      try {
+        const clienteId = extractClienteId(data);
+        if (clienteId == null) return;
+        setClients(prev => prev.map(c => c.id === clienteId ? { ...c, ocupado: true } as Cliente : c));
+      } catch (e) {
+        console.error('Error procesando CLIENT_LOCKED en GTR:', e);
+      }
+    });
+
+    const unsubscribeUnlocked = realtimeService.subscribe('CLIENT_UNLOCKED', (data: unknown) => {
+      try {
+        const clienteId = extractClienteId(data);
+        if (clienteId == null) return;
+        setClients(prev => prev.map(c => c.id === clienteId ? { ...c, ocupado: false } as Cliente : c));
+      } catch (e) {
+        console.error('Error procesando CLIENT_UNLOCKED en GTR:', e);
+      }
+    });
+
+    // Suscribirse a actualizaciones completas de cliente (guardado desde modal u otras fuentes)
+    const unsubscribeUpdated = realtimeService.subscribe('CLIENT_UPDATED', (data: unknown) => {
+      try {
+        console.log('📣 GTR: Evento CLIENT_UPDATED recibido:', data);
+        // data puede venir en varias formas: { cliente: {...} } o en data/payload
+        const msg = data as Record<string, unknown>;
+        const clienteRaw = msg['cliente'] || (msg['data'] && (msg['data'] as Record<string, unknown>)['cliente']) || (msg['payload'] && (msg['payload'] as Record<string, unknown>)['cliente']) || msg;
+        if (!clienteRaw || typeof clienteRaw !== 'object') return;
+        const clienteObj = clienteRaw as Cliente & { id?: number };
+        if (!clienteObj.id) return;
+
+        setClients(prev => prev.map(c => c.id === clienteObj.id ? { ...c, ...(clienteObj as Cliente) } : c));
+      } catch (e) {
+        console.error('Error procesando CLIENT_UPDATED en GTR:', e);
+      }
+    });
+
     return () => {
       unsubscribe();
+      unsubscribeOcupado();
+      unsubscribeLocked();
+      unsubscribeUnlocked();
+      unsubscribeUpdated();
       // No desconectar automáticamente
     };
   }, []);
@@ -322,10 +446,48 @@ const GtrDashboard: React.FC = () => {
               onSelect={setStatus}
               onAddClient={() => setDialogOpen(true)}
             />
+
+            {/* Controles de filtrado */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Fecha inicio"
+                type="date"
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+              />
+
+              <TextField
+                label="Fecha fin"
+                type="date"
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+              />
+
+              <TextField
+                label="Mes"
+                type="month"
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              />
+
+              <FormControlLabel
+                control={<Checkbox checked={filterNoContactado} onChange={(e) => setFilterNoContactado(e.target.checked)} />}
+                label="No contactado"
+              />
+
+              <Button variant="outlined" size="small" onClick={() => setFiltersApplied(f => f + 1)}>
+                Aplicar filtros
+              </Button>
+            </Box>
+
             <GtrClientsTable 
-              clients={clients.filter(client => 
-                status === 'Todos' || client.estado === status.toLowerCase()
-              )}
+              clients={clients}
               asesores={asesores}
               statusFilter={status}
               setClients={setClients}
@@ -333,7 +495,11 @@ const GtrDashboard: React.FC = () => {
           </>
         )}
         
-        {section === 'Asesores' && (
+          {section === 'Reportes' && (
+            <ReportesPanel />
+          )}
+
+          {section === 'Asesores' && (
           <GtrAsesoresTable 
             asesores={asesores.map(asesor => ({
               id: asesor.asesor_id || asesor.usuario_id || 0,
@@ -350,6 +516,7 @@ const GtrDashboard: React.FC = () => {
               ultimaActividad: new Date().toISOString(),
               sala: 'Sala 1' as const
             }))}
+            clients={clients}
           />
         )}
       </Box>
@@ -367,15 +534,26 @@ const GtrDashboard: React.FC = () => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                lead_id: data.lead_id,
+                tipo_base: data.tipo_base || 'LEADS',
+                leads_original_telefono: data.leads_original_telefono,
+                // Enviar también `telefono` para compatibilidad con el backend
+                telefono: data.leads_original_telefono,
+                campana: data.campana || null,
+                canal_adquisicion: data.canal_adquisicion || null,
+                sala_asignada: data.sala_asignada || null,
+                compania: data.compania || null,
+                back_office_info: data.back_office_info || null,
+                tipificacion_back: data.tipificacion_back || null,
+                datos_leads: data.datos_leads || null,
+                comentarios_back: data.comentarios_back || null,
+                ultima_fecha_gestion: data.ultima_fecha_gestion || null,
+
+                // Legacy/compat fields
                 nombre: data.nombre || null,
-                telefono: data.lead_id, // El lead_id ES el teléfono
                 dni: data.dni || null,
                 coordenadas: data.coordenadas || null,
-                campania: data.campania || null,
-                canal: data.canal || null,
+
                 estado_cliente: 'nuevo',
-                comentarios_iniciales: data.comentarios || null,
                 asesor_asignado: null // Sin asignar inicialmente
               })
             });
