@@ -5,6 +5,7 @@ import LoginPage from '../pages/LoginPage';
 import AdminDashboard from '../pages/AdminDashboard';
 import GtrDashboard from '../pages/GtrDashboard';
 import AsesorDashboard from '../pages/AsesorDashboard';
+import ValidacionesDashboard from '../pages/ValidacionesDashboard';
 import ClearStorage from '../components/ClearStorage';
 
 // Componente para proteger rutas
@@ -13,10 +14,11 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
   allowedRoles 
 }) => {
   const { isAuthenticated, user, loading } = useAuth();
+  const isDev = import.meta.env.MODE === 'development';
+
+  if (isDev) console.debug('🔐 ProtectedRoute - Auth:', isAuthenticated, 'User:', user?.tipo, 'Loading:', loading);
   
-  console.log('🔐 ProtectedRoute - Auth:', isAuthenticated, 'User:', user?.tipo, 'Loading:', loading);
-  
-  if (loading) {
+    if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -28,24 +30,25 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
   }
   
   if (!isAuthenticated) {
-    console.log('❌ ProtectedRoute - No autenticado, redirigiendo a login');
+    if (isDev) console.debug('❌ ProtectedRoute - No autenticado, redirigiendo a login');
     return <Navigate to="/login" replace />;
   }
   
   if (allowedRoles && user && !allowedRoles.includes(user.tipo)) {
-    console.log('❌ ProtectedRoute - Rol no autorizado:', user.tipo);
+    if (isDev) console.debug('❌ ProtectedRoute - Rol no autorizado:', user.tipo);
     return <Navigate to="/login" replace />;
   }
-  
-  console.log('✅ ProtectedRoute - Acceso autorizado');
+
+  if (isDev) console.debug('✅ ProtectedRoute - Acceso autorizado');
   return <>{children}</>;
 };
 
 // Componente para redirección inicial
 const HomeRedirect: React.FC = () => {
   const { isAuthenticated, user, loading } = useAuth();
-  
-  console.log('🏠 HomeRedirect - Auth:', isAuthenticated, 'User:', user, 'Loading:', loading);
+  const isDev = import.meta.env.MODE === 'development';
+
+  if (isDev) console.debug('🏠 HomeRedirect - Auth:', isAuthenticated, 'User:', user, 'Loading:', loading);
   
   if (loading) {
     return (
@@ -59,20 +62,20 @@ const HomeRedirect: React.FC = () => {
   }
   
   if (!isAuthenticated || !user) {
-    console.log('❌ HomeRedirect - No autenticado, redirigiendo a login');
+    if (isDev) console.debug('❌ HomeRedirect - No autenticado, redirigiendo a login');
     return <Navigate to="/login" replace />;
   }
   
   // Redireccionar según el tipo de usuario
   switch (user.tipo) {
     case 'admin':
-      console.log('👑 HomeRedirect - Redirigiendo a admin dashboard');
+      if (isDev) console.debug('👑 HomeRedirect - Redirigiendo a admin dashboard');
       return <Navigate to="/dashboard/admin" replace />;
     case 'gtr':
-      console.log('📊 HomeRedirect - Redirigiendo a gtr dashboard');
+      if (isDev) console.debug('📊 HomeRedirect - Redirigiendo a gtr dashboard');
       return <Navigate to="/dashboard/gtr" replace />;
     case 'asesor':
-      console.log('🎯 HomeRedirect - Redirigiendo a asesor dashboard');
+      if (isDev) console.debug('🎯 HomeRedirect - Redirigiendo a asesor dashboard');
       return <Navigate to="/dashboard/asesor" replace />;
     default:
       console.warn('⚠️ Tipo de usuario no reconocido:', user.tipo);
@@ -119,6 +122,14 @@ const ProfessionalRoutes: React.FC = () => (
             <GtrDashboard />
           </ProtectedRoute>
         } 
+      />
+      <Route 
+        path="/dashboard/validaciones"
+        element={
+          <ProtectedRoute allowedRoles={['validador']}>
+            <ValidacionesDashboard />
+          </ProtectedRoute>
+        }
       />
       <Route 
         path="/dashboard/asesor" 

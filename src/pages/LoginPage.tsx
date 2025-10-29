@@ -27,6 +27,9 @@ const LoginPage: React.FC = () => {
         case 'asesor':
           redirectPath = '/dashboard/asesor';
           break;
+        case 'validador':
+          redirectPath = '/dashboard/validaciones';
+          break;
       }
       
       navigate(redirectPath, { replace: true });
@@ -77,6 +80,9 @@ const LoginPage: React.FC = () => {
             break;
           case 'asesor':
             redirectPath = '/dashboard/asesor';
+            break;
+          case 'validador':
+            redirectPath = '/dashboard/validaciones';
             break;
         }
         
