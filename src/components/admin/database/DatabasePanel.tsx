@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../../../config/backend';
 import { 
   Box, 
   Typography, 
@@ -32,6 +33,20 @@ interface Cliente {
   vencimiento: string;
 }
 
+// Tipo que viene desde la API
+interface ClienteApi {
+  id: number;
+  nombre?: string | null;
+  dni?: string | null;
+  telefono?: string | null;
+  correo_electronico?: string | null;
+  plan_seleccionado?: string | null;
+  precio_final?: number | null;
+  estado_cliente?: string | null;
+  asesor_nombre?: string | null;
+  fecha_cita?: string | null;
+}
+
 const DatabasePanel: React.FC = () => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,12 +58,13 @@ const DatabasePanel: React.FC = () => {
     const fetchClientes = async () => {
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:3001/api/clientes');
+        const base = API_BASE || '';
+        const response = await fetch(`${base}/api/clientes`);
         const data = await response.json();
         
         if (data.success && data.clientes) {
           // Mapear datos de BD a formato del componente
-          const clientesFormateados = data.clientes.map((cliente: any) => ({
+          const clientesFormateados = data.clientes.map((cliente: ClienteApi) => ({
             id: cliente.id,
             nombre: cliente.nombre || 'Sin nombre',
             dni: cliente.dni || 'Sin DNI',
@@ -56,8 +72,8 @@ const DatabasePanel: React.FC = () => {
             email: cliente.correo_electronico || 'Sin email',
             servicio: 'Internet', // Valor por defecto
             plan: cliente.plan_seleccionado || 'Sin plan',
-            montoMensual: cliente.precio_final || 0,
-            montoTotal: (cliente.precio_final || 0) * 6, // Estimado 6 meses
+            montoMensual: cliente.precio_final ?? 0,
+            montoTotal: (cliente.precio_final ?? 0) * 6, // Estimado 6 meses
             estado: cliente.estado_cliente || 'nuevo',
             asesor: cliente.asesor_nombre || 'Sin asignar',
             vencimiento: cliente.fecha_cita ? new Date(cliente.fecha_cita).toLocaleDateString('es-ES') : 'Sin fecha'
@@ -79,7 +95,9 @@ const DatabasePanel: React.FC = () => {
     fetchClientes();
   }, []);
 
-  const getStatusColor = (estado: string) => {
+  type ColorType = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+
+  const getStatusColor = (estado: string): ColorType => {
     switch (estado.toLowerCase()) {
       case 'nuevo': return 'info';
       case 'activo': return 'success';
@@ -249,7 +267,7 @@ const DatabasePanel: React.FC = () => {
                     <TableCell>
                       <Chip 
                         label={cliente.estado.toUpperCase()} 
-                        color={getStatusColor(cliente.estado) as any}
+                        color={getStatusColor(cliente.estado)}
                         size="small"
                       />
                     </TableCell>

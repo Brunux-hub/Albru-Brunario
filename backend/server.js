@@ -82,8 +82,53 @@ app.get('/api/asesores/buscar/:nombre', async (req, res) => {
 
 app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
   try {
-    const asesorId = req.params.asesorId;
-    const [rows] = await pool.query('SELECT id, nombre, telefono, dni, email, direccion, estado, observaciones_asesor as gestion, fecha_primer_contacto as fecha, fecha_ultimo_contacto as seguimiento FROM clientes WHERE asesor_asignado = ? ORDER BY created_at DESC', [asesorId]);
+    const param = req.params.asesorId;
+
+    // Selección defensiva y mínima: columnas que el frontend usa siempre o con alta probabilidad
+    const safeSelect = `
+      SELECT
+        c.id,
+        c.nombre,
+        c.telefono,
+        c.dni,
+        c.observaciones_asesor AS gestion,
+        c.created_at AS fecha,
+        c.fecha_ultimo_contacto AS seguimiento,
+        c.servicio_contratado AS servicio,
+        c.leads_original_telefono AS leads_original_telefono
+      FROM clientes c
+      WHERE c.asesor_asignado = ?
+      ORDER BY c.created_at DESC
+    `;
+
+    let rows = [];
+    try {
+      [rows] = await pool.query(safeSelect, [param]);
+    } catch (e) {
+      // Fallback: si no existe asesor_asignado o la consulta falla, intentar mapear por usuario_id o por JSON
+      console.warn('Consulta segura falló, intentando fallback:', e.message);
+      const [asesorMatch] = await pool.query('SELECT id FROM asesores WHERE usuario_id = ? LIMIT 1', [param]);
+      if (asesorMatch && asesorMatch.length > 0) {
+        const asesorIdFound = asesorMatch[0].id;
+        [rows] = await pool.query(safeSelect, [asesorIdFound]);
+      } else {
+        // Fallback JSON
+        const jsonSql = `
+          SELECT
+            c.id, c.nombre, c.telefono, c.dni,
+            c.observaciones_asesor AS gestion,
+            c.created_at AS fecha, c.fecha_ultimo_contacto AS seguimiento,
+            c.servicio_contratado AS servicio,
+            NULL AS leads_original_telefono
+          FROM clientes c
+          WHERE JSON_UNQUOTE(JSON_EXTRACT(COALESCE(c.wizard_data_json, JSON_OBJECT()), '$.assigned_asesor_id')) = ?
+          ORDER BY c.created_at DESC
+        `;
+        const [jsonRows] = await pool.query(jsonSql, [param]);
+        rows = jsonRows;
+      }
+    }
+
     res.json({ success: true, clientes: rows });
   } catch (error) {
     console.error('Error obteniendo clientes:', error);
@@ -127,16 +172,26 @@ app.post('/api/clientes/reasignar', async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // Obtener datos del cliente actual
-    const [clienteRows] = await connection.query('SELECT id, nombre, telefono, dni, estado, asesor_asignado FROM clientes WHERE id = ?', [clienteId]);
-    const cliente = clienteRows[0];
+  // Comprobar si las columnas 'asesor_asignado' y 'estado' existen en la tabla clientes
+  const dbName = process.env.DB_NAME || 'albru';
+  const [colAsesor] = await connection.query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes' AND COLUMN_NAME = 'asesor_asignado' LIMIT 1", [dbName]);
+  const [colEstado] = await connection.query("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes' AND COLUMN_NAME = 'estado' LIMIT 1", [dbName]);
+
+  // Construir SELECT dinámico según columnas disponibles
+  let selectCols = ['id', 'nombre', 'telefono'];
+  if (colAsesor && colAsesor.length > 0) selectCols.push('asesor_asignado');
+  if (colEstado && colEstado.length > 0) selectCols.push('estado');
+
+  const selectSql = `SELECT ${selectCols.join(', ')} FROM clientes WHERE id = ?`;
+  const [clienteRows] = await connection.query(selectSql, [clienteId]);
+  const cliente = clienteRows[0];
 
     if (!cliente) {
       await connection.rollback();
       return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
     }
 
-    const antiguoAsesorId = cliente.asesor_asignado;
+  const antiguoAsesorId = cliente && cliente.asesor_asignado ? cliente.asesor_asignado : null;
 
     // Obtener usuario_id del nuevo asesor (nuevoAsesorId es el asesor_id de la tabla asesores)
     const [nuevoAsesorData] = await connection.query('SELECT usuario_id FROM asesores WHERE id = ?', [nuevoAsesorId]);
@@ -149,13 +204,28 @@ app.post('/api/clientes/reasignar', async (req, res) => {
     const nuevoUsuarioId = nuevoAsesorData[0].usuario_id;
     console.log(`✅ Backend: Asesor encontrado - asesor_id: ${nuevoAsesorId}, usuario_id: ${nuevoUsuarioId}`);
 
-    // Actualizar asignación en la tabla clientes (usa usuario_id)
-    await connection.query('UPDATE clientes SET asesor_asignado = ? WHERE id = ?', [nuevoUsuarioId, clienteId]);
-    console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoUsuarioId}`);
+    // Actualizar asignación en la tabla clientes si la columna existe
+    if (colAsesor && colAsesor.length > 0) {
+      await connection.query('UPDATE clientes SET asesor_asignado = ? WHERE id = ?', [nuevoAsesorId, clienteId]);
+      console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoAsesorId}`);
+    } else {
+      // Si la columna real no existe (entorno intermedio), persistimos la asignación en un JSON existente
+      // para no tocar el esquema: usamos `wizard_data_json` (columna JSON) como fallback para guardar metadata de asignación.
+      try {
+        await connection.query("UPDATE clientes SET wizard_data_json = JSON_SET(COALESCE(wizard_data_json, JSON_OBJECT()), '$.assigned_asesor_id', ?, '$.assigned_at', NOW()) WHERE id = ?", [nuevoAsesorId, clienteId]);
+        console.log(`✅ Backend: Cliente ${clienteId} actualizado (fallback) en wizard_data_json assigned_asesor_id = ${nuevoAsesorId}`);
+      } catch (e) {
+        console.warn('No se pudo persistir asignación en wizard_data_json, omitiendo persistencia:', e.message);
+      }
+    }
 
     // Registrar en historial si la tabla existe
     try {
-      await connection.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)', [clienteId, gtrId || null, 'reasignado_asesor', comentario || `Reasignado a asesor ${nuevoAsesorId}`, cliente.estado || null]);
+      // Guardar historial; si 'estado' fue seleccionado lo podríamos usar, pero para robustez guardamos null si no existe
+      const estadoNuevo = cliente && cliente.estado ? cliente.estado : null;
+  // Guardar historial; incluimos el nuevo asesor en la descripción para trazabilidad
+  const descripcionHist = comentario ? `${comentario} | nuevo_asesor_id:${nuevoAsesorId}` : `Reasignado a asesor ${nuevoAsesorId}`;
+  await connection.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)', [clienteId, gtrId || null, 'reasignado_asesor', descripcionHist, estadoNuevo]);
     } catch (e) {
       // Si la tabla no existe, no falle la operación completa
       console.warn('No se pudo insertar en historial_cliente (posible ausencia de tabla):', e.message);
@@ -163,11 +233,8 @@ app.post('/api/clientes/reasignar', async (req, res) => {
 
     // Actualizar contadores: decrementar en antiguo asesor (si existe) y aumentar en nuevo asesor
     if (antiguoAsesorId) {
-      // Obtener asesor_id del antiguo usuario_id
-      const [antiguoAsesorData] = await connection.query('SELECT id FROM asesores WHERE usuario_id = ?', [antiguoAsesorId]);
-      if (antiguoAsesorData && antiguoAsesorData.length > 0) {
-        await connection.query('UPDATE asesores SET clientes_asignados = GREATEST(IFNULL(clientes_asignados,0) - 1,0), updated_at = CURRENT_TIMESTAMP WHERE id = ?', [antiguoAsesorData[0].id]);
-      }
+      // antiguoAsesorId ya es el id de la tabla `asesores` (si estaba asignado)
+      await connection.query('UPDATE asesores SET clientes_asignados = GREATEST(IFNULL(clientes_asignados,0) - 1,0), updated_at = CURRENT_TIMESTAMP WHERE id = ?', [antiguoAsesorId]);
     }
     await connection.query('UPDATE asesores SET clientes_asignados = IFNULL(clientes_asignados,0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [nuevoAsesorId]);
     console.log(`✅ Backend: Contadores de asesores actualizados`);
@@ -185,7 +252,6 @@ app.post('/api/clientes/reasignar', async (req, res) => {
           id: cliente.id,
           nombre: cliente.nombre,
           telefono: cliente.telefono,
-          dni: cliente.dni,
           estado: cliente.estado
         },
         asesor: asesorRows[0] || { id: nuevoAsesorId },
@@ -200,7 +266,6 @@ app.post('/api/clientes/reasignar', async (req, res) => {
         id: cliente.id,
         nombre: cliente.nombre,
         telefono: cliente.telefono,
-        dni: cliente.dni,
         estado: cliente.estado
       },
       nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
@@ -363,16 +428,88 @@ app.get('/api/usuarios/gtr', async (req, res) => {
       ORDER BY g.created_at DESC
     `);
 
-    res.json({
-      success: true,
-      gtr
-    });
+    res.json({ success: true, gtr });
   } catch (error) {
-    console.error('Error obteniendo GTR:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error al obtener GTR' 
-    });
+    console.error('Error obteniendo gtr:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener gtr', error: error.message });
+  }
+});
+
+// Endpoint: obtener historial (últimas gestiones)
+app.get('/api/historial', async (req, res) => {
+  try {
+    const limit = Math.min(1000, Number(req.query.limit) || 200);
+    // Unir con usuarios para obtener nombre del usuario que realizó la acción
+    const [rows] = await pool.query(`
+      SELECT h.id, h.cliente_id, h.usuario_id, h.accion, h.descripcion, h.estado_nuevo, h.created_at as fecha_accion,
+             u.nombre as usuario_nombre
+      FROM historial_cliente h
+      LEFT JOIN usuarios u ON h.usuario_id = u.id
+      ORDER BY h.created_at DESC
+      LIMIT ?
+    `, [limit]);
+    return res.json({ success: true, historial: rows });
+  } catch (e) {
+    console.error('Error obteniendo historial:', e);
+    return res.status(500).json({ success: false, message: 'Error interno', error: e.message });
+  }
+});
+
+// Endpoints temporales de diagnóstico: habilitar únicamente si ENABLE_DEBUG_ENDPOINTS=true
+if (process.env.ENABLE_DEBUG_ENDPOINTS === 'true') {
+  // listar columnas de la tabla clientes
+  app.get('/api/debug/clientes_columns', async (req, res) => {
+    try {
+      const dbName = process.env.DB_NAME || 'albru';
+      const [cols] = await pool.query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes' ORDER BY ORDINAL_POSITION", [dbName]);
+      return res.json({ success: true, columns: cols });
+    } catch (e) {
+      console.error('Error obteniendo columnas clientes:', e);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // obtener fila completa de un cliente por id
+  app.get('/api/debug/cliente/:id', async (req, res) => {
+    try {
+      const clienteId = req.params.id;
+      if (!clienteId) return res.status(400).json({ success: false, message: 'cliente id requerido' });
+      const [rows] = await pool.query('SELECT * FROM clientes WHERE id = ?', [clienteId]);
+      if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
+      return res.json({ success: true, cliente: rows[0] });
+    } catch (e) {
+      console.error('Error debug cliente:', e);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+} else {
+  // Si los endpoints debug están deshabilitados, responder 404 de forma segura
+  app.get('/api/debug/clientes_columns', (_req, res) => res.status(404).json({ success: false, message: 'Not found' }));
+  app.get('/api/debug/cliente/:id', (_req, res) => res.status(404).json({ success: false, message: 'Not found' }));
+}
+
+// Endpoint para notificar que un cliente está siendo gestionado (transitorio)
+app.post('/api/clientes/notify-ocupado', async (req, res) => {
+  try {
+    const { clienteId, asesorId, ocupado } = req.body || {};
+    console.log('📣 Notificación OCUPADO recibida:', JSON.stringify(req.body));
+
+    // Validación mínima
+    if (!clienteId) return res.status(400).json({ success: false, message: 'clienteId requerido' });
+
+    // Reenviar notificación por WebSocket para que clientes GTR puedan reaccionar en tiempo real
+    try {
+      const webSocketService = require('./services/WebSocketService');
+      webSocketService.notifyAll('CLIENT_OCUPADO', { clienteId, asesorId: asesorId || null, ocupado: !!ocupado, timestamp: new Date() });
+    } catch (e) {
+      console.warn('No se pudo notificar por WebSocket CLIENT_OCUPADO:', e.message);
+    }
+
+    // Responder OK (no persiste nada en BD)
+    return res.json({ success: true, message: 'Notificación recibida' });
+  } catch (e) {
+    console.error('Error en notify-ocupado:', e);
+    return res.status(500).json({ success: false, message: 'Error interno' });
   }
 });
 
@@ -536,5 +673,45 @@ server.listen(port, () => {
   console.log(`Backend listening on port ${port} (env=${process.env.NODE_ENV || 'development'})`);
   console.log(`WebSocket server initialized on port ${port}`);
 });
+
+// Programar reinicio diario de contadores de asesores y notificación por WebSocket
+try {
+  const cron = require('node-cron');
+
+  // Job diario a las 00:05 (server time) para evitar colisiones con tareas de medianoche
+  cron.schedule('5 0 * * *', async () => {
+    console.log('🕛 Ejecutando tarea diaria: reset de contadores de asesores');
+    try {
+      // Intentar resetear columnas si existen (mode defensivo)
+      const dbName = process.env.DB_NAME || 'albru';
+      const [cols] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'asesores' AND COLUMN_NAME IN ('clientes_atendidos','ventas_hoy')", [dbName]);
+      const names = (cols || []).map(c => c.COLUMN_NAME);
+
+      if (names.includes('clientes_atendidos')) {
+        await pool.query('UPDATE asesores SET clientes_atendidos = 0');
+        console.log('✅ Column clientes_atendidos reseteada a 0');
+      }
+      if (names.includes('ventas_hoy')) {
+        await pool.query('UPDATE asesores SET ventas_hoy = 0');
+        console.log('✅ Column ventas_hoy reseteada a 0');
+      }
+
+      // Notificar a todos los clientes conectados para que refresquen contadores en UI
+      try {
+        webSocketService.notifyAll('DAILY_COUNTERS_RESET', { timestamp: new Date().toISOString() });
+        console.log('🔔 Notificación DAILY_COUNTERS_RESET enviada por WebSocket');
+      } catch (wsErr) {
+        console.warn('No se pudo notificar por WebSocket DAILY_COUNTERS_RESET:', wsErr.message || wsErr);
+      }
+    } catch (e) {
+      console.error('Error en tarea diaria de reinicio de contadores:', e.message || e);
+    }
+  }, {
+    scheduled: true,
+    timezone: process.env.SERVER_TIMEZONE || 'America/Lima'
+  });
+} catch (e) {
+  console.warn('node-cron no disponible, omitiendo tarea diaria de reinicio de contadores');
+}
 
 module.exports = app;

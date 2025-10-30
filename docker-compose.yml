@@ -11,8 +11,9 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-albru}
       MYSQL_USER: ${DB_USER:-albru}
       MYSQL_PASSWORD: ${DB_PASSWORD:-albru_pass}
-    ports:
-      - "${MYSQL_PORT:-3307}:3306"
+    # The DB does not need to publish a host port for normal operation inside docker-compose.
+    # Removing the host port mapping avoids host port bind conflicts on Windows.
+    # If you need to access MySQL from the host, use 'docker-compose exec db mysql ...' or re-add this mapping.
     volumes:
       - db_data:/var/lib/mysql
       # Import SQL on first run: map nueva estructura SQL file to container's init directory

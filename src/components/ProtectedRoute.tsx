@@ -22,11 +22,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, user, loading } = useAuth();
   const location = useLocation();
 
-  console.log('ProtectedRoute - Loading:', loading);
-  console.log('ProtectedRoute - isAuthenticated:', isAuthenticated);
-  console.log('ProtectedRoute - User:', user);
-  console.log('ProtectedRoute - allowedRoles:', allowedRoles);
-  console.log('ProtectedRoute - location:', location.pathname);
+  const isDev = import.meta.env.MODE === 'development';
+
+  if (isDev) {
+    console.debug('ProtectedRoute - Loading:', loading);
+    console.debug('ProtectedRoute - isAuthenticated:', isAuthenticated);
+    console.debug('ProtectedRoute - User:', user);
+    console.debug('ProtectedRoute - allowedRoles:', allowedRoles);
+    console.debug('ProtectedRoute - location:', location.pathname);
+  }
 
   // Mostrar loading mientras se verifica la autenticación
   if (loading) {
@@ -54,7 +58,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // FORZAR logout si no hay token válido
   if (!hasValidToken || !user || !isAuthenticated) {
-    console.log('ProtectedRoute - FORCED logout: No valid token or user');
+    if (isDev) console.debug('ProtectedRoute - FORCED logout: No valid token or user');
     localStorage.clear();
     sessionStorage.clear();
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -62,7 +66,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Verificar roles permitidos si se especifican
   if (allowedRoles.length > 0 && !allowedRoles.includes(user.tipo)) {
-    console.log('ProtectedRoute - Role mismatch:', user.tipo, 'not in', allowedRoles);
+    if (isDev) console.debug('ProtectedRoute - Role mismatch:', user.tipo, 'not in', allowedRoles);
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
@@ -90,7 +94,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  console.log('ProtectedRoute - Access granted');
+  if (isDev) console.debug('ProtectedRoute - Access granted');
   return <>{children}</>;
 };
 

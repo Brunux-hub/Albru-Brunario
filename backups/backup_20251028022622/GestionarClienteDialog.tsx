@@ -29,7 +29,6 @@ interface Step1Data {
   nombresApellidos: string;
   tipoDocumento: 'DNI' | 'RUC10' | 'RUC20' | 'CE' | '';
   numeroDocumento: string;
-  estatus: string;
 }
 
 // Datos del wizard paso 2
@@ -65,7 +64,9 @@ interface Step4Data {
 
 // Importar el tipo Cliente existente
 import type { Cliente } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
 import { ubigeoService, type Departamento, type Distrito } from '../../services/UbigeoService';
+import { API_BASE } from '../../config/backend';
 
 interface Props {
   open: boolean;
@@ -75,15 +76,9 @@ interface Props {
 }
 
 const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSave }) => {
-  // Lock state
-  const [, setLockToken] = useState<string | null>(null);
-  const [isLockedByMe, setIsLockedByMe] = useState(false);
-  const [lockedByOther, setLockedByOther] = useState<number | null>(null);
-  const heartbeatRef = React.useRef<number | null>(null);
-  const lockTokenRef = React.useRef<string | null>(null);
-  const asesorIdRef = React.useRef<number | null>(null);
-  const clienteIdRef = React.useRef<number | undefined>(undefined);
   const [activeStep, setActiveStep] = useState(0);
+  // Acceso al contexto para obtener el usuario actual (para registrar historial)
+  const app = useApp();
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Estados para UBIGEO
@@ -100,37 +95,12 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     nombresApellidos: '',
     tipoDocumento: '',
     numeroDocumento: ''
-    ,estatus: ''
   });
-
-  // Opciones de estatus (proporcionadas por UI - imagen)
-  const estatusOptions: string[] = [
-    '1 - SOLO INFO',
-    '8 - LISTA NEGRA',
-    '7 - VENTA CERRADA',
-    '6 - PDTE SCORE',
-    '5 - SIN CTO',
-    '5 - SIN COBERTURA',
-    '5 - SERVICIO ACTIVO',
-    '5 - EDIFICIO SIN LIBERAR',
-    '4 - ND PUBLICIDAD',
-    '4 - DOBLE CLICK',
-    '3 - VC DESAPROBADA',
-    '3 - ZONA F',
-    '3 - NO DESEA',
-    '3 - NO CALIFICA',
-    '3 - CON PROGRAMACIÓN',
-    '2 - FIN DE MES',
-    '2 - CONSULTAR CON FAMILIAR',
-    '2 - AGENDADO',
-    '1 - SEGUIMIENTO',
-    '1 - GESTION x CHAT',
-    '0 - NO CONTESTA',
-    '0 - N° EQUIVOCADO',
-    '0 - FUERA DE SERVICIO',
-    '0 - CORTA LLAMADA',
-    '0 - BUZON'
-  ];
+  const [leadReadOnly, setLeadReadOnly] = useState(false);
+  // Lock state for durable locks
+  const [lockToken, setLockToken] = useState<string | null>(null);
+  // Only the setter is required in this component; we don't read the local locked flag.
+  const [, setIsLocked] = useState(false);
 
   // Datos del paso 2
   const [step2Data, setStep2Data] = useState<Step2Data>({
@@ -173,140 +143,70 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
   useEffect(() => {
     if (cliente) {
       // Cargar datos existentes del cliente si los hay
-      clienteIdRef.current = cliente.id;
+      // Preferir el número original proveniente del lead si existe
+      const originalLead = cliente.leads_original_telefono || cliente.telefono || '';
       setStep1Data({
         tipoCliente: 'nuevo', // Por defecto
-        lead: cliente.telefono || '',
-        coordenadas: '',
+        lead: originalLead,
+        coordenadas: cliente.coordenadas || '',
         score: '',
         nombresApellidos: cliente.nombre || '',
         tipoDocumento: 'DNI',
         numeroDocumento: cliente.dni || ''
-          ,estatus: ''
       });
+
+      // Marcar readOnly si el cliente trae leads_original_telefono desde la BD
+      setLeadReadOnly(Boolean(cliente.leads_original_telefono));
     }
   }, [cliente]);
 
-  // Calcular asesorId una vez y guardarlo en ref
+  // When modal opens, try to acquire a durable lock for this cliente
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('userData') || localStorage.getItem('albru_user') || localStorage.getItem('currentUser');
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (parsed && typeof parsed === 'object') {
-          const maybeId = (parsed as { id?: string | number }).id ?? (parsed as { usuario_id?: string | number }).usuario_id ?? null;
-          asesorIdRef.current = maybeId !== null && maybeId !== undefined ? Number(maybeId) : null;
-        }
-      }
-    } catch {
-      asesorIdRef.current = null;
-    }
-  }, []);
-
-  // Intentar tomar lock al abrir el modal
-  useEffect(() => {
-    if (!open || !cliente) return;
-
-    const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
     let mounted = true;
-
-    const takeLock = async () => {
+    const tryLock = async () => {
+      if (!open || !cliente) return;
       try {
-        const asesorId = asesorIdRef.current;
-        if (!asesorId) {
-          console.warn('No se encontró asesorId en localStorage para el lock');
+        const userId = app && app.user && app.user.id ? app.user.id : (localStorage.getItem('userData') ? JSON.parse(localStorage.getItem('userData') as string).id : null);
+        if (!userId) {
+          console.warn('No user id available to lock cliente');
           return;
         }
 
-        const resp = await fetch(`${backend}/api/clientes/${cliente.id}/lock`, {
+        const resp = await fetch(`${API_BASE}/api/clientes/${cliente.id}/lock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ asesorId, durationSeconds: 300 })
+          body: JSON.stringify({ asesorId: userId, durationSeconds: 600 })
         });
 
-        if (resp.status === 409) {
-          const body = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+          const data = await resp.json();
           if (!mounted) return;
-          setIsLockedByMe(false);
-          setLockedByOther(body.owner?.locked_by || body.owner || null);
-          alert('El cliente ya está siendo gestionado por otro asesor. No puedes editarlo.');
-          return;
-        }
-
-        if (!resp.ok) {
-          console.error('Error al solicitar lock:', resp.status);
-          return;
-        }
-
-        const j = await resp.json();
-        if (!mounted) return;
-        setLockToken(j.lockToken || null);
-        lockTokenRef.current = j.lockToken || null;
-        setIsLockedByMe(true);
-        setLockedByOther(null);
-
-        // iniciar heartbeat cada 60s
-        const id = window.setInterval(async () => {
+          setLockToken(data.lockToken || null);
+          setIsLocked(true);
+          // Also mark readOnly if someone else owns lock? handled by response when conflict
+        } else if (resp.status === 409) {
+          // conflicto de lock: registrar cuerpo para debugging y avisar al usuario
           try {
-            const asesorIdHB = asesorIdRef.current;
-            const tokenHB = lockTokenRef.current;
-            if (!asesorIdHB || !tokenHB) return;
-            await fetch(`${backend}/api/clientes/${cliente.id}/heartbeat`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ asesorId: asesorIdHB, lockToken: tokenHB, extendSeconds: 300 })
-            });
-          } catch (err) {
-            console.warn('Heartbeat failed', err);
+            const body = await resp.json();
+            console.warn('Lock conflict response:', body);
+          } catch {
+            // ignore parse errors
           }
-        }, 60000);
-        heartbeatRef.current = id;
-      } catch {
-        console.error('Error tomando lock');
+          alert('No se pudo bloquear el cliente. Actualmente está siendo gestionado por otro asesor.');
+          // Indicamos que no poseemos el lock
+          setIsLocked(false);
+        } else {
+          console.warn('Lock request failed', resp.status);
+        }
+      } catch (e) {
+        console.error('Error acquiring lock:', e);
       }
     };
 
-    takeLock();
+    tryLock();
 
-    return () => {
-      mounted = false;
-    };
-  }, [open, cliente]);
-
-  // Unlock al cerrar
-  useEffect(() => {
-    if (!open) {
-      // al cerrar el modal, liberar lock si existe (usar refs para evitar stale closures)
-      const doUnlock = async () => {
-        if (!cliente) return;
-        const token = lockTokenRef.current;
-        const asesorId = asesorIdRef.current;
-        if (!token || !asesorId) return;
-
-        try {
-          const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-          await fetch(`${backend}/api/clientes/${cliente.id}/unlock`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ asesorId, lockToken: token })
-          });
-        } catch {
-          console.warn('Error unlocking cliente');
-        }
-
-        // cleanup heartbeat
-        if (heartbeatRef.current) {
-          window.clearInterval(heartbeatRef.current);
-          heartbeatRef.current = null;
-        }
-        lockTokenRef.current = null;
-        setLockToken(null);
-        setIsLockedByMe(false);
-      };
-
-      doUnlock();
-    }
-  }, [open, cliente]);
-  
+    return () => { mounted = false; };
+  }, [open, cliente, app]);
 
   // Cargar departamentos al abrir el modal
   useEffect(() => {
@@ -314,35 +214,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       loadDepartamentos();
     }
   }, [open]);
-
-  // cleanup on unmount / reload: ensure we attempt to release lock
-  useEffect(() => {
-    const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-    const handleBeforeUnload = () => {
-      const token = lockTokenRef.current;
-      const asesorId = asesorIdRef.current;
-      const clienteId = clienteIdRef.current;
-      if (!token || !asesorId || !clienteId) return;
-      try {
-        // use navigator.sendBeacon for synchronous unload-safe request
-        const url = `${backend}/api/clientes/${clienteId}/unlock`;
-        const payload = JSON.stringify({ asesorId, lockToken: token });
-        navigator.sendBeacon(url, payload);
-      } catch {
-        // nothing else we can do on unload
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Also ensure heartbeat cleared if component unmounts while open
-      if (heartbeatRef.current) {
-        window.clearInterval(heartbeatRef.current);
-        heartbeatRef.current = null;
-      }
-    };
-  }, []);
 
   const loadDepartamentos = async () => {
     setLoadingUbigeo(true);
@@ -524,6 +395,24 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     }
   };
 
+  const unlockIfNeeded = async () => {
+    if (!cliente) return;
+    try {
+      const userId = app && app.user && app.user.id ? app.user.id : (localStorage.getItem('userData') ? JSON.parse(localStorage.getItem('userData') as string).id : null);
+      if (!userId && !lockToken) return;
+      await fetch(`${API_BASE}/api/clientes/${cliente.id}/unlock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asesorId: userId, lockToken })
+      });
+    } catch (e) {
+      console.warn('Error releasing lock:', e);
+    } finally {
+      setLockToken(null);
+      setIsLocked(false);
+    }
+  };
+
   const handleSave = async () => {
     // Validar el último paso antes de guardar
     if (!validateStep4()) return;
@@ -539,7 +428,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     console.log('📋 WIZARD: Datos completos del wizard:', wizardData);
 
     // Mapear todos los datos del wizard a los campos de la base de datos
-    const datosParaBackend = {
+  const datosParaBackend: Record<string, unknown> = {
       // Paso 1: Información básica
       nombre: step1Data.nombresApellidos,
       dni: step1Data.numeroDocumento,
@@ -579,15 +468,33 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       // Metadatos del wizard
       wizard_completado: true,
       wizard_data_json: JSON.stringify(wizardData),
-      estatus_wizard: step1Data.estatus,
       observaciones_asesor: `Lead: ${step1Data.lead}. Parentesco titular: ${step2Data.parentescoTitular}. Plan: ${step3Data.tipoPlan} ${step3Data.velocidadContratada}`
     };
+
+    // Añadir metadata para que el backend registre la gestión en historial (reportes)
+    if (app && app.user && app.user.id) {
+      datosParaBackend.usuario_id = app.user.id;
+    } else {
+      // Intentar leer desde localStorage como fallback
+      try {
+        const stored = localStorage.getItem('albru_user') || localStorage.getItem('userData') || localStorage.getItem('albru_user');
+        if (stored) {
+          const parsed = JSON.parse(stored) as Record<string, unknown> | null;
+          if (parsed && parsed.id) datosParaBackend.usuario_id = parsed.id;
+        }
+      } catch (err) {
+        console.warn('No se pudo obtener user id desde localStorage', err);
+      }
+    }
+
+    // Flag para que el backend inserte en historial_cliente y luego notifique a reportes
+    datosParaBackend.registrar_historial = true;
 
     console.log('🚀 WIZARD: Enviando datos al backend:', datosParaBackend);
     
     try {
       // Enviar directamente al backend
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}`, {
+      const response = await fetch(`${API_BASE}/api/clientes/${cliente!.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datosParaBackend)
@@ -612,8 +519,10 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         direccion: step2Data.direccion
       };
       
-      onSave(updatedCliente);
-      onClose();
+  onSave(updatedCliente);
+  // release lock before closing
+  await unlockIfNeeded();
+  onClose();
       
       alert('✅ Wizard completado exitosamente. Los datos han sido guardados.');
     } catch (error) {
@@ -1315,42 +1224,22 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         )}
       </Box>
 
-      {/* ESTATUS (dropdown proporcionado) */}
-      <Box sx={{ mb: 3 }}>
-        <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
-          ESTATUS
-        </FormLabel>
-        <FormControl fullWidth size="small">
-          <Select
-            value={step1Data.estatus}
-            onChange={(e) => setStep1Data({ ...step1Data, estatus: e.target.value })}
-            displayEmpty
-            sx={{
-              backgroundColor: '#f5f5f5',
-              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-            }}
-          >
-            <MenuItem disabled value="">Elige</MenuItem>
-            {estatusOptions.map((opt) => (
-              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
-
       {/* LEAD */}
       <Box sx={{ mb: 3 }}>
         <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
           LEAD *
         </FormLabel>
         <Typography variant="body2" color="error" sx={{ mb: 1, fontSize: '0.75rem', fontStyle: 'italic' }}>
-          Ingresar numero de 2 dígitos, sin espacios
+          Numero por defecto asignado desde la fuente original
         </Typography>
         <TextField
           fullWidth
           placeholder="Tu respuesta"
           value={step1Data.lead}
           onChange={(e) => setStep1Data({ ...step1Data, lead: e.target.value })}
+          // Si el lead viene de la fuente original lo mostramos como no editable
+          disabled={leadReadOnly}
+          inputProps={{ readOnly: leadReadOnly }}
           variant="outlined"
           size="small"
           sx={{ 
@@ -1361,6 +1250,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             }
           }}
         />
+        {leadReadOnly && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+            Número proveniente del lead original (no editable)
+          </Typography>
+        )}
         {errors.lead && (
           <Typography variant="body2" color="error" sx={{ mt: 0.5, fontSize: '0.75rem' }}>
             {errors.lead}
@@ -1531,29 +1425,24 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     </Box>
   );
 
+  const handleRequestClose = async () => {
+    // Release lock if we own it then close
+    await unlockIfNeeded();
+    onClose();
+  };
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={handleRequestClose} maxWidth="md" fullWidth>
       <Box sx={{ p: 2 }}>
         {/* Header del wizard */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Formulario de Registro de Cliente - Wizard
           </Typography>
-          <Button onClick={onClose} sx={{ minWidth: 'auto', p: 1 }}>
+          <Button onClick={handleRequestClose} sx={{ minWidth: 'auto', p: 1 }}>
             ×
           </Button>
         </Box>
-
-        {/* Indicador de lock */}
-        {lockedByOther ? (
-          <Typography variant="body2" color="error" sx={{ mb: 2 }}>
-            Cliente ocupado por otro asesor (ID: {String(lockedByOther)})
-          </Typography>
-        ) : isLockedByMe ? (
-          <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
-            Tienes el cliente bloqueado para edición
-          </Typography>
-        ) : null}
 
         {/* Stepper */}
         <Stepper activeStep={activeStep} sx={{ mb: 3 }}>
@@ -1583,7 +1472,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
 
         {/* Botones de navegación */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderTop: '1px solid #e0e0e0' }}>
-          <Button onClick={onClose} variant="outlined">
+          <Button onClick={handleRequestClose} variant="outlined">
             Cancelar
           </Button>
           

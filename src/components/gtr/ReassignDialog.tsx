@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 
 import type { Asesor } from './types';
@@ -13,17 +13,15 @@ interface ReassignDialogProps {
 const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfirm, asesores }) => {
   const [newAdvisor, setNewAdvisor] = useState('');
 
-  // Filtrar solo asesores activos
-  console.log('🔍 ReassignDialog: Asesores recibidos:', asesores);
-  const asesoresActivos = asesores?.filter(asesor => 
-    asesor.estado === 'activo' || asesor.estado === 'Activo' || asesor.estado === 'Ocupado'
-  ) || [];
-  console.log('🔍 ReassignDialog: Asesores activos filtrados:', asesoresActivos);
-  console.log('🔍 ReassignDialog: Primer asesor activo:', asesoresActivos[0]);
+  // Filtrar solo asesores activos y memoizar el resultado para evitar recomputes
+  const asesoresActivos = useMemo(() => {
+    return (asesores || []).filter(asesor =>
+      asesor.estado === 'activo' || asesor.estado === 'Activo' || asesor.estado === 'Ocupado'
+    );
+  }, [asesores]);
 
   const handleConfirm = () => {
     if (newAdvisor && newAdvisor.trim() !== '') {
-      console.log('🎯 ReassignDialog: Enviando asesor seleccionado:', newAdvisor);
       onConfirm(newAdvisor);
       setNewAdvisor('');
     } else {
@@ -59,7 +57,6 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
               asesoresActivos.map((asesor) => {
                 // Siempre usar asesor_id como valor - nunca el nombre
                 const value = String(asesor.asesor_id);
-                console.log('🎯 ReassignDialog: MenuItem para', asesor.nombre, '- value:', value, '- asesor_id:', asesor.asesor_id);
                 return (
                   <MenuItem key={asesor.asesor_id} value={value}>
                     {asesor.nombre} - {asesor.estado}

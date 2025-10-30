@@ -1,41 +1,17 @@
-import React, { useState } from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography } from '@mui/material';
+import React, { useState, useMemo } from 'react';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography, TextField, Tooltip } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
-import type { ClientHistoryData, Asesor } from './types';
+import type { ClientHistoryData, Asesor, Cliente } from './types';
+import RealtimeService from '../../services/RealtimeService';
 
 
-interface Historial {
-  fecha: string;
-  asesor: string;
-  accion: string;
-  comentarios: string;
-}
 
-interface Cliente {
-  id: number;
-  lead_id?: string;
-  nombre?: string;
-  dni?: string;
-  email?: string;
-  estado: string;
-  asesor: string;
-  historial?: Historial[];
-  fecha: string;
-  comentarios?: string;
-  // Campos adicionales necesarios para la tabla
-  telefono?: string;
-  cliente?: string;
-  lead?: string;
-  ciudad?: string;
-  plan?: string;
-  precio?: number;
-  canal?: string;
-  distrito?: string;
-}
+
+
 
 
 
@@ -52,6 +28,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [clientToReassign, setClientToReassign] = useState<Cliente | null>(null);
+  const [query, setQuery] = useState('');
 
   React.useEffect(() => {
     if (newClient) {
@@ -63,7 +40,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         {
           ...newClient,
           id: Date.now(),
-          fecha,
+          fechaCreacion: fecha,
           estado: isSoloNumero ? 'Nuevo' : 'En gestión',
           asesor: '-',
           comentarios: isSoloNumero ? 'Solo número' : (newClient.comentarios || ''),
@@ -81,12 +58,22 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     }
   }, [newClient, setClients]);
 
-  const sortedClients = [...clients].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+  const sortedClients = useMemo(() => [...clients].sort((a, b) => new Date(a.fechaCreacion).getTime() - new Date(b.fechaCreacion).getTime()), [clients]);
   let filtered = sortedClients;
   if (statusFilter === 'Solo números') {
     filtered = sortedClients.filter(c => !c.nombre && !c.dni && !c.email);
   } else if (statusFilter !== 'Todos') {
     filtered = sortedClients.filter(c => c.estado === statusFilter);
+  }
+
+  if (query && query.trim() !== '') {
+    const q = query.toLowerCase();
+    filtered = filtered.filter(c => (
+      String(c.id).includes(q) ||
+      (c.nombre || '').toLowerCase().includes(q) ||
+      (c.asesor || '').toLowerCase().includes(q) ||
+      (c.leads_original_telefono || c.telefono || '').toLowerCase().includes(q)
+    ));
   }
   
   const handleViewHistory = (client: Cliente) => {
@@ -96,10 +83,10 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
       cliente: String(client.id),
       dni: client.dni || '',
       email: client.email || '',
-      campania: client.comentarios || 'Sin campaña',
+  campana: client.campana ?? 'Sin campaña',
       canal: 'Sin canal',
       estado: client.estado || '',
-      fechaCreacion: client.fecha,
+  fechaCreacion: client.fechaCreacion,
       historial: client.historial || []
     };
     setSelectedClient(clientHistoryData);
@@ -217,66 +204,132 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         setClientToReassign(null);
     }
   };
+
+  // Suscribirse a eventos WebSocket relevantes para marcar 'ocupado' y actualizar clientes en tiempo real
+  React.useEffect(() => {
+    const realtime = RealtimeService.getInstance();
+    const unsubscribeLocked = realtime.subscribe('CLIENT_LOCKED', (data: unknown) => {
+      try {
+        const payload = data as Record<string, unknown>;
+        const clienteId = Number(payload['clienteId'] || payload['cliente_id'] || payload['clienteId']);
+          if (!clienteId) return;
+          setClients(prev => prev.map(c => c.id === clienteId ? { ...c, ocupado: true } : c));
+      } catch (e) { console.warn('CLIENT_LOCKED handler error', e); }
+    });
+
+    const unsubscribeUnlocked = realtime.subscribe('CLIENT_UNLOCKED', (data: unknown) => {
+      try {
+        const payload = data as Record<string, unknown>;
+        const clienteId = Number(payload['clienteId'] || payload['cliente_id'] || payload['clienteId']);
+        if (!clienteId) return;
+        setClients(prev => prev.map(c => c.id === clienteId ? { ...c, ocupado: false } : c));
+      } catch (e) { console.warn('CLIENT_UNLOCKED handler error', e); }
+    });
+
+    const unsubscribeUpdated = realtime.subscribe('CLIENT_UPDATED', (data: unknown) => {
+      try {
+        const payload = data as Record<string, unknown>;
+        const cliente = payload['cliente'] as Record<string, unknown> | undefined;
+        if (!cliente || !cliente['id']) return;
+        const id = Number(cliente['id']);
+  setClients(prev => prev.map(c => c.id === id ? { ...c, ...(cliente as Partial<Cliente>) } : c));
+      } catch (e) { console.warn('CLIENT_UPDATED handler error', e); }
+    });
+
+    return () => {
+      unsubscribeLocked();
+      unsubscribeUnlocked();
+      unsubscribeUpdated();
+    };
+  }, [setClients]);
   
   return (
     <Paper sx={{ 
       borderRadius: 2,
-      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       border: '1px solid #e5e7eb',
       width: '100%',
       flex: 1
     }}>
-      <Box sx={{ p: 2, borderBottom: '1px solid #e5e7eb' }}>
+      <Box sx={{ p: 2, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, color: '#22223b' }}>
           Clientes
         </Typography>
+        <TextField size="small" placeholder="Buscar cliente, asesor o teléfono..." value={query} onChange={(e) => setQuery(e.target.value)} sx={{ minWidth: 240 }} />
       </Box>
-      <TableContainer>
-        <Table>
+      <TableContainer sx={{ maxHeight: '60vh' }}>
+        <Table stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Lead (Teléfono)</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Nombre</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>DNI</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Coordenadas</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Campaña</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Canal</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estado</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Asesor</TableCell>
-              <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Acciones</TableCell>
-            </TableRow>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Lead</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Campaña</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Canal</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Sala</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Compañía</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estado</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Asesor asignado</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Acciones</TableCell>
+              </TableRow>
           </TableHead>
           <TableBody>
             {filtered.map(client => (
               <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
-                <TableCell>{client.fecha}</TableCell>
+                <TableCell>{client.fechaCreacion}</TableCell>
                 <TableCell>
-                  {client.telefono || client.cliente || client.lead ? (
-                    <span style={{ fontWeight: 600, color: '#1976d2' }}>
-                      {client.telefono || client.cliente || client.lead}
-                    </span>
+                  {client.leads_original_telefono || client.telefono || client.cliente || client.lead ? (
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#1976d2' }}>
+                        {(() => {
+                          const t = client.leads_original_telefono || client.telefono || client.cliente || client.lead || '';
+                          const digits = String(t).replace(/\D/g, '').slice(-9);
+                          if (!digits) return t;
+                          return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`;
+                        })()}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{client.telefono ? `(${client.telefono})` : ''}</div>
+                    </div>
                   ) : (
-                    <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin lead</span>
+                    <span style={{ color: '#1976d2', fontStyle: 'normal', fontWeight:700 }}>Sin teléfono</span>
                   )}
                 </TableCell>
-                <TableCell>{client.nombre || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin nombre</span>}</TableCell>
-                <TableCell>{client.dni || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin DNI</span>}</TableCell>
-                <TableCell>{client.email || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin coordenadas</span>}</TableCell>
-                <TableCell>{client.comentarios}</TableCell>
+                <TableCell>{client.campana ?? <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin campaña</span>}</TableCell>
+                <TableCell>{client.canal || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin canal</span>}</TableCell>
+                <TableCell>{client.sala_asignada || client.sala || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin sala</span>}</TableCell>
+                <TableCell>{client.compania || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin compañía</span>}</TableCell>
                 <TableCell>
-                  <Chip 
-                    label={client.estado}
-                    size="small"
-                    sx={{
-                      fontWeight: 700,
-                      color: client.estado === 'Vendido' ? '#059669' : client.estado === 'En gestión' ? '#2563eb' : client.estado === 'Nuevo' ? '#f59e0b' : client.estado === 'Perdido' ? '#dc2626' : '#374151',
-                      background: client.estado === 'Vendido' ? '#d1fae5' : client.estado === 'En gestión' ? '#dbeafe' : client.estado === 'Nuevo' ? '#fef3c7' : client.estado === 'Perdido' ? '#fee2e2' : '#f3f4f6',
-                      borderRadius: 1
-                    }}
-                  />
+                  {client.ocupado ? (
+                    <Chip
+                      label="Ocupado"
+                      size="small"
+                      sx={{
+                        fontWeight: 700,
+                        color: '#ffffff',
+                        background: '#f97316',
+                        borderRadius: 1
+                      }}
+                    />
+                  ) : (
+                    <Chip 
+                      label={client.estado}
+                      size="small"
+                      sx={{
+                        fontWeight: 700,
+                        color: client.estado === 'Vendido' ? '#059669' : client.estado === 'En gestión' ? '#2563eb' : client.estado === 'Nuevo' ? '#f59e0b' : client.estado === 'Perdido' ? '#dc2626' : '#374151',
+                        background: client.estado === 'Vendido' ? '#d1fae5' : client.estado === 'En gestión' ? '#dbeafe' : client.estado === 'Nuevo' ? '#fef3c7' : client.estado === 'Perdido' ? '#fee2e2' : '#f3f4f6',
+                        borderRadius: 1
+                      }}
+                    />
+                  )}
                 </TableCell>
-                <TableCell>{client.asesor}</TableCell>
+                <TableCell>
+                  {client.asesor}
+                  {client.ocupado && (
+                    <Tooltip title="Cliente ocupado por otro asesor">
+                      <Chip label="Ocupado" size="small" sx={{ ml: 1, bgcolor: '#f97316', color: '#fff', fontWeight: 700 }} />
+                    </Tooltip>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Button 
@@ -324,6 +377,26 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         open={historyDialogOpen}
         onClose={() => setHistoryDialogOpen(false)}
         clientData={selectedClient}
+  onSave={(updatedClient: Partial<Cliente> & { leads_original_telefono?: string; tipificacion_back?: string | null; canal_adquisicion?: string }) => {
+          // Actualizar la lista local de clientes con los valores retornados por el backend
+          setClients(prev => prev.map(c => {
+            if (c.id === updatedClient.id) {
+              return {
+                ...c,
+                nombre: updatedClient.nombre ?? c.nombre,
+                dni: updatedClient.dni ?? c.dni,
+                telefono: updatedClient.telefono ?? c.telefono,
+                cliente: updatedClient.leads_original_telefono || updatedClient.telefono || c.cliente,
+                campana: updatedClient.campana ?? c.campana,
+                canal: updatedClient.canal_adquisicion ?? c.canal,
+                estado: updatedClient.estado ?? c.estado,
+                // prop tipificacion_back no está en la tabla local Cliente en todos los tipos TS — usar valor existente si no viene
+                observaciones: updatedClient.tipificacion_back ?? c.observaciones
+              };
+            }
+            return c;
+          }));
+        }}
       />
       
       <ReassignDialog

@@ -1,0 +1,6 @@
+# Ignore backup files and folders
+backups/
+
+# Build output
+dist/
+node_modules/

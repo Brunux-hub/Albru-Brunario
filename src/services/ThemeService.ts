@@ -1,5 +1,6 @@
 // Servicio para manejar temas personalizados por usuario
 import axios from 'axios';
+import { API_BASE } from '../config/backend';
 
 export interface UserTheme {
   primary: string;
@@ -42,7 +43,7 @@ class ThemeService {
         return null;
       }
 
-      const response = await axios.get('http://localhost:3001/api/user/theme', {
+    const response = await axios.get(`${API_BASE}/api/user/theme`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

@@ -116,13 +116,53 @@ const obtenerDatosClientes = async (req, res) => {
       return res.status(400).json({ success: false, message: 'asesorId requerido (middleware, query o params)'});
     }
 
-    // Obtener datos de clientes desde la base de datos (campo real: asesor_asignado)
-    const [rows] = await pool.query('SELECT id, nombre, telefono, dni, email, direccion, estado, observaciones_asesor as gestion, fecha_primer_contacto as fecha, fecha_ultimo_contacto as seguimiento FROM clientes WHERE asesor_asignado = ? ORDER BY created_at DESC', [asesorId]);
-    console.log(`📋 Obteniendo datos de clientes para asesor ${asesorId} desde la base de datos`);
-    res.status(200).json({ 
-      success: true,
-      clientes: rows
-    });
+    // Construir SELECT dinámico seguro: verificar columnas existentes y usar NULL como fallback
+    const desired = [
+      { col: 'id', as: 'id' },
+      { col: 'nombre', as: 'nombre' },
+      { col: 'telefono', as: 'telefono' },
+      { col: 'dni', as: 'dni' },
+      { col: 'email', as: 'email' },
+      { col: 'direccion', as: 'direccion' },
+      { col: 'estado', as: 'estado' },
+      { col: 'observaciones_asesor', as: 'gestion' },
+      { col: 'fecha_primer_contacto', as: 'fecha' },
+      { col: 'fecha_ultimo_contacto', as: 'seguimiento' }
+    ];
+
+    const dbName = process.env.DB_NAME || 'albru';
+    const colNames = desired.map(d => d.col);
+    const placeholders = colNames.map(() => '?').join(',');
+    const [existingCols] = await pool.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes' AND COLUMN_NAME IN (${placeholders})`, [dbName, ...colNames]);
+    const existingSet = new Set((existingCols || []).map(r => r.COLUMN_NAME));
+
+    const selectParts = desired.map(d => existingSet.has(d.col) ? `${d.col} as ${d.as}` : `NULL as ${d.as}`);
+    const selectSql = `SELECT ${selectParts.join(', ')} FROM clientes WHERE asesor_asignado = ? ORDER BY created_at DESC`;
+
+    let [rows] = await pool.query(selectSql, [asesorId]);
+
+    // Si no hay filas, intentar interpretar asesorId como usuario_id (buscar asesor.id)
+    if ((!rows || rows.length === 0) && asesorId) {
+      const [asesorMatch] = await pool.query('SELECT id FROM asesores WHERE usuario_id = ? LIMIT 1', [asesorId]);
+      if (asesorMatch && asesorMatch.length > 0) {
+        const asesorIdFound = asesorMatch[0].id;
+        [rows] = await pool.query(selectSql, [asesorIdFound]);
+      }
+    }
+
+    // Fallback: buscar assigned_asesor_id dentro de wizard_data_json
+    if ((!rows || rows.length === 0) && asesorId) {
+      try {
+        const jsonSql = `SELECT ${selectParts.join(', ')} FROM clientes WHERE JSON_UNQUOTE(JSON_EXTRACT(COALESCE(wizard_data_json, JSON_OBJECT()), '$.assigned_asesor_id')) = ? ORDER BY created_at DESC`;
+        const [jsonRows] = await pool.query(jsonSql, [asesorId]);
+        rows = jsonRows;
+      } catch (e) {
+        console.warn('Fallback JSON a assigned_asesor_id falló:', e.message);
+      }
+    }
+
+    console.log(`📋 Obteniendo ${rows.length} clientes para asesor ${asesorId}`);
+    res.status(200).json({ success: true, clientes: rows });
   } catch (error) {
     console.error('Error al obtener datos de los clientes:', error);
     res.status(500).json({ message: 'Error interno del servidor' });

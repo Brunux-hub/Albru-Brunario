@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Card,
@@ -16,7 +16,8 @@ import {
   Paper,
   IconButton,
   Menu,
-  MenuItem
+  MenuItem,
+  TextField
 } from '@mui/material';
 import {
   Phone,
@@ -48,9 +49,12 @@ interface Asesor {
 
 interface GtrAsesoresTableProps {
   asesores: Asesor[];
+  // lista de clientes para calcular ocupados por asesor
+  // soporta emparejar por nombre (`asesor`) o por id (`asesorId`) para mayor robustez
+  clients?: Array<{ asesor?: string; asesorId?: number; ocupado?: boolean }>;
 }
 
-const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
+const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients = [] }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   // Las funciones de asignar/atender cliente se eliminan porque la actualización será automática por reasignación.
 
@@ -99,12 +103,31 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
     return 'error';
   };
 
+  const isSameDay = (isoDate?: string) => {
+    if (!isoDate) return false;
+    try {
+      const d = new Date(isoDate);
+      const today = new Date();
+      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+    } catch {
+      return false;
+    }
+  };
 
+
+
+  const [query, setQuery] = useState('');
+
+  const filteredAsesores = useMemo(() => {
+    if (!query) return asesores;
+    const q = query.toLowerCase();
+    return asesores.filter(a => a.nombre.toLowerCase().includes(q) || String(a.id).includes(q));
+  }, [asesores, query]);
 
   return (
     <Box sx={{ width: '100%' }}>
       {/* Resumen de Asesores */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 3, mb: 3 }}>
+  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 3, mb: 3 }}>
         <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -173,8 +196,12 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
       {/* Tabla de Asesores */}
       <Card sx={{ boxShadow: '0 4px 6px rgba(0, 0, 0, 0.07)' }}>
         <CardContent sx={{ p: 0 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Asesores</Typography>
+            <TextField size="small" placeholder="Buscar asesor..." value={query} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)} sx={{ minWidth: 200 }} />
+          </Box>
           <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-            <Table>
+            <Table stickyHeader>
               <TableHead>
                 <TableRow sx={{ backgroundColor: '#f8fafc' }}>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Asesor</TableCell>
@@ -189,7 +216,7 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {asesores.map((asesor) => (
+                {filteredAsesores.map((asesor) => (
                   <TableRow 
                     key={asesor.id}
                     sx={{ 
@@ -222,17 +249,41 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
                     </TableCell>
                     
                     <TableCell>
-                      <Chip
-                        icon={getEstadoIcon(asesor.estado)}
-                        label={asesor.estado}
-                        size="small"
-                        sx={{
-                          backgroundColor: getEstadoColor(asesor.estado),
-                          color: 'white',
-                          fontWeight: 'medium',
-                          '& .MuiChip-icon': { color: 'white' }
-                        }}
-                      />
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        {(() => {
+                          const occupiedCount = clients.reduce((acc, c) => {
+                            const match = (typeof c.asesorId !== 'undefined' ? c.asesorId === asesor.id : String(c.asesor) === String(asesor.nombre));
+                            return acc + (match && c.ocupado ? 1 : 0);
+                          }, 0);
+
+                          if (occupiedCount > 0) {
+                            // Mostrar un solo chip 'Ocupado' en lugar de 'Activo' + contador
+                            return (
+                              <Chip
+                                icon={<Phone sx={{ fontSize: 16, color: 'white' }} />}
+                                label={occupiedCount > 1 ? `${occupiedCount} ocup.` : 'Ocupado'}
+                                size="small"
+                                sx={{ backgroundColor: '#f97316', color: '#fff', fontWeight: 700 }}
+                              />
+                            );
+                          }
+
+                          // Si no hay ocupados, mostrar estado normal
+                          return (
+                            <Chip
+                              icon={getEstadoIcon(asesor.estado)}
+                              label={asesor.estado}
+                              size="small"
+                              sx={{
+                                backgroundColor: getEstadoColor(asesor.estado),
+                                color: 'white',
+                                fontWeight: 'medium',
+                                '& .MuiChip-icon': { color: 'white' }
+                              }}
+                            />
+                          );
+                        })()}
+                      </Box>
                     </TableCell>
                     
                     <TableCell>
@@ -250,7 +301,7 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
                     <TableCell>
                       <Box sx={{ textAlign: 'center' }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
-                          {asesor.clientesAtendidos}/{asesor.clientesAsignados}
+                          {isSameDay(asesor.ultimaActividad) ? asesor.clientesAtendidos : 0}/{asesor.clientesAsignados}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#6b7280' }}>
                           Atendidos/Asignados
@@ -260,14 +311,22 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
                     
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
-                          {asesor.ventasHoy}
-                        </Typography>
-                        {asesor.ventasHoy >= 3 ? (
-                          <TrendingUp sx={{ fontSize: 16, color: '#22c55e' }} />
-                        ) : (
-                          <TrendingDown sx={{ fontSize: 16, color: '#ef4444' }} />
-                        )}
+                        {/* Mostrar ventas sólo si la última actividad es hoy, de lo contrario 0 */}
+                        {(() => {
+                          const displayVentas = isSameDay(asesor.ultimaActividad) ? asesor.ventasHoy : 0;
+                          return (
+                            <>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
+                                {displayVentas}
+                              </Typography>
+                              {displayVentas >= 3 ? (
+                                <TrendingUp sx={{ fontSize: 16, color: '#22c55e' }} />
+                              ) : (
+                                <TrendingDown sx={{ fontSize: 16, color: '#ef4444' }} />
+                              )}
+                            </>
+                          );
+                        })()}
                       </Box>
                     </TableCell>
                     
@@ -276,18 +335,32 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores }) => {
                         <Typography variant="body2" sx={{ fontWeight: 'medium', color: '#111827', mb: 0.5 }}>
                           {asesor.ventasMes}/{asesor.metaMensual}
                         </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={(asesor.ventasMes / asesor.metaMensual) * 100}
-                          sx={{
-                            height: 6,
-                            borderRadius: 3,
-                            backgroundColor: '#e5e7eb',
-                            '& .MuiLinearProgress-bar': {
-                              backgroundColor: (asesor.ventasMes / asesor.metaMensual) >= 0.8 ? '#22c55e' : '#f59e0b'
-                            }
-                          }}
-                        />
+                        {/* Evitar división por cero cuando metaMensual es 0 */}
+                        {typeof asesor.metaMensual === 'number' && asesor.metaMensual > 0 ? (
+                          <LinearProgress
+                            variant="determinate"
+                            value={(asesor.ventasMes / asesor.metaMensual) * 100}
+                            sx={{
+                              height: 6,
+                              borderRadius: 3,
+                              backgroundColor: '#e5e7eb',
+                              '& .MuiLinearProgress-bar': {
+                                backgroundColor: (asesor.ventasMes / asesor.metaMensual) >= 0.8 ? '#22c55e' : '#f59e0b'
+                              }
+                            }}
+                          />
+                        ) : (
+                          <LinearProgress
+                            variant="determinate"
+                            value={0}
+                            sx={{
+                              height: 6,
+                              borderRadius: 3,
+                              backgroundColor: '#e5e7eb',
+                              '& .MuiLinearProgress-bar': { backgroundColor: '#f59e0b' }
+                            }}
+                          />
+                        )}
                       </Box>
                     </TableCell>
                     

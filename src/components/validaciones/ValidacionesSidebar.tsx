@@ -31,7 +31,8 @@ const ValidacionesSidebar: React.FC<{ onSelect: (section: string) => void, selec
   return (
     <Box
       sx={{
-        width: 220,
+        width: { xs: 88, md: 220 },
+        minWidth: 88,
         height: '100vh',
         backgroundColor: '#059669',
         color: 'white',
@@ -40,12 +41,13 @@ const ValidacionesSidebar: React.FC<{ onSelect: (section: string) => void, selec
         top: 0,
         zIndex: 1200,
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        boxShadow: '2px 0 8px rgba(2,6,23,0.08)'
       }}
     >
       <Box sx={{ p: 3, borderBottom: '1px solid #065f46' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Avatar sx={{ bgcolor: '#10b981', mr: 2 }}>{iniciales}</Avatar>
+          <Avatar sx={{ bgcolor: '#10b981', mr: 2, width: 44, height: 44 }}>{iniciales}</Avatar>
           <Box>
             <Typography variant="h6" fontWeight="bold">Validaciones</Typography>
             <Typography variant="caption" sx={{ color: '#a7f3d0' }}>
@@ -63,9 +65,10 @@ const ValidacionesSidebar: React.FC<{ onSelect: (section: string) => void, selec
               onClick={() => onSelect(item.text)}
               sx={{
                 '&.Mui-selected': {
-                  backgroundColor: '#10b981',
+                  backgroundColor: '#34d399',
+                  color: '#064e3b',
                   '&:hover': {
-                    backgroundColor: '#059669',
+                    backgroundColor: '#10b981',
                   }
                 },
                 '&:hover': {

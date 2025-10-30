@@ -229,6 +229,26 @@ const GtrDashboard: React.FC = () => {
           }
           return c;
         }));
+        
+        // Además, si el evento trae asesorId, actualizar el estado del asesor en el panel GTR
+        try {
+          const msg = data as Record<string, unknown>;
+          const asesorIdCandidate = msg['asesorId'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['asesorId']) ?? (msg['payload'] && (msg['payload'] as Record<string, unknown>)['asesorId']);
+          if (typeof asesorIdCandidate !== 'undefined' && asesorIdCandidate !== null) {
+            const asesorId = Number(asesorIdCandidate);
+            // Marcar en la lista de asesores: si ocupado -> 'Ocupado', si no -> 'Activo'
+            setAsesores(prev => prev.map(a => {
+              // a puede tener asesor_id o usuario_id según cómo fue cargado
+              const matches = (Number(a.asesor_id) === asesorId) || (Number(a.usuario_id) === asesorId) || (Number(a.usuario_id || 0) === asesorId);
+              if (matches) {
+                return { ...a, estado: ocupado ? 'Ocupado' : 'Activo' };
+              }
+              return a;
+            }));
+          }
+        } catch (e) {
+          console.warn('Error actualizando estado de asesor desde CLIENT_OCUPADO:', e);
+        }
       } catch (e) {
         console.error('Error procesando CLIENT_OCUPADO en GTR:', e);
       }

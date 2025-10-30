@@ -1,0 +1,47 @@
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+id	int	NULL	NO	PRI	NULL	auto_increment	select,insert,update,references	
+nombre	varchar(100)	utf8mb4_unicode_ci	NO		NULL		select,insert,update,references	
+apellidos	varchar(100)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+telefono	varchar(20)	utf8mb4_unicode_ci	NO	MUL	NULL		select,insert,update,references	
+email	varchar(100)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+dni	varchar(20)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+edad	int	NULL	YES		NULL		select,insert,update,references	
+genero	enum('masculino','femenino','otro')	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+estado_civil	enum('soltero','casado','divorciado','viudo','union_libre')	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+ocupacion	varchar(100)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+ingresos_mensuales	decimal(10,2)	NULL	YES		NULL		select,insert,update,references	
+dependientes_economicos	int	NULL	YES		0		select,insert,update,references	
+direccion	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+ciudad	varchar(50)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+horario_preferido_contacto	varchar(50)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+medio_contacto_preferido	enum('telefono','whatsapp','email','presencial')	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+asesor_asignado	int	NULL	YES	MUL	NULL		select,insert,update,references	
+estado	enum('nuevo','contactado','interesado','propuesta_enviada','cerrado','perdido')	utf8mb4_unicode_ci	YES	MUL	nuevo		select,insert,update,references	
+prioridad	enum('baja','media','alta','urgente')	utf8mb4_unicode_ci	YES	MUL	media		select,insert,update,references	
+fecha_primer_contacto	datetime	NULL	YES		NULL		select,insert,update,references	
+fecha_ultimo_contacto	datetime	NULL	YES		NULL		select,insert,update,references	
+fecha_cierre_estimada	date	NULL	YES		NULL		select,insert,update,references	
+notas	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+observaciones_asesor	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+created_at	timestamp	NULL	YES	MUL	CURRENT_TIMESTAMP	DEFAULT_GENERATED	select,insert,update,references	
+updated_at	timestamp	NULL	YES		CURRENT_TIMESTAMP	DEFAULT_GENERATED on update CURRENT_TIMESTAMP	select,insert,update,references	
+tipo_cliente_wizard	enum('nuevo','antiguo')	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+lead_score	varchar(10)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+telefono_registro	varchar(20)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+fecha_nacimiento	date	NULL	YES		NULL		select,insert,update,references	
+dni_nombre_titular	varchar(150)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+parentesco_titular	varchar(50)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+telefono_referencia_wizard	varchar(20)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+telefono_grabacion_wizard	varchar(20)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+direccion_completa	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+numero_piso_wizard	varchar(20)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+tipo_plan	varchar(50)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+servicio_contratado	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+velocidad_contratada	varchar(50)	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+precio_plan	decimal(10,2)	NULL	YES		NULL		select,insert,update,references	
+dispositivos_adicionales_wizard	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+plataforma_digital_wizard	text	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+pago_adelanto_instalacion_wizard	enum('SI','NO')	utf8mb4_unicode_ci	YES		NULL		select,insert,update,references	
+wizard_completado	tinyint(1)	NULL	YES		0		select,insert,update,references	
+fecha_wizard_completado	timestamp	NULL	YES		NULL		select,insert,update,references	
+wizard_data_json	json	NULL	YES		NULL		select,insert,update,references	

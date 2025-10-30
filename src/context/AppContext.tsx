@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from 'react';
+import { API_BASE } from '../config/backend';
 import type { ReactNode } from 'react';
 
 // ============================================================================
@@ -18,18 +19,25 @@ export interface Cliente {
   fecha: string;
   nombre: string;
   telefono: string;
+  // Número original proveniente del lead si existe (separado del teléfono normal)
+  leads_original_telefono?: string;
   dni: string;
   servicio: string;
   estado: string;
   gestion: string;
   seguimiento: string;
   coordenadas?: string;
-  campania?: string;
+  // campana: nombre canonico para la campaña (usar este en todo el frontend)
+  campana?: string;
   canal?: string;
+  compania?: string;
+  sala_asignada?: string;
   comentariosIniciales?: string;
   direccion?: string;
   tipoCasa?: string;
   tipoVia?: string;
+  // Flag temporal que indica que el cliente está siendo gestionado por un asesor
+  ocupado?: boolean;
 }
 
 interface AppContextType {
@@ -50,6 +58,7 @@ interface AppContextType {
   agregarCliente: (cliente: Cliente) => void;
   reasignarCliente: (cliente: Cliente) => void;
   actualizarCliente: (clienteActualizado: Cliente) => void;
+  marcarClienteOcupadoLocal: (clienteId: number | undefined, ocupado?: boolean) => void;
   recargarClientes: () => void;
 }
 
@@ -75,6 +84,59 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // CLIENTES STATE
   // ----------------------------------------------------------------------------
   const [clientes, setClientes] = useState<Cliente[]>([]);
+
+  // (Inicialización de auth movida más abajo para que las funciones usadas estén declaradas antes)
+
+  // ----------------------------------------------------------------------------
+  // AUTH: Set authentication data
+  // ----------------------------------------------------------------------------
+  const setAuthData = useCallback((newToken: string, userData: User) => {
+    // Establecer datos de autenticación (no loguear en consola para evitar ruido)
+    
+    // Guardar en estado
+    setToken(newToken);
+    setUser(userData);
+    
+    // Guardar en localStorage con múltiples formatos para compatibilidad
+    localStorage.setItem('albru_token', newToken);
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('albru_user', JSON.stringify(userData));
+    localStorage.setItem('userData', JSON.stringify(userData));
+  }, []);
+
+  // ----------------------------------------------------------------------------
+  // AUTH: Clear authentication
+  // ----------------------------------------------------------------------------
+  const clearAuth = useCallback(() => {
+    // Limpiar autenticación
+    
+    // Limpiar estado
+    setToken(null);
+    setUser(null);
+    
+    // Limpiar localStorage
+    localStorage.removeItem('albru_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('albru_user');
+    localStorage.removeItem('userData');
+  }, []);
+
+  // ----------------------------------------------------------------------------
+  // AUTH: Logout
+  // ----------------------------------------------------------------------------
+  const logout = useCallback(() => {
+    // Logout iniciado
+    clearAuth();
+    
+    // Limpiar todo el localStorage y sessionStorage
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Redireccionar
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 100);
+  }, [clearAuth]);
 
   // ----------------------------------------------------------------------------
   // AUTH: Initialize on mount
@@ -121,96 +183,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     initAuth();
-  }, []);
-
-  // ----------------------------------------------------------------------------
-  // AUTH: Set authentication data
-  // ----------------------------------------------------------------------------
-  const setAuthData = (newToken: string, userData: User) => {
-    console.log('🔑 AppContext: Estableciendo datos de autenticación');
-    
-    // Guardar en estado
-    setToken(newToken);
-    setUser(userData);
-    
-    // Guardar en localStorage con múltiples formatos para compatibilidad
-    localStorage.setItem('albru_token', newToken);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('albru_user', JSON.stringify(userData));
-    localStorage.setItem('userData', JSON.stringify(userData));
-  };
-
-  // ----------------------------------------------------------------------------
-  // AUTH: Clear authentication
-  // ----------------------------------------------------------------------------
-  const clearAuth = () => {
-    console.log('🧹 AppContext: Limpiando autenticación');
-    
-    // Limpiar estado
-    setToken(null);
-    setUser(null);
-    
-    // Limpiar localStorage
-    localStorage.removeItem('albru_token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('albru_user');
-    localStorage.removeItem('userData');
-  };
-
-  // ----------------------------------------------------------------------------
-  // AUTH: Logout
-  // ----------------------------------------------------------------------------
-  const logout = () => {
-    console.log('🚪 AppContext: Logout iniciado');
-    
-    clearAuth();
-    
-    // Limpiar todo el localStorage y sessionStorage
-    localStorage.clear();
-    sessionStorage.clear();
-    
-    // Redireccionar
-    setTimeout(() => {
-      window.location.href = '/login';
-    }, 100);
-  };
+  }, [clearAuth]);
 
   // ----------------------------------------------------------------------------
   // CLIENTES: Agregar nuevo cliente
   // ----------------------------------------------------------------------------
-  const agregarCliente = (cliente: Cliente) => {
-    console.log('🔥 AppContext: Agregando cliente:', cliente.nombre);
+  const agregarCliente = useCallback((cliente: Cliente) => {
     setClientes((prevClientes) => {
-      // Verificar si el cliente ya existe para evitar duplicados
-      const existeCliente = prevClientes.some(c => c.dni === cliente.dni || c.telefono === cliente.telefono);
-      if (existeCliente) {
-        console.log('⚠️ Cliente ya existe, no se agrega duplicado');
-        return prevClientes;
-      }
-      const nuevaLista = [...prevClientes, cliente];
-      console.log('✅ Cliente agregado, nueva lista:', nuevaLista.length, 'clientes');
-      return nuevaLista;
+      // Verificar si el cliente ya existe para evitar duplicados (comparar por DNI o teléfono si existen)
+      const existeCliente = prevClientes.some(c => (c.dni && cliente.dni && c.dni === cliente.dni) || (c.telefono && cliente.telefono && c.telefono === cliente.telefono));
+      if (existeCliente) return prevClientes;
+      return [...prevClientes, cliente];
     });
-  };
+  }, []);
 
   // ----------------------------------------------------------------------------
   // CLIENTES: Reasignar cliente
   // ----------------------------------------------------------------------------
-  const reasignarCliente = (cliente: Cliente) => {
-    console.log('🔄 AppContext: Reasignando cliente:', cliente.nombre);
-    setClientes((prevClientes) => {
-      const nuevaLista = [...prevClientes, cliente];
-      return nuevaLista;
-    });
-  };
+  const reasignarCliente = useCallback((cliente: Cliente) => {
+    // Añadir cliente reasignado al estado local
+    setClientes((prevClientes) => [...prevClientes, cliente]);
+  }, []);
 
   // ----------------------------------------------------------------------------
   // CLIENTES: Actualizar cliente existente
   // ----------------------------------------------------------------------------
-  const actualizarCliente = (clienteActualizado: Cliente) => {
-    console.log('🔥 AppContext: actualizarCliente llamado');
-    console.log('📋 Datos recibidos:', clienteActualizado);
-    
+  const actualizarCliente = useCallback((clienteActualizado: Cliente) => {
+    // Actualizar cliente en el estado local y enviar cambios al backend
     // Actualizar estado local primero
     setClientes((prevClientes) =>
       prevClientes.map((cliente) =>
@@ -223,10 +222,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const clienteId = (clienteActualizado as Cliente & { id?: number }).id || null;
         
-        console.log('🔍 ID del cliente:', clienteId);
-        
         if (!clienteId) {
-          console.error('❌ NO HAY ID - No se puede actualizar');
+          console.error('No hay ID de cliente para actualizar');
           alert('Error: No se puede guardar sin ID de cliente');
           return;
         }
@@ -242,15 +239,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         });
 
-        console.log('📦 Datos preparados para enviar:', datosBackend);
-        console.log('📊 Total de campos:', Object.keys(datosBackend).length);
-        
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = API_BASE || '';
         const url = `${backendUrl}/api/clientes/${clienteId}`;
         
-        console.log('🚀 ENVIANDO PUT a:', url);
-        console.log('📤 Body:', JSON.stringify(datosBackend, null, 2));
-        
+        // Añadir usuario_id (asesor que realiza la gestión) para que el backend pueda registrar historial
+        const currentUser = user || JSON.parse(localStorage.getItem('userData') || 'null');
+        if (currentUser && !(datosBackend as Record<string, unknown>)['usuario_id']) {
+          (datosBackend as Record<string, unknown>)['usuario_id'] = (currentUser as User).id;
+        }
+
         const response = await fetch(url, {
           method: 'PUT',
           headers: { 
@@ -260,16 +257,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           body: JSON.stringify(datosBackend)
         });
 
-        console.log('📡 Response recibido - Status:', response.status, response.statusText);
-
         if (response.ok) {
-          const result = await response.json();
-          console.log('✅ ¡ÉXITO! Cliente guardado en BD');
-          console.log('📥 Respuesta del servidor:', result);
+          await response.json();
+          // Éxito: opcional mostrar notificación en UI
           alert('✅ Cliente guardado exitosamente en la base de datos');
         } else {
           const errorText = await response.text();
-          console.error('❌ ERROR del backend:', response.status, errorText);
+          console.error('Error del backend al guardar cliente:', response.status, errorText);
           try {
             const errorJson = JSON.parse(errorText);
             alert(`❌ Error: ${errorJson.message || 'Error desconocido'}`);
@@ -278,19 +272,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         }
       } catch (e) {
-        console.error('💥 EXCEPCIÓN al guardar:', e);
+        console.error('Excepción al guardar cliente:', e);
         alert(`💥 Error de conexión: ${(e as Error).message}`);
       }
     })();
-  };
+  }, [user]);
 
   // ----------------------------------------------------------------------------
   // CLIENTES: Recargar lista de clientes
   // ----------------------------------------------------------------------------
-  const recargarClientes = () => {
-    console.log('♻️ AppContext: Recargando clientes');
+  const recargarClientes = useCallback(() => {
+    // Recargar la lista de clientes (limpiar estado local)
     setClientes([]);
-  };
+  }, []);
+
+  // ----------------------------------------------------------------------------
+  // CLIENTES: Marcar un cliente como ocupado localmente (no persiste en backend)
+  // Esto permite indicar que un asesor abrió el wizard sin modificar el estado
+  // visible en el panel Asesor. Es un flag temporal en el estado cliente.
+  const marcarClienteOcupadoLocal = useCallback((clienteId: number | undefined, ocupado = true) => {
+    if (!clienteId) return;
+    setClientes(prev => prev.map(c => c.id === clienteId ? { ...c, ocupado } : c));
+  }, []);
 
   // ----------------------------------------------------------------------------
   // COMPUTED VALUES
@@ -300,7 +303,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // ----------------------------------------------------------------------------
   // CONTEXT VALUE
   // ----------------------------------------------------------------------------
-  const value: AppContextType = {
+  const value: AppContextType = useMemo(() => ({
     // Auth
     user,
     token,
@@ -314,8 +317,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     agregarCliente,
     reasignarCliente,
     actualizarCliente,
+    marcarClienteOcupadoLocal,
     recargarClientes
-  };
+  }), [user, token, isAuthenticated, authLoading, clientes, agregarCliente, reasignarCliente, actualizarCliente, marcarClienteOcupadoLocal, recargarClientes, setAuthData, logout]);
 
   return (
     <AppContext.Provider value={value}>
@@ -348,6 +352,6 @@ export const useAuth = () => {
 // Hook específico para clientes (backward compatibility)
 // eslint-disable-next-line react-refresh/only-export-components
 export const useClientes = () => {
-  const { clientes, agregarCliente, reasignarCliente, actualizarCliente, recargarClientes } = useApp();
-  return { clientes, agregarCliente, reasignarCliente, actualizarCliente, recargarClientes };
+  const { clientes, agregarCliente, reasignarCliente, actualizarCliente, marcarClienteOcupadoLocal, recargarClientes } = useApp();
+  return { clientes, agregarCliente, reasignarCliente, actualizarCliente, marcarClienteOcupadoLocal, recargarClientes };
 };

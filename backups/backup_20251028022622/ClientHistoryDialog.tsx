@@ -17,7 +17,6 @@ import {
   Select,
   MenuItem
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 
 import type { ClientHistoryData, Cliente } from './types';
@@ -46,7 +45,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
   const isGtr = user?.tipo === 'gtr';
 
   const [form, setForm] = useState({
-    telefono: '',
+    cliente: '',
     dni: '',
     email: '',
     campana: '',
@@ -61,7 +60,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
   useEffect(() => {
     if (clientData) {
       setForm({
-        telefono: clientData.cliente || '',
+        cliente: clientData.cliente || '',
         dni: clientData.dni || '',
         email: clientData.email || '',
         campana: clientData.campana || '',
@@ -72,7 +71,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
       });
       // guardar snapshot para poder cancelar edición
       setOriginalForm({
-        telefono: clientData.cliente || '',
+        cliente: clientData.cliente || '',
         dni: clientData.dni || '',
         email: clientData.email || '',
         campana: clientData.campana || '',
@@ -87,7 +86,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
 
   if (!clientData) return null;
 
-  type FormKey = 'telefono' | 'dni' | 'email' | 'campana' | 'canal' | 'estado' | 'nombre' | 'tipificacion_back';
+  type FormKey = 'cliente' | 'dni' | 'email' | 'campana' | 'canal' | 'estado' | 'nombre' | 'tipificacion_back';
   const handleChange = (key: FormKey, value: string | null) => setForm(f => ({ ...f, [key]: value }));
 
   const handleStartEdit = () => {
@@ -106,7 +105,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
       const payload: Record<string, unknown> = {
         nombre: form.nombre || undefined,
         dni: form.dni || undefined,
-        telefono: form.telefono || undefined,
+        telefono: form.cliente || undefined,
         campana: form.campana || undefined,
         canal_adquisicion: form.canal || undefined,
         // tipificación back => backend column is tipificacion_back
@@ -117,18 +116,14 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
 
       // Añadir usuario_id y flag para que el backend registre la gestión en historial
       try {
-        const userData = window.localStorage.getItem('albru_user') || window.localStorage.getItem('userData');
+        const userData = (window.localStorage.getItem('albru_user') || window.localStorage.getItem('userData'));
         if (userData) {
-          const parsed = JSON.parse(userData) as unknown;
-          if (parsed && typeof parsed === 'object' && 'id' in (parsed as object)) {
-            const id = (parsed as { id?: string | number }).id;
-            if (id !== undefined) payload.usuario_id = Number(id);
-          }
-        } else if (user && typeof user === 'object' && 'id' in (user as object)) {
-          const uid = (user as { id?: string | number }).id;
-          if (uid !== undefined) payload.usuario_id = Number(uid);
+          const parsed = JSON.parse(userData as string) as any;
+          if (parsed && parsed.id) payload.usuario_id = parsed.id;
+        } else if (user && (user as any).id) {
+          payload.usuario_id = (user as any).id;
         }
-      } catch {
+      } catch (err) {
         // noop
       }
 
@@ -197,7 +192,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
             <Box>
               <Typography variant="caption" color="text.secondary">Teléfono</Typography>
-              <TextField fullWidth size="small" value={form.telefono} onChange={(e) => handleChange('telefono', e.target.value)} disabled={!isEditing || !isGtr} />
+              <TextField fullWidth size="small" value={form.cliente} onChange={(e) => handleChange('cliente', e.target.value)} disabled={!isEditing || !isGtr} />
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">DNI</Typography>
@@ -222,13 +217,13 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
           </Box>
 
           <Box sx={{ mt: 2 }}>
-              <FormControl fullWidth>
+            <FormControl fullWidth>
               <InputLabel id="tipificacion-back-label">Tipificación back</InputLabel>
               <Select
                 labelId="tipificacion-back-label"
                 value={form.tipificacion_back || ''}
                 label="Tipificación back"
-                onChange={(e: SelectChangeEvent<string>) => handleChange('tipificacion_back', String(e.target.value))}
+                onChange={(e) => handleChange('tipificacion_back', e.target.value)}
                 size="small"
                 disabled={!isEditing || !isGtr}
               >
@@ -251,7 +246,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {clientData.historial.map((evento, index) => (
             <Paper
-              key={`${evento.fecha}-${index}`}
+              key={index}
               sx={{
                 p: 3,
                 backgroundColor: '#f8fafc',

@@ -23,13 +23,15 @@ export interface Historial {
 export interface Cliente {
   id: number;
   lead_id?: string;
+  leads_original_telefono?: string;
   nombre?: string;
   dni?: string;
   email?: string;
   estado: string;
   asesor: string;
   historial?: Historial[];
-  fecha: string;
+  // Usamos fechaCreacion de forma consistente en las vistas
+  fechaCreacion: string;
   comentarios?: string;
   // Campos adicionales del dashboard
   cliente?: string;
@@ -43,6 +45,14 @@ export interface Cliente {
   observaciones?: string;
   telefono?: string;
   direccion?: string;
+  campana?: string;
+  compania?: string;
+  sala_asignada?: string;
+  // alias o campo opcional usado en algunas vistas
+  sala?: string;
+  canal_adquisicion?: string;
+  // Flag transitorio/durable que indica si el cliente está siendo gestionado
+  ocupado?: boolean;
 }
 
 // Tipos compartidos para componentes GTR
@@ -53,16 +63,11 @@ export interface ClientHistoryData {
   cliente: string;
   dni: string;
   email: string;
-  campania: string;
+  campana: string;
   canal: string;
+  tipificacion_back?: string | null;
   estado: string;
   fechaCreacion: string;
-  historial: {
-    fecha: string;
-    asesor: string;
-    accion: string;
-    estadoAnterior?: string;
-    estadoNuevo?: string;
-    comentarios: string;
-  }[];
+  // Reutilizamos la interfaz Historial para evitar duplicación
+  historial: Historial[];
 }
