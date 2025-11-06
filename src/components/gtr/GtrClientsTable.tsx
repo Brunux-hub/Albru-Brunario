@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography, TextField, Tooltip } from '@mui/material';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography, TextField } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 
@@ -236,10 +236,40 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
       } catch (e) { console.warn('CLIENT_UPDATED handler error', e); }
     });
 
+    // 🔥 NUEVO: Escuchar actualizaciones de estatus comercial en tiempo real
+    const unsubscribeStatusUpdated = realtime.subscribe('CLIENT_STATUS_UPDATED', (data: unknown) => {
+      try {
+        const payload = data as Record<string, unknown>;
+        const clienteId = Number(payload['clienteId']);
+        if (!clienteId) return;
+
+        const categoria = payload['estatus_comercial_categoria'] as string | null;
+        const subcategoria = payload['estatus_comercial_subcategoria'] as string | null;
+        
+        console.log('📡 GTR: Recibido CLIENT_STATUS_UPDATED', { clienteId, categoria, subcategoria });
+
+        // Actualizar cliente en la tabla con los nuevos datos de estatus
+        setClients(prev => prev.map(c => 
+          c.id === clienteId 
+            ? { 
+                ...c, 
+                estatus_comercial_categoria: categoria, 
+                estatus_comercial_subcategoria: subcategoria 
+              } 
+            : c
+        ));
+
+        console.log('✅ GTR: Cliente actualizado en tabla con estatus comercial');
+      } catch (e) { 
+        console.warn('CLIENT_STATUS_UPDATED handler error', e); 
+      }
+    });
+
     return () => {
       unsubscribeLocked();
       unsubscribeUnlocked();
       unsubscribeUpdated();
+      unsubscribeStatusUpdated();
     };
   }, [setClients]);
   
@@ -261,21 +291,35 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         <Table stickyHeader>
           <TableHead>
             <TableRow>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha Registro</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Lead</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Campaña</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Canal</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Sala</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Compañía</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estado</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estatus Comercial</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Asesor asignado</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Seguimiento</TableCell>
                 <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Acciones</TableCell>
               </TableRow>
           </TableHead>
           <TableBody>
             {filtered.map(client => (
               <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
-                <TableCell>{client.fechaCreacion}</TableCell>
+                <TableCell>
+                  {client.created_at ? (
+                    <div>
+                      <div style={{ fontWeight: 600 }}>
+                        {new Date(client.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        {new Date(client.created_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  ) : (
+                    client.fechaCreacion || '-'
+                  )}
+                </TableCell>
                 <TableCell>
                   {client.leads_original_telefono || client.telefono || client.cliente || client.lead ? (
                     <div>
@@ -298,36 +342,79 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                 <TableCell>{client.sala_asignada || client.sala || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin sala</span>}</TableCell>
                 <TableCell>{client.compania || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin compañía</span>}</TableCell>
                 <TableCell>
-                  {client.ocupado ? (
-                    <Chip
-                      label="Ocupado"
-                      size="small"
-                      sx={{
-                        fontWeight: 700,
-                        color: '#ffffff',
-                        background: '#f97316',
-                        borderRadius: 1
-                      }}
-                    />
+                  {/* Columna Estatus Comercial: SIEMPRE mostrar categoría/subcategoría si existe */}
+                  {client.estatus_comercial_categoria ? (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{client.estatus_comercial_categoria}</div>
+                      {client.estatus_comercial_subcategoria && (
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 2 }}>
+                          {client.estatus_comercial_subcategoria}
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <Chip 
-                      label={client.estado}
-                      size="small"
-                      sx={{
-                        fontWeight: 700,
-                        color: client.estado === 'Vendido' ? '#059669' : client.estado === 'En gestión' ? '#2563eb' : client.estado === 'Nuevo' ? '#f59e0b' : client.estado === 'Perdido' ? '#dc2626' : '#374151',
-                        background: client.estado === 'Vendido' ? '#d1fae5' : client.estado === 'En gestión' ? '#dbeafe' : client.estado === 'Nuevo' ? '#fef3c7' : client.estado === 'Perdido' ? '#fee2e2' : '#f3f4f6',
-                        borderRadius: 1
-                      }}
-                    />
+                    <span style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '0.875rem' }}>Sin estatus</span>
                   )}
                 </TableCell>
                 <TableCell>
-                  {client.asesor}
-                  {client.ocupado && (
-                    <Tooltip title="Cliente ocupado por otro asesor">
-                      <Chip label="Ocupado" size="small" sx={{ ml: 1, bgcolor: '#f97316', color: '#fff', fontWeight: 700 }} />
-                    </Tooltip>
+                  {/* Columna Asesor: solo mostrar nombre, SIN badge de Ocupado */}
+                  <div style={{ fontWeight: 500 }}>
+                    {client.asesor || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin asignar</span>}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {/* Columna Seguimiento: mostrar estado del flujo (derivado, en_gestion, gestionado, no_gestionado) */}
+                  {client.seguimiento_status ? (
+                    <Chip 
+                      label={(() => {
+                        // Formatear el estado para mejor legibilidad
+                        const status = String(client.seguimiento_status);
+                        switch(status) {
+                          case 'derivado': return 'Derivado';
+                          case 'en_gestion': return 'En Gestión';
+                          case 'gestionado': return 'Gestionado';
+                          case 'gestionada': return 'Gestionado'; // mantener compatibilidad
+                          case 'no_gestionado': return 'No Gestionado';
+                          case 'sin_gestionar': return 'Sin Gestionar'; // mantener compatibilidad
+                          case 'nuevo': return 'Nuevo';
+                          default: return status;
+                        }
+                      })()} 
+                      size="small" 
+                      sx={{ 
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        color: (() => {
+                          const status = String(client.seguimiento_status);
+                          switch(status) {
+                            case 'derivado': return '#2563eb';
+                            case 'en_gestion': return '#059669';
+                            case 'gestionado':
+                            case 'gestionada': return '#16a34a';
+                            case 'no_gestionado':
+                            case 'sin_gestionar': return '#dc2626';
+                            case 'nuevo': return '#f59e0b';
+                            default: return '#374151';
+                          }
+                        })(),
+                        background: (() => {
+                          const status = String(client.seguimiento_status);
+                          switch(status) {
+                            case 'derivado': return '#dbeafe';
+                            case 'en_gestion': return '#d1fae5';
+                            case 'gestionado':
+                            case 'gestionada': return '#dcfce7';
+                            case 'no_gestionado':
+                            case 'sin_gestionar': return '#fee2e2';
+                            case 'nuevo': return '#fef3c7';
+                            default: return '#f3f4f6';
+                          }
+                        })(),
+                        borderRadius: 1
+                      }} 
+                    />
+                  ) : (
+                    <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>-</span>
                   )}
                 </TableCell>
                 <TableCell>

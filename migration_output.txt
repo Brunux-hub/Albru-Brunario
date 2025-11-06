@@ -1,0 +1,6 @@
+ParserError: C:\Users\DARIO\Albru-Brunario\backend\scripts\apply_migrations.ps1:111:21
+Line |
+ 111 |      docker cp $mig "$DockerContainerName:$remotePath"
+     |                      ~~~~~~~~~~~~~~~~~~~~~
+     | Variable reference is not valid. ':' was not followed by a valid variable
+     | name character. Consider using ${} to delimit the name.

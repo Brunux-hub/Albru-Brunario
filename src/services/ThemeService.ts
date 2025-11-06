@@ -1,6 +1,6 @@
 // Servicio para manejar temas personalizados por usuario
 import axios from 'axios';
-import { API_BASE } from '../config/backend';
+// import { API_BASE } from '../config/backend'; // Comentado temporalmente hasta implementar endpoint
 
 export interface UserTheme {
   primary: string;
@@ -43,7 +43,11 @@ class ThemeService {
         return null;
       }
 
-    const response = await axios.get(`${API_BASE}/api/user/theme`, {
+      // Por ahora, el endpoint /api/user/theme no está implementado
+      // Retornamos null silenciosamente para evitar errores en consola
+      // TODO: Descomentar cuando el backend implemente este endpoint
+      /*
+      const response = await axios.get(`${API_BASE}/api/user/theme`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -54,12 +58,20 @@ class ThemeService {
         this.notifyThemeListeners();
         return this.userConfig;
       }
+      */
+      
+      return null;
     } catch (error: unknown) {
-      // Silenciar error 404 (endpoint no implementado aún) para evitar spam en consola
-      if (axios.isAxiosError(error) && error?.response?.status !== 404) {
-        console.error('Error loading user config:', error);
+      // Silenciar todos los errores (401, 404, etc.) para evitar spam en consola
+      // cuando el endpoint no está implementado
+      if (axios.isAxiosError(error)) {
+        const status = error?.response?.status;
+        // Solo logear si es un error inesperado (no 401, 404)
+        if (status && status !== 401 && status !== 404) {
+          console.error('Error loading user config:', error);
+        }
       }
-      // Retornar null silenciosamente sin llenar la consola
+      // Retornar null silenciosamente
     }
     return null;
   }
@@ -105,6 +117,7 @@ class ThemeService {
   }
 
   // Notificar a todos los listeners sobre cambios de tema
+  // @ts-ignore - Método usado cuando se descomenta el endpoint
   private notifyThemeListeners(): void {
     if (this.userConfig) {
       this.themeListeners.forEach(callback => callback(this.userConfig!));

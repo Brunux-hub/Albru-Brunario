@@ -1,177 +1,72 @@
 const WebSocket = require('ws');
+const socketService = require('./SocketService');
 
 class WebSocketService {
   constructor() {
     this.clients = new Map(); // Almacenar clientes conectados por tipo
     this.wss = null;
+    this.socketService = socketService;
   }
 
-  // Inicializar servidor WebSocket
+  // Inicializar servidor WebSocket (LEGACY - mantener para compatibilidad)
   initialize(server) {
-    this.wss = new WebSocket.Server({ server });
-
-    this.wss.on('connection', (ws, req) => {
-      console.log('🔌 Nueva conexión WebSocket establecida');
-
-      // Manejar identificación del cliente (GTR o Asesor)
-      ws.on('message', (message) => {
-        try {
-          const data = JSON.parse(message);
-          
-          if (data.type === 'IDENTIFY') {
-            this.handleIdentification(ws, data);
-          } else if (data.type === 'CLIENT_REASSIGNED') {
-            this.handleClientReassignment(data);
-          } else if (data.type === 'NEW_CLIENT') {
-            this.handleNewClient(data);
-          } else {
-            console.log('📨 Mensaje recibido:', data);
-          }
-        } catch (error) {
-          console.error('❌ Error procesando mensaje WebSocket:', error);
-        }
-      });
-
-      ws.on('close', () => {
-        console.log('🔌 Conexión WebSocket cerrada');
-        this.removeClient(ws);
-      });
-
-      ws.on('error', (error) => {
-        console.error('❌ Error en WebSocket:', error);
-      });
-    });
-
-    console.log('🚀 Servidor WebSocket iniciado');
+    console.log('⚠️  WebSocketService.initialize() llamado (LEGACY - usando SocketService)');
+    // Ya no inicializamos ws nativo, Socket.io maneja todo
   }
 
-  // Manejar identificación de clientes
+  // LEGACY METHODS - Mantenidos para compatibilidad pero ahora usan SocketService
+
   handleIdentification(ws, data) {
-    const { clientType, advisorName } = data;
-    
-    ws.clientType = clientType; // 'GTR' o 'ASESOR'
-    ws.advisorName = advisorName; // Solo para asesores
-    
-    if (!this.clients.has(clientType)) {
-      this.clients.set(clientType, new Set());
-    }
-    this.clients.get(clientType).add(ws);
-
-    console.log(`✅ Cliente identificado: ${clientType}${advisorName ? ` (${advisorName})` : ''}`);
-    
-    // Confirmar identificación
-    ws.send(JSON.stringify({
-      type: 'IDENTIFICATION_CONFIRMED',
-      clientType,
-      advisorName
-    }));
+    console.log('⚠️  handleIdentification (LEGACY) - Socket.io maneja esto automáticamente');
   }
 
-  // Manejar reasignación de cliente
   handleClientReassignment(data) {
-    console.log('🔄 Procesando reasignación de cliente:', data);
-    
-    // Notificar a todos los asesores
-    this.broadcastToAsesores({
-      type: 'CLIENT_REASSIGNED',
-      data: data.payload
-    });
-
-    // Notificar a GTR
-    this.broadcastToGTR({
-      type: 'CLIENT_REASSIGNMENT_CONFIRMED',
-      data: data.payload
-    });
+    console.log('🔄 handleClientReassignment (LEGACY) - redirigiendo a SocketService');
+    if (this.socketService && this.socketService.io) {
+      this.socketService.clientReassigned(data.payload);
+    }
   }
 
-  // Manejar nuevo cliente
   handleNewClient(data) {
-    console.log('👤 Procesando nuevo cliente:', data);
-    
-    // Notificar al asesor específico
-    this.notifySpecificAsesor(data.payload.assignedTo, {
-      type: 'NEW_CLIENT_ASSIGNED',
-      data: data.payload
-    });
-
-    // Notificar a GTR
-    this.broadcastToGTR({
-      type: 'NEW_CLIENT_CONFIRMED',
-      data: data.payload
-    });
+    console.log('👤 handleNewClient (LEGACY) - redirigiendo a SocketService');
+    if (this.socketService && this.socketService.io) {
+      this.socketService.notifyAll('NEW_CLIENT_ASSIGNED', data.payload);
+    }
   }
 
-  // Enviar mensaje a todos los asesores
   broadcastToAsesores(message) {
-    const asesores = this.clients.get('ASESOR');
-    if (asesores) {
-      asesores.forEach(ws => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(message));
-        }
-      });
-      console.log(`📡 Mensaje enviado a ${asesores.size} asesores`);
+    console.log('📡 broadcastToAsesores (LEGACY) - usando SocketService');
+    if (this.socketService && this.socketService.io) {
+      this.socketService.sendToAsesores(message.type, message.data || message);
     }
   }
 
-  // Enviar mensaje a GTR
   broadcastToGTR(message) {
-    const gtrClients = this.clients.get('GTR');
-    if (gtrClients) {
-      gtrClients.forEach(ws => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(message));
-        }
-      });
-      console.log(`📡 Mensaje enviado a ${gtrClients.size} clientes GTR`);
+    console.log('📡 broadcastToGTR (LEGACY) - usando SocketService');
+    if (this.socketService && this.socketService.io) {
+      this.socketService.sendToGTR(message.type, message.data || message);
     }
   }
 
-  // Notificar a un asesor específico
   notifySpecificAsesor(advisorName, message) {
-    const asesores = this.clients.get('ASESOR');
-    if (asesores) {
-      let notified = false;
-      asesores.forEach(ws => {
-        if (ws.advisorName === advisorName && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(message));
-          notified = true;
-        }
-      });
-      
-      if (notified) {
-        console.log(`📧 Mensaje enviado específicamente a asesor: ${advisorName}`);
-      } else {
-        console.log(`⚠️ Asesor ${advisorName} no encontrado o no conectado`);
-      }
-    }
+    console.log(`📧 notifySpecificAsesor (LEGACY) - No implementado en Socket.io (enviar a sala específica)`);
+    // Socket.io usa rooms por ID, no por nombre
   }
 
-  // Remover cliente desconectado
   removeClient(ws) {
-    if (ws.clientType) {
-      const clients = this.clients.get(ws.clientType);
-      if (clients) {
-        clients.delete(ws);
-      }
-    }
+    console.log('🔌 removeClient (LEGACY) - Socket.io maneja esto automáticamente');
   }
 
-  // Notificar a todos los clientes (método faltante)
+  // Notificar a todos los clientes - AHORA USA SOCKET.IO
   notifyAll(eventType, data) {
-    console.log(`📡 Enviando evento '${eventType}' a todos los clientes`);
+    console.log(`📡 [WebSocketService→SocketService] Enviando evento '${eventType}' a todos los clientes`);
     
-    const message = {
-      type: eventType,
-      data: data,
-      timestamp: new Date().toISOString()
-    };
-
-    // Notificar a GTR con el tipo de evento específico
-    this.broadcastToGTR(message);
-    
-    // Notificar a todos los asesores con el tipo de evento específico
-    this.broadcastToAsesores(message);
+    // Usar el nuevo SocketService en lugar del viejo ws
+    if (this.socketService && this.socketService.io) {
+      this.socketService.notifyAll(eventType, data);
+    } else {
+      console.warn('⚠️  SocketService no disponible, evento no enviado');
+    }
   }
 
   // Obtener estadísticas de conexiones

@@ -3,12 +3,16 @@ import { Box, Typography, Avatar, List, ListItemIcon, ListItemText, Divider, Chi
 import GroupIcon from '@mui/icons-material/Group';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HistoryIcon from '@mui/icons-material/History';
-import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../../hooks/useAuth';
 
-const AsesorSidebar: React.FC = () => {
+interface AsesorSidebarProps {
+  tabActual?: number;
+  onTabChange?: (tab: number) => void;
+}
+
+const AsesorSidebar: React.FC<AsesorSidebarProps> = ({ tabActual = 0, onTabChange }) => {
   const { logout, user } = useAuth();
   
   const handleCerrarSesion = () => {
@@ -38,21 +42,17 @@ const AsesorSidebar: React.FC = () => {
         </Box>
       </Box>
       <List>
-        <ListItemButton selected>
+        <ListItemButton selected={tabActual === 0} onClick={() => onTabChange?.(0)}>
           <ListItemIcon sx={{ color: '#fff' }}><GroupIcon /></ListItemIcon>
           <ListItemText primary="Mis Clientes" />
         </ListItemButton>
-        <ListItemButton>
+        <ListItemButton selected={tabActual === 1} onClick={() => onTabChange?.(1)}>
           <ListItemIcon sx={{ color: '#fff' }}><AssignmentIcon /></ListItemIcon>
-          <ListItemText primary="Gestiones" />
+          <ListItemText primary="Gestiones del Día" />
         </ListItemButton>
-        <ListItemButton>
+        <ListItemButton selected={tabActual === 2} onClick={() => onTabChange?.(2)}>
           <ListItemIcon sx={{ color: '#fff' }}><HistoryIcon /></ListItemIcon>
           <ListItemText primary="Mi Historial" />
-        </ListItemButton>
-        <ListItemButton>
-          <ListItemIcon sx={{ color: '#fff' }}><TrackChangesIcon /></ListItemIcon>
-          <ListItemText primary="Seguimientos" />
         </ListItemButton>
       </List>
       <Divider sx={{ my: 2, bgcolor: '#334155' }} />

@@ -1,10 +1,16 @@
 const request = require('supertest');
 const { expect } = require('chai');
 
-// This test assumes the backend server is configured and the DB is reachable via env vars.
-// It will create a new client, call PUT to move it to GTR and then verify the historial contains an entry 'moved_to_gtr'.
+// Esta prueba de integración requiere una BD en ejecución. Por defecto se salta
+// para que la suite de pruebas unitarias pueda ejecutarse en entornos sin DB.
+if (process.env.RUN_INTEGRATION !== '1') {
+  console.log('Skipping integration-move-to-gtr tests (set RUN_INTEGRATION=1 to enable)');
+} else {
 
-describe('Integración: mover cliente a GTR', function() {
+  // This test assumes the backend server is configured and the DB is reachable via env vars.
+  // It will create a new client, call PUT to move it to GTR and then verify the historial contains an entry 'moved_to_gtr'.
+
+  describe('Integración: mover cliente a GTR', function() {
   const app = require('../server'); // server exports the express app and starts the server
   let createdClientId = null;
   const testPhone = `999000${Date.now().toString().slice(-6)}`;
@@ -51,3 +57,5 @@ describe('Integración: mover cliente a GTR', function() {
     expect(found).to.equal(true);
   });
 });
+
+}

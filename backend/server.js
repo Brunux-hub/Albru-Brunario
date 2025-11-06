@@ -80,6 +80,28 @@ app.get('/api/asesores/buscar/:nombre', async (req, res) => {
   }
 });
 
+// Endpoint: obtener historial (últimas gestiones)
+app.get('/api/historial', async (req, res) => {
+  try {
+    const limit = Math.min(1000, Number(req.query.limit) || 200);
+    const [rows] = await pool.query(`
+      SELECT h.id, h.cliente_id, h.usuario_id, h.accion, h.descripcion, h.estado_nuevo, h.created_at as fecha_accion,
+             u.nombre as usuario_nombre
+      FROM historial_cliente h
+      LEFT JOIN usuarios u ON h.usuario_id = u.id
+      ORDER BY h.created_at DESC
+      LIMIT ?
+    `, [limit]);
+    return res.json({ success: true, historial: rows });
+  } catch (e) {
+    console.error('Error obteniendo historial:', e);
+    return res.status(500).json({ success: false, message: 'Error interno', error: e.message });
+  }
+});
+
+// NOTA: Esta ruta está DUPLICADA y comentada porque ya está manejada por el router en routes/clientes.js
+// que usa getClientesByAsesor del controlador clientesController.js
+/*
 app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
   try {
     const param = req.params.asesorId;
@@ -135,13 +157,16 @@ app.get('/api/clientes/asesor/:asesorId', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al obtener clientes', error: error.message });
   }
 });
+*/
 
 // Exponer endpoint para cambiar estado del asesor (activo/inactivo)
 app.put('/api/asesores/:id/estado', async (req, res) => {
   return updateEstadoAsesor(req, res);
 });
 
-// Reasignar cliente a otro asesor con transacción
+// NOTA: Esta ruta está DUPLICADA y comentada porque ya está manejada por el router en routes/clientes.js
+// que usa reasignarCliente del controlador clientesController.js
+/*
 app.post('/api/clientes/reasignar', async (req, res) => {
   const { clienteId, nuevoAsesorId, gtrId, comentario } = req.body || {};
 
@@ -205,9 +230,13 @@ app.post('/api/clientes/reasignar', async (req, res) => {
     console.log(`✅ Backend: Asesor encontrado - asesor_id: ${nuevoAsesorId}, usuario_id: ${nuevoUsuarioId}`);
 
     // Actualizar asignación en la tabla clientes si la columna existe
+    // También actualizar seguimiento_status = 'derivado' y derivado_at
     if (colAsesor && colAsesor.length > 0) {
-      await connection.query('UPDATE clientes SET asesor_asignado = ? WHERE id = ?', [nuevoAsesorId, clienteId]);
-      console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoAsesorId}`);
+      await connection.query(
+        'UPDATE clientes SET asesor_asignado = ?, seguimiento_status = ?, derivado_at = NOW(), updated_at = NOW() WHERE id = ?', 
+        [nuevoUsuarioId, 'derivado', clienteId]
+      );
+      console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoUsuarioId}, seguimiento_status = 'derivado'`);
     } else {
       // Si la columna real no existe (entorno intermedio), persistimos la asignación en un JSON existente
       // para no tocar el esquema: usamos `wizard_data_json` (columna JSON) como fallback para guardar metadata de asignación.
@@ -266,7 +295,8 @@ app.post('/api/clientes/reasignar', async (req, res) => {
         id: cliente.id,
         nombre: cliente.nombre,
         telefono: cliente.telefono,
-        estado: cliente.estado
+        estado: cliente.estado,
+        seguimiento_status: 'derivado'
       },
       nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
       antiguoAsesor: { id: antiguoAsesorId },
@@ -283,6 +313,7 @@ app.post('/api/clientes/reasignar', async (req, res) => {
     connection.release();
   }
 });
+*/
 
 // Endpoints específicos para tipos de usuarios
 app.get('/api/usuarios/todos', async (req, res) => {
@@ -435,26 +466,6 @@ app.get('/api/usuarios/gtr', async (req, res) => {
   }
 });
 
-// Endpoint: obtener historial (últimas gestiones)
-app.get('/api/historial', async (req, res) => {
-  try {
-    const limit = Math.min(1000, Number(req.query.limit) || 200);
-    // Unir con usuarios para obtener nombre del usuario que realizó la acción
-    const [rows] = await pool.query(`
-      SELECT h.id, h.cliente_id, h.usuario_id, h.accion, h.descripcion, h.estado_nuevo, h.created_at as fecha_accion,
-             u.nombre as usuario_nombre
-      FROM historial_cliente h
-      LEFT JOIN usuarios u ON h.usuario_id = u.id
-      ORDER BY h.created_at DESC
-      LIMIT ?
-    `, [limit]);
-    return res.json({ success: true, historial: rows });
-  } catch (e) {
-    console.error('Error obteniendo historial:', e);
-    return res.status(500).json({ success: false, message: 'Error interno', error: e.message });
-  }
-});
-
 // Endpoints temporales de diagnóstico: habilitar únicamente si ENABLE_DEBUG_ENDPOINTS=true
 if (process.env.ENABLE_DEBUG_ENDPOINTS === 'true') {
   // listar columnas de la tabla clientes
@@ -594,10 +605,15 @@ app.get('/api/admin/asesores/top', async (req, res) => {
   return getTopAsesores(req, res);
 });
 
+const { getFeatures } = require('./controllers/featuresController');
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
+
+// Exponer flags de características detectadas en la BD
+app.get('/api/features', getFeatures);
 
 // BYPASS LOGIN TEMPORAL - SOLO PARA PRUEBAS
 app.post('/api/auth/bypass-login', async (req, res) => {
@@ -669,10 +685,25 @@ const server = http.createServer(app);
 const webSocketService = require('./services/WebSocketService');
 webSocketService.initialize(server);
 
-server.listen(port, () => {
-  console.log(`Backend listening on port ${port} (env=${process.env.NODE_ENV || 'development'})`);
-  console.log(`WebSocket server initialized on port ${port}`);
-});
+// Iniciar worker de seguimiento para timeout automático de clientes
+const seguimientoWorker = require('./services/seguimientoWorker');
+seguimientoWorker.start(30000); // Poll cada 30 segundos
+
+// Only start the HTTP server when this module is run directly.
+// When the file is required by tests (e.g. `const app = require('../server')`),
+// we avoid binding to a fixed port so tests can start the server on a dynamic port
+// or use the express app directly with supertest. This prevents EADDRINUSE when
+// the developer already has a local server running on the default port.
+if (require.main === module) {
+  server.listen(port, () => {
+    console.log(`Backend listening on port ${port} (env=${process.env.NODE_ENV || 'development'})`);
+    console.log(`WebSocket server initialized on port ${port}`);
+  });
+} else {
+  // When required as a module (e.g. tests), export server as a property so tests
+  // can decide how/when to listen (for dynamic ports) if needed.
+  module.exports.server = server;
+}
 
 // Programar reinicio diario de contadores de asesores y notificación por WebSocket
 try {

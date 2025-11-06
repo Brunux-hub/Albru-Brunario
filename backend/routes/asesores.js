@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getAsesores, obtenerDatosClientes, updateEstadoAsesor, buscarAsesor } = require('../controllers/asesoresController');
-const authMiddleware = require('../middlewares/authMiddleware');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // Obtener todos los asesores
 router.get('/', getAsesores);
@@ -10,7 +10,7 @@ router.get('/', getAsesores);
 router.put('/:id/estado', updateEstadoAsesor);
 
 // Obtener datos de los clientes
-router.get('/clientes', authMiddleware, obtenerDatosClientes);
+router.get('/clientes', verifyToken, obtenerDatosClientes);
 
 // Buscar asesor por nombre
 router.get('/buscar/:nombre', buscarAsesor);

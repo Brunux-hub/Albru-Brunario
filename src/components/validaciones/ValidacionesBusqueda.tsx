@@ -5,7 +5,6 @@ import {
   Paper,
   Typography,
   TextField,
-  
   Card,
   CardContent,
   Chip,
@@ -17,9 +16,6 @@ import {
   MenuItem,
   Divider
 } from '@mui/material';
-// Usamos Grid estándar y añadimos component="div" en los items para mantener compatibilidad de tipos
-import { Grid as MuiGrid } from '@mui/material';
-const GridComponent = MuiGrid as unknown as any;
 import SearchIcon from '@mui/icons-material/Search';
 import PersonIcon from '@mui/icons-material/Person';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -167,8 +163,8 @@ const ValidacionesBusqueda: React.FC = () => {
             Criterios de Búsqueda
           </Typography>
           
-          <GridComponent container spacing={3}>
-            <GridComponent item component="div" xs={12} md={4}>
+          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            <Box sx={{ flex: '1 1 300px', minWidth: 250 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Tipo de Búsqueda</InputLabel>
                 <Select
@@ -181,9 +177,9 @@ const ValidacionesBusqueda: React.FC = () => {
                   <MenuItem value="email">Por Email</MenuItem>
                 </Select>
               </FormControl>
-            </GridComponent>
+            </Box>
             
-            <GridComponent item component="div" xs={12} md={4}>
+            <Box sx={{ flex: '1 1 300px', minWidth: 250 }}>
               <TextField
                 fullWidth
                 size="small"
@@ -199,9 +195,9 @@ const ValidacionesBusqueda: React.FC = () => {
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               />
-            </GridComponent>
+            </Box>
             
-            <GridComponent item component="div" xs={12} md={2}>
+            <Box sx={{ flex: '0 1 180px', minWidth: 150 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Estado</InputLabel>
                 <Select
@@ -216,9 +212,9 @@ const ValidacionesBusqueda: React.FC = () => {
                   <MenuItem value="rechazado">Rechazado</MenuItem>
                 </Select>
               </FormControl>
-            </GridComponent>
+            </Box>
             
-            <GridComponent item component="div" xs={12} md={2}>
+            <Box sx={{ flex: '0 1 180px', minWidth: 150 }}>
               <Button
                 fullWidth
                 variant="contained"
@@ -233,8 +229,8 @@ const ValidacionesBusqueda: React.FC = () => {
               >
                 {isSearching ? 'Buscando...' : 'Buscar'}
               </Button>
-            </GridComponent>
-          </GridComponent>
+            </Box>
+          </Box>
         </Paper>
 
         {/* Resultados */}
@@ -249,117 +245,113 @@ const ValidacionesBusqueda: React.FC = () => {
               Resultados de Búsqueda ({resultados.length} encontrados)
             </Typography>
             
-            <GridComponent container spacing={3}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {resultados.map((cliente) => (
-                <GridComponent item component="div" xs={12} key={cliente.id}>
-                  <Card sx={{ 
-                    borderRadius: 2,
-                    border: '1px solid #e5e7eb',
-                    '&:hover': { 
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      borderColor: '#059669'
-                    }
-                  }}>
-                    <CardContent sx={{ p: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                        <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
-                            {cliente.nombre}
+                <Card key={cliente.id} sx={{ 
+                  borderRadius: 2,
+                  border: '1px solid #e5e7eb',
+                  '&:hover': { 
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    borderColor: '#059669'
+                  }
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 600, color: '#1f2937', mb: 1 }}>
+                          {cliente.nombre}
+                        </Typography>
+                        {getEstadoChip(cliente.estado)}
+                      </Box>
+                      
+                      <Button
+                        variant="contained"
+                        size="small"
+                        sx={{
+                          backgroundColor: '#059669',
+                          '&:hover': { backgroundColor: '#047857' }
+                        }}
+                      >
+                        Iniciar Validación
+                      </Button>
+                    </Box>
+                    
+                    <Divider sx={{ my: 2 }} />
+                    
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                      <Box sx={{ flex: '1 1 200px' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <PersonIcon sx={{ fontSize: 16, color: '#6b7280' }} />
+                          <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                            Asesor Actual
                           </Typography>
-                          {getEstadoChip(cliente.estado)}
                         </Box>
-                        
-                        <Button
-                          variant="contained"
+                        <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
+                          {cliente.asesorActual}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ flex: '1 1 200px' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <BusinessIcon sx={{ fontSize: 16, color: '#6b7280' }} />
+                          <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                            Tipo Cliente
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={cliente.tipoCliente}
                           size="small"
                           sx={{
-                            backgroundColor: '#059669',
-                            '&:hover': { backgroundColor: '#047857' }
+                            backgroundColor: cliente.tipoCliente === 'VIP' ? '#ede9fe' : 
+                                           cliente.tipoCliente === 'Premium' ? '#dbeafe' : '#f3f4f6',
+                            color: cliente.tipoCliente === 'VIP' ? '#7c3aed' :
+                                   cliente.tipoCliente === 'Premium' ? '#2563eb' : '#6b7280',
+                            fontWeight: 500
                           }}
-                        >
-                          Iniciar Validación
-                        </Button>
+                        />
                       </Box>
                       
-                      <Divider sx={{ my: 2 }} />
-                      
-                      <GridComponent container spacing={3}>
-                        <GridComponent item component="div" xs={12} sm={6} md={3}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                            <PersonIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                              Asesor Actual
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
-                            {cliente.asesorActual}
+                      <Box sx={{ flex: '1 1 200px' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <AccountBalanceIcon sx={{ fontSize: 16, color: '#6b7280' }} />
+                          <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                            Monto Cartera
                           </Typography>
-                        </GridComponent>
-                        
-                        <GridComponent item component="div" xs={12} sm={6} md={3}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                            <BusinessIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                              Tipo Cliente
-                            </Typography>
-                          </Box>
-                          <Chip
-                            label={cliente.tipoCliente}
-                            size="small"
-                            sx={{
-                              backgroundColor: cliente.tipoCliente === 'VIP' ? '#ede9fe' : 
-                                             cliente.tipoCliente === 'Premium' ? '#dbeafe' : '#f3f4f6',
-                              color: cliente.tipoCliente === 'VIP' ? '#7c3aed' :
-                                     cliente.tipoCliente === 'Premium' ? '#2563eb' : '#6b7280',
-                              fontWeight: 500
-                            }}
-                          />
-                        </GridComponent>
-                        
-                        <GridComponent item component="div" xs={12} sm={6} md={3}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                            <AccountBalanceIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                              Monto Cartera
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
-                            {formatCurrency(cliente.montoCartera)}
-                          </Typography>
-                        </GridComponent>
-                        
-                        <GridComponent item component="div" xs={12} sm={6} md={3}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                            <DateRangeIcon sx={{ fontSize: 16, color: '#6b7280' }} />
-                            <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
-                              Fecha Ingreso
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
-                            {new Date(cliente.fechaIngreso).toLocaleDateString('es-MX')}
-                          </Typography>
-                        </GridComponent>
-                      </GridComponent>
-                      
-                      <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e5e7eb' }}>
-                        <GridComponent container spacing={2}>
-                          <GridComponent item component="div" xs={12} sm={6}>
-                            <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                              Teléfono: {cliente.telefono}
-                            </Typography>
-                          </GridComponent>
-                          <GridComponent item component="div" xs={12} sm={6}>
-                            <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                              Email: {cliente.email}
-                            </Typography>
-                          </GridComponent>
-                        </GridComponent>
+                        </Box>
+                        <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
+                          {formatCurrency(cliente.montoCartera)}
+                        </Typography>
                       </Box>
-                    </CardContent>
-                  </Card>
-                </GridComponent>
+                      
+                      <Box sx={{ flex: '1 1 200px' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <DateRangeIcon sx={{ fontSize: 16, color: '#6b7280' }} />
+                          <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 500 }}>
+                            Fecha Ingreso
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" sx={{ color: '#1f2937', fontWeight: 600 }}>
+                          {new Date(cliente.fechaIngreso).toLocaleDateString('es-MX')}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e5e7eb', display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                      <Box sx={{ flex: '1 1 250px' }}>
+                        <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                          Teléfono: {cliente.telefono}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ flex: '1 1 250px' }}>
+                        <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                          Email: {cliente.email}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
               ))}
-            </GridComponent>
+            </Box>
           </Paper>
         )}
 

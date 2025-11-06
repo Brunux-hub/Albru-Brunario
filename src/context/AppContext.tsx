@@ -38,6 +38,16 @@ export interface Cliente {
   tipoVia?: string;
   // Flag temporal que indica que el cliente está siendo gestionado por un asesor
   ocupado?: boolean;
+  // Estado del seguimiento automático (derivado, en_gestion, gestionado, no_gestionado)
+  seguimiento_status?: string | null;
+  // Timestamps para seguimiento automático
+  derivado_at?: string | null;
+  opened_at?: string | null;
+  // ID del asesor asignado
+  asesor_asignado?: number | null;
+  // Categoría y subcategoría del estatus comercial (del wizard)
+  estatus_comercial_categoria?: string | null;
+  estatus_comercial_subcategoria?: string | null;
 }
 
 interface AppContextType {

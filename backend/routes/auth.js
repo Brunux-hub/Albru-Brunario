@@ -4,7 +4,7 @@ const router = express.Router();
 // Importar el controlador de usuarios para reutilizar la lógica
 const { login, getProfile } = require('../controllers/usuariosController');
 const { body } = require('express-validator');
-const { authenticateToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // Validaciones para auth/login (compatible con frontend)
 const loginValidation = [
@@ -19,6 +19,6 @@ const loginValidation = [
 router.post('/login', loginValidation, login);
 
 // GET /api/auth/profile - Obtener perfil del usuario autenticado
-router.get('/profile', authenticateToken, getProfile);
+router.get('/profile', verifyToken, getProfile);
 
 module.exports = router;

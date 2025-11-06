@@ -66,6 +66,7 @@ interface Step4Data {
 // Importar el tipo Cliente existente
 import type { Cliente } from '../../context/AppContext';
 import { ubigeoService, type Departamento, type Distrito } from '../../services/UbigeoService';
+import { CATEGORIAS, permiteRierreRapido, getSubcategorias } from '../../constants/estatusComercial';
 
 interface Props {
   open: boolean;
@@ -91,6 +92,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
   const [distritos, setDistritos] = useState<Distrito[]>([]);
   const [loadingUbigeo, setLoadingUbigeo] = useState(false);
 
+  // Estados para estatus comercial (categoría y subcategoría)
+  const [estatusCategoria, setEstatusCategoria] = useState<string>('');
+  const [estatusSubcategoria, setEstatusSubcategoria] = useState<string>('');
+  const [subcategoriasDisponibles, setSubcategoriasDisponibles] = useState<readonly string[]>([]);
+
   // Datos del paso 1
   const [step1Data, setStep1Data] = useState<Step1Data>({
     tipoCliente: '',
@@ -103,34 +109,8 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     ,estatus: ''
   });
 
-  // Opciones de estatus (proporcionadas por UI - imagen)
-  const estatusOptions: string[] = [
-    '1 - SOLO INFO',
-    '8 - LISTA NEGRA',
-    '7 - VENTA CERRADA',
-    '6 - PDTE SCORE',
-    '5 - SIN CTO',
-    '5 - SIN COBERTURA',
-    '5 - SERVICIO ACTIVO',
-    '5 - EDIFICIO SIN LIBERAR',
-    '4 - ND PUBLICIDAD',
-    '4 - DOBLE CLICK',
-    '3 - VC DESAPROBADA',
-    '3 - ZONA F',
-    '3 - NO DESEA',
-    '3 - NO CALIFICA',
-    '3 - CON PROGRAMACIÓN',
-    '2 - FIN DE MES',
-    '2 - CONSULTAR CON FAMILIAR',
-    '2 - AGENDADO',
-    '1 - SEGUIMIENTO',
-    '1 - GESTION x CHAT',
-    '0 - NO CONTESTA',
-    '0 - N° EQUIVOCADO',
-    '0 - FUERA DE SERVICIO',
-    '0 - CORTA LLAMADA',
-    '0 - BUZON'
-  ];
+  // Opciones de estatus (reemplazado por categorías/subcategorías)
+  // const estatusOptions ya no se usa
 
   // Datos del paso 2
   const [step2Data, setStep2Data] = useState<Step2Data>({
@@ -174,6 +154,15 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     if (cliente) {
       // Cargar datos existentes del cliente si los hay
       clienteIdRef.current = cliente.id;
+      
+      // PRE-CARGAR categoría y subcategoría si ya existen
+      if (cliente.estatus_comercial_categoria) {
+        setEstatusCategoria(cliente.estatus_comercial_categoria);
+      }
+      if (cliente.estatus_comercial_subcategoria) {
+        setEstatusSubcategoria(cliente.estatus_comercial_subcategoria);
+      }
+      
       setStep1Data({
         tipoCliente: 'nuevo', // Por defecto
         lead: cliente.telefono || '',
@@ -186,6 +175,21 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       });
     }
   }, [cliente]);
+
+  // Actualizar subcategorías cuando cambia la categoría
+  useEffect(() => {
+    if (estatusCategoria) {
+      const subs = getSubcategorias(estatusCategoria);
+      setSubcategoriasDisponibles(subs);
+      // Reset subcategoría si la nueva categoría no tiene la subcategoría actual
+      if (estatusSubcategoria && !subs.includes(estatusSubcategoria)) {
+        setEstatusSubcategoria('');
+      }
+    } else {
+      setSubcategoriasDisponibles([]);
+      setEstatusSubcategoria('');
+    }
+  }, [estatusCategoria, estatusSubcategoria]);
 
   // Calcular asesorId una vez y guardarlo en ref
   useEffect(() => {
@@ -244,6 +248,28 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         lockTokenRef.current = j.lockToken || null;
         setIsLockedByMe(true);
         setLockedByOther(null);
+
+        // 🔥 CRÍTICO: Cambiar seguimiento_status a "en_gestion" cuando el asesor abre el wizard
+        if (cliente.seguimiento_status === 'derivado') {
+          try {
+            const openWizardResp = await fetch(`${backend}/api/clientes/${cliente.id}/open-wizard`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                asesorId,
+                lockToken: j.lockToken 
+              })
+            });
+            
+            if (openWizardResp.ok) {
+              console.log(`✅ Cliente ${cliente.id} cambiado a "en_gestion" al abrir wizard`);
+            } else {
+              console.warn('Error al marcar cliente como en_gestion:', await openWizardResp.text());
+            }
+          } catch (err) {
+            console.warn('Error actualizando seguimiento_status a en_gestion:', err);
+          }
+        }
 
         // iniciar heartbeat cada 60s
         const id = window.setInterval(async () => {
@@ -415,7 +441,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     const newErrors: Record<string, string> = {};
 
     if (!step2Data.fechaNacimiento) {
-      newErrors.fechaNacimiento = 'Invalid input: expected string, received undefined';
+      newErrors.fechaNacimiento = 'La fecha de nacimiento es requerida';
     }
 
     if (!step2Data.lugarNacimiento) {
@@ -580,13 +606,15 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       wizard_completado: true,
       wizard_data_json: JSON.stringify(wizardData),
       estatus_wizard: step1Data.estatus,
+      estatus_comercial_categoria: estatusCategoria,
+      estatus_comercial_subcategoria: estatusSubcategoria,
       observaciones_asesor: `Lead: ${step1Data.lead}. Parentesco titular: ${step2Data.parentescoTitular}. Plan: ${step3Data.tipoPlan} ${step3Data.velocidadContratada}`
     };
 
     console.log('🚀 WIZARD: Enviando datos al backend:', datosParaBackend);
     
     try {
-      // Enviar directamente al backend
+      // PASO 1: Enviar datos del wizard al backend
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -603,6 +631,25 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       const result = await response.json();
       console.log('✅ WIZARD: Cliente actualizado exitosamente:', result);
       
+      // PASO 2: Marcar wizard como completado (cambia estado a 'terminado' y libera asesor)
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const asesorId = userData.id;
+      
+      const completeResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}/complete-wizard`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ asesorId })
+      });
+
+      if (!completeResponse.ok) {
+        console.warn('⚠️ WIZARD: No se pudo marcar como completado, pero los datos se guardaron');
+      } else {
+        console.log('✅ WIZARD: Marcado como completado exitosamente');
+      }
+      
       // Actualizar el estado local con los datos básicos
       const updatedCliente: Cliente = {
         ...cliente!,
@@ -615,9 +662,65 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       onSave(updatedCliente);
       onClose();
       
-      alert('✅ Wizard completado exitosamente. Los datos han sido guardados.');
+      alert('✅ Wizard completado exitosamente. El cliente ha sido gestionado.');
     } catch (error) {
       console.error('❌ WIZARD: Error de red:', error);
+      alert('Error de red al guardar los datos. Por favor intenta de nuevo.');
+    }
+  };
+
+  // Función para guardar rápidamente con solo categoría y subcategoría (cierre rápido)
+  const handleQuickSave = async () => {
+    // Validar que se haya seleccionado categoría y subcategoría
+    if (!estatusCategoria || !estatusSubcategoria) {
+      alert('Debes seleccionar tanto la categoría como la subcategoría para guardar.');
+      return;
+    }
+
+    console.log('⚡ WIZARD: Guardado rápido - Categoría:', estatusCategoria, 'Subcategoría:', estatusSubcategoria);
+
+    const datosParaBackend = {
+      // Guardar solo el estatus comercial
+      estatus_comercial_categoria: estatusCategoria,
+      estatus_comercial_subcategoria: estatusSubcategoria,
+      // Marcar wizard como completado (aunque fue cierre rápido)
+      wizard_completado: true,
+      // Agregar nota en observaciones
+      observaciones_asesor: `Cierre rápido - ${estatusCategoria}: ${estatusSubcategoria}`
+    };
+
+    console.log('🚀 WIZARD: Enviando datos de cierre rápido al backend:', datosParaBackend);
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(datosParaBackend)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('❌ WIZARD: Error del backend en cierre rápido:', error);
+        alert(`Error al guardar: ${error.message || 'Error desconocido'}`);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('✅ WIZARD: Cierre rápido exitoso:', result);
+      
+      // Actualizar el estado local (sin tipado estricto para campos nuevos)
+      const updatedCliente = {
+        ...cliente!,
+        estatus_comercial_categoria: estatusCategoria,
+        estatus_comercial_subcategoria: estatusSubcategoria
+      } as Cliente;
+      
+      onSave(updatedCliente);
+      onClose();
+      
+      alert(`✅ Cliente guardado con estatus: ${estatusCategoria} - ${estatusSubcategoria}`);
+    } catch (error) {
+      console.error('❌ WIZARD: Error de red en cierre rápido:', error);
       alert('Error de red al guardar los datos. Por favor intenta de nuevo.');
     }
   };
@@ -1315,28 +1418,78 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         )}
       </Box>
 
-      {/* ESTATUS (dropdown proporcionado) */}
+      {/* CATEGORÍA DE ESTATUS */}
       <Box sx={{ mb: 3 }}>
         <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
-          ESTATUS
+          CATEGORÍA DE ESTATUS *
         </FormLabel>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.75rem', fontStyle: 'italic' }}>
+          Selecciona la categoría principal del resultado de la gestión
+        </Typography>
         <FormControl fullWidth size="small">
           <Select
-            value={step1Data.estatus}
-            onChange={(e) => setStep1Data({ ...step1Data, estatus: e.target.value })}
+            value={estatusCategoria}
+            onChange={(e) => setEstatusCategoria(e.target.value)}
             displayEmpty
             sx={{
               backgroundColor: '#f5f5f5',
               '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
             }}
           >
-            <MenuItem disabled value="">Elige</MenuItem>
-            {estatusOptions.map((opt) => (
-              <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+            <MenuItem disabled value="">Selecciona categoría</MenuItem>
+            {CATEGORIAS.map((cat) => (
+              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
             ))}
           </Select>
         </FormControl>
       </Box>
+
+      {/* SUBCATEGORÍA DE ESTATUS (se habilita solo cuando hay categoría) */}
+      <Box sx={{ mb: 3 }}>
+        <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
+          SUBCATEGORÍA DE ESTATUS *
+        </FormLabel>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.75rem', fontStyle: 'italic' }}>
+          Selecciona el detalle específico del estatus
+        </Typography>
+        <FormControl fullWidth size="small" disabled={!estatusCategoria || subcategoriasDisponibles.length === 0}>
+          <Select
+            value={estatusSubcategoria}
+            onChange={(e) => setEstatusSubcategoria(e.target.value)}
+            displayEmpty
+            sx={{
+              backgroundColor: estatusCategoria ? '#f5f5f5' : '#e0e0e0',
+              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+            }}
+          >
+            <MenuItem disabled value="">
+              {estatusCategoria ? 'Selecciona subcategoría' : 'Primero selecciona una categoría'}
+            </MenuItem>
+            {subcategoriasDisponibles.map((subcat) => (
+              <MenuItem key={subcat} value={subcat}>{subcat}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* ALERTA DE CIERRE RÁPIDO */}
+      {estatusCategoria && permiteRierreRapido(estatusCategoria) && (
+        <Box sx={{ 
+          mb: 3, 
+          p: 2, 
+          bgcolor: '#fff3cd', 
+          border: '1px solid #ffc107', 
+          borderRadius: 1 
+        }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: '#856404', mb: 1 }}>
+            ⚡ Cierre Rápido Disponible
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#856404', fontSize: '0.875rem' }}>
+            Has seleccionado una categoría que permite guardar el cliente sin completar todos los pasos del wizard.
+            Puedes usar el botón "GUARDAR Y CERRAR" abajo para finalizar ahora.
+          </Typography>
+        </Box>
+      )}
 
       {/* LEAD */}
       <Box sx={{ mb: 3 }}>
@@ -1591,12 +1744,30 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             Paso {activeStep + 1} de {steps.length}
           </Typography>
 
-          <Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
             {activeStep > 0 && (
               <Button onClick={handleBack} sx={{ mr: 1 }}>
                 Anterior
               </Button>
             )}
+            
+            {/* Botón de cierre rápido (solo en paso 1 y con categorías específicas) */}
+            {activeStep === 0 && estatusCategoria && estatusSubcategoria && permiteRierreRapido(estatusCategoria) && (
+              <Button 
+                onClick={handleQuickSave}
+                variant="contained"
+                sx={{ 
+                  backgroundColor: '#f59e0b',
+                  color: '#fff',
+                  fontWeight: 600,
+                  mr: 1,
+                  '&:hover': { backgroundColor: '#d97706' }
+                }}
+              >
+                ⚡ GUARDAR Y CERRAR
+              </Button>
+            )}
+            
             {activeStep < steps.length - 1 ? (
               <Button 
                 onClick={handleNext}

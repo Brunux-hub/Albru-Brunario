@@ -10,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 const menuItems = [
   { text: 'Clientes', icon: <PeopleIcon /> },
   { text: 'Asesores', icon: <AssignmentIndIcon /> },
+  { text: 'Gestión del día', icon: <BarChartIcon /> },
   { text: 'Reportes', icon: <BarChartIcon /> },
   { text: 'Configuración', icon: <SettingsIcon /> },
 ];

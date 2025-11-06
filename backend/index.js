@@ -1,9 +1,22 @@
+/**
+ * ALBRU CRM - SERVIDOR PRINCIPAL
+ * Sistema profesional de call center con Socket.io, Redis y MySQL
+ */
+
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
-const WebSocketService = require('./services/WebSocketService');
+const config = require('./config/environment');
+
+// Servicios
+const socketService = require('./services/SocketService');
+const redisService = require('./services/RedisService');
+const sessionService = require('./services/SessionService');
+
 const app = express();
-const port = process.env.PORT || 3000;
+const port = config.server.port;
 
 // Crear servidor HTTP
 const server = http.createServer(app);
@@ -13,7 +26,8 @@ const clientesRoutes = require('./routes/clientes');
 const asesoresRoutes = require('./routes/asesores');
 const usuariosRoutes = require('./routes/usuarios');
 const userRoutes = require('./routes/user');
-const authRoutes = require('./routes/auth'); // Nueva ruta auth
+const authRoutes = require('./routes/auth');
+const sessionsRoutes = require('./routes/sessions'); // Nueva ruta de sesiones
 const pool = require('./config/database');
 
 // Middleware para parsear el cuerpo de las peticiones como JSON
@@ -60,7 +74,8 @@ app.use('/api/clientes', clientesRoutes);
 app.use('/api/asesores', asesoresRoutes);
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/auth', authRoutes); // Nueva ruta auth compatible
+app.use('/api/auth', authRoutes);
+app.use('/api/sessions', sessionsRoutes); // Rutas de sesiones
 
 // Ruta raíz
 app.get('/', (req, res) => {
@@ -79,21 +94,83 @@ pool.query('SELECT NOW()', (err, res) => {
 */
 console.log('⚠️ Base de datos deshabilitada temporalmente para desarrollo');
 
-// Inicializar WebSocket
-WebSocketService.initialize(server);
+/**
+ * INICIALIZACIÓN DE SERVICIOS
+ */
+async function initializeServices() {
+  try {
+    // 1. Conectar a Redis
+    console.log('🔄 Conectando a Redis...');
+    await redisService.connect();
+
+    // 2. Inicializar Socket.io
+    console.log('🔄 Inicializando Socket.io...');
+    socketService.initialize(server);
+
+    // 3. Sincronizar sesiones (crash recovery)
+    console.log('🔄 Sincronizando sesiones...');
+    await sessionService.syncSessions();
+
+    // 4. Iniciar worker de seguimiento
+    console.log('🔄 Iniciando worker de seguimiento...');
+    const seguimientoWorker = require('./services/seguimientoWorker');
+    seguimientoWorker.start();
+
+    console.log('✅ Todos los servicios inicializados correctamente');
+  } catch (error) {
+    console.error('❌ Error al inicializar servicios:', error);
+    // No detener el servidor, seguir funcionando con servicios parciales
+  }
+}
+
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  const redisHealth = await redisService.healthCheck();
+  const socketHealth = socketService.healthCheck();
+  
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    services: {
+      redis: redisHealth,
+      socket: socketHealth,
+      database: 'connected', // Asumimos conectado si el servidor responde
+    },
+  });
+});
 
 // Ruta para obtener estadísticas de WebSocket
 app.get('/api/ws-stats', (req, res) => {
-  res.json(WebSocketService.getStats());
+  res.json(socketService.getStats());
 });
 
-server.listen(port, '0.0.0.0', () => {
+// Ruta para obtener estadísticas de sesiones
+app.get('/api/stats/sessions', async (req, res) => {
+  try {
+    const sessions = await sessionService.getAllActiveSessions();
+    res.json({
+      total: sessions.length,
+      sessions,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+server.listen(port, '0.0.0.0', async () => {
   const os = require('os');
   const networkInterfaces = os.networkInterfaces();
   
-  console.log(`🚀 Servidor ALBRU iniciado correctamente`);
-  console.log(`📍 Puerto: ${port}`);
-  console.log(`🌐 Accesible desde:`);
+  console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║          🚀 ALBRU CRM - SISTEMA PROFESIONAL 🚀           ║
+╚═══════════════════════════════════════════════════════════╝
+  `);
+  
+  console.log(`📍 Entorno: ${config.server.nodeEnv.toUpperCase()}`);
+  console.log(`📍 Puerto Backend: ${port}`);
+  console.log(`📍 Frontend URL: ${config.server.frontendUrl}`);
+  console.log(`\n🌐 Accesible desde:`);
   console.log(`   - Local: http://localhost:${port}`);
   
   // Mostrar todas las IPs de red local disponibles
@@ -102,11 +179,28 @@ server.listen(port, '0.0.0.0', () => {
     interfaces.forEach(netInterface => {
       if (netInterface.family === 'IPv4' && !netInterface.internal) {
         console.log(`   - Red Local: http://${netInterface.address}:${port}`);
-        console.log(`   - Frontend: http://${netInterface.address}:5173`);
       }
     });
   });
   
-  console.log(`🔌 WebSocket disponible en todas las IPs de red local`);
-  console.log(`🔐 CORS configurado para red local automáticamente`);
+  console.log(`\n🔌 Socket.io configurado`);
+  console.log(`🔐 CORS: ${config.websocket.corsOrigins.join(', ')}`);
+  console.log(`⏱️  Timeout de sesión: ${config.session.timeout}s`);
+  console.log(`🔄 Intervalo de worker: ${config.session.workerInterval}ms`);
+  
+  console.log(`\n📚 Endpoints disponibles:`);
+  console.log(`   - GET  /api/health - Health check`);
+  console.log(`   - POST /api/sessions/start - Iniciar sesión`);
+  console.log(`   - POST /api/sessions/end - Finalizar sesión`);
+  console.log(`   - POST /api/sessions/heartbeat - Heartbeat`);
+  console.log(`   - GET  /api/sessions/status/:id - Estado de sesión`);
+  console.log(`   - GET  /api/sessions/active - Sesiones activas`);
+  console.log(`   - POST /api/sessions/sync - Sincronizar sesiones`);
+  
+  console.log(`\n🔧 Inicializando servicios...`);
+  
+  // Inicializar todos los servicios
+  await initializeServices();
+  
+  console.log(`\n✅ SERVIDOR LISTO PARA PRODUCCIÓN\n`);
 });

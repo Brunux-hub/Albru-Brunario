@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, CircularProgress, Alert, Button, TextField, FormControlLabel, Checkbox } from '@mui/material';
 import GtrSidebar from '../components/gtr/GtrSidebar';
-import RealtimeService from '../services/RealtimeService';
+import { useSocket } from '../hooks/useSocket';
 
 import GtrStatusMenu from '../components/gtr/GtrStatusMenu';
 import GtrClientsTable from '../components/gtr/GtrClientsTable';
@@ -9,6 +9,7 @@ import GtrAsesoresTable from '../components/gtr/GtrAsesoresTable';
 import AddClientDialog from '../components/gtr/AddClientDialog';
 import type { Asesor, Cliente } from '../components/gtr/types';
 import ReportesPanel from '../components/common/ReportesPanel';
+import DayManagementPanel from '../components/gtr/DayManagementPanel';
 
 // Interfaces adicionales
 interface AsesorAPI {
@@ -50,6 +51,14 @@ interface ClienteAPI {
   // Campos adicionales devueltos por el backend
   ultima_fecha_gestion?: string | null;
   fecha_ultimo_contacto?: string | null;
+  // Campos de seguimiento automático
+  seguimiento_status?: string | null;
+  derivado_at?: string | null;
+  opened_at?: string | null;
+  asesor_asignado?: number | null;
+  // Campos de estatus comercial (del wizard)
+  estatus_comercial_categoria?: string | null;
+  estatus_comercial_subcategoria?: string | null;
 }
 
 const GtrDashboard: React.FC = () => {
@@ -94,9 +103,27 @@ const GtrDashboard: React.FC = () => {
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [features] = useState<{ hasEstatusWizard: boolean; hasHistorialEstados: boolean }>({ hasEstatusWizard: false, hasHistorialEstados: false });
 
   // Cargar asesores desde la API
   useEffect(() => {
+    // Cargar metadata/features del backend para condicionales UI
+    // DESACTIVADO - endpoint no existe, usando defaults
+    // (async () => {
+    //   try {
+    //     const resp = await fetch('/api/features');
+    //     const j = await resp.json();
+    //     if (j && j.success && j.features) {
+    //       setFeatures({
+    //         hasEstatusWizard: Boolean(j.features.hasEstatusWizard),
+    //         hasHistorialEstados: Boolean(j.features.hasHistorialEstados)
+    //       });
+    //       console.log('🔎 Features backend:', j.features);
+    //     }
+    //   } catch (e) {
+    //     console.warn('No se pudo cargar /api/features, asumiendo defaults', e);
+    //   }
+    // })();
     const fetchAsesores = async () => {
       try {
         setLoading(true);
@@ -147,7 +174,12 @@ const GtrDashboard: React.FC = () => {
 
         const url = '/api/clientes' + (Array.from(params).length ? `?${params.toString()}` : '');
 
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         const data = await response.json();
 
         if (data.success && data.clientes) {
@@ -178,7 +210,12 @@ const GtrDashboard: React.FC = () => {
             direccion: cliente.direccion || '',
             historial: [],
             ultima_fecha_gestion: cliente.ultima_fecha_gestion || null,
-            fecha_ultimo_contacto: cliente.fecha_ultimo_contacto || null
+            fecha_ultimo_contacto: cliente.fecha_ultimo_contacto || null,
+            // CRÍTICO: Mapear campos de seguimiento automático desde el backend
+            seguimiento_status: cliente.seguimiento_status || null,
+            // ✨ NUEVO: Mapear estatus comercial (categoría y subcategoría)
+            estatus_comercial_categoria: cliente.estatus_comercial_categoria || null,
+            estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null
           }));
           setClients(clientesFormateados);
         }
@@ -198,23 +235,99 @@ const GtrDashboard: React.FC = () => {
     }
   }, [newClient]);
 
-  // Conectar WebSocket para GTR
-  useEffect(() => {
-    const realtimeService = RealtimeService.getInstance();
-    const gtrName = localStorage.getItem('username') || 'GTR';
-    
-    // Solo conectar si no está ya conectado
-    if (!realtimeService.isConnected()) {
-      realtimeService.connect('GTR', gtrName);
-    }
-    
-    // Suscribirse a confirmaciones de reasignación
-    const unsubscribe = realtimeService.subscribe('REASSIGNMENT_CONFIRMED', (data: unknown) => {
-      console.log('✅ GTR: Reasignación confirmada por WebSocket:', data);
-    });
+  // Conectar Socket.io para GTR
+  const { socket, isConnected } = useSocket();
 
-    // Suscribirse a notificaciones de cliente ocupado para actualizar la tabla en tiempo real
-    const unsubscribeOcupado = realtimeService.subscribe('CLIENT_OCUPADO', (data: unknown) => {
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    const gtrName = localStorage.getItem('username') || 'GTR';
+    console.log('🔌 GTR: Socket.io conectado, uniéndose a sala GTR como:', gtrName);
+    
+    // Unirse a la sala de GTR
+    socket.emit('join-gtr-room', { username: gtrName });
+
+    // Escuchar confirmación de reasignación
+    const handleReassignmentConfirmed = (data: unknown) => {
+      console.log('✅ GTR: Reasignación confirmada por Socket.io:', data);
+    };
+
+    // Escuchar reasignaciones de clientes en tiempo real
+    const handleClientReassigned = (data: unknown) => {
+      try {
+        console.log('🔄 [GTR FRONTEND] ================================');
+        console.log('🔄 [GTR FRONTEND] Evento CLIENT_REASSIGNED recibido!');
+        console.log('🔄 [GTR FRONTEND] Payload completo:', JSON.stringify(data, null, 2));
+        
+        const msg = data as Record<string, unknown>;
+        const clienteData = msg['cliente'] as Record<string, unknown> | undefined;
+        const nuevoAsesorData = msg['nuevoAsesor'] as Record<string, unknown> | undefined;
+        
+        console.log('🔄 [GTR FRONTEND] clienteData:', clienteData);
+        console.log('🔄 [GTR FRONTEND] nuevoAsesorData:', nuevoAsesorData);
+        
+        if (!clienteData) {
+          console.warn('⚠️ [GTR FRONTEND] No se encontró clienteData en el evento');
+          return;
+        }
+        
+        const clienteId = Number(clienteData['id']);
+        console.log('🔄 [GTR FRONTEND] clienteId extraído:', clienteId);
+        
+        if (!clienteId) {
+          console.warn('⚠️ [GTR FRONTEND] clienteId inválido');
+          return;
+        }
+
+        // Obtener el nombre del nuevo asesor
+        const asesorNombre = nuevoAsesorData ? String(nuevoAsesorData['nombre'] || '') : '';
+        console.log('🔄 [GTR FRONTEND] Nombre nuevo asesor:', asesorNombre);
+
+        // Actualizar el cliente con seguimiento_status = 'derivado' y el nuevo asesor
+        console.log('🔄 [GTR FRONTEND] Actualizando lista de clientes...');
+        setClients(prev => {
+          const updated = prev.map(c => {
+            if (c.id === clienteId) {
+              console.log('✅ [GTR FRONTEND] Cliente encontrado en lista, actualizando:', c.id);
+              return { 
+                ...c, 
+                seguimiento_status: 'derivado',
+                asesor: asesorNombre || c.asesor // Actualizar asesor con el nuevo nombre
+              } as Cliente;
+            }
+            return c;
+          });
+          console.log('✅ [GTR FRONTEND] Lista de clientes actualizada');
+          return updated;
+        });
+        console.log('🔄 [GTR FRONTEND] ================================');
+      } catch (e) {
+        console.error('❌ [GTR FRONTEND] Error procesando CLIENT_REASSIGNED:', e);
+      }
+    };
+
+    // Suscribirse a clientes que vuelven a GTR por timeout
+    const handleClientReturnedToGTR = (data: unknown) => {
+      try {
+        console.log('⏰ GTR: Cliente vuelto a GTR por timeout:', data);
+        const msg = data as Record<string, unknown>;
+        const clienteId = Number(msg['clienteId']);
+        if (!clienteId) return;
+
+        // Actualizar el cliente con seguimiento_status = 'no_gestionado' y limpiar asesor_asignado
+        setClients(prev => prev.map(c => {
+          if (c.id === clienteId) {
+            return { ...c, seguimiento_status: 'no_gestionado', asesor_asignado: null } as Cliente;
+          }
+          return c;
+        }));
+      } catch (e) {
+        console.error('Error procesando CLIENT_RETURNED_TO_GTR en GTR:', e);
+      }
+    };
+
+    // Suscribirse a notificaciones de cliente ocupado
+    const handleClientOcupado = (data: unknown) => {
       try {
         console.log('📣 GTR: Evento CLIENT_OCUPADO recibido:', data);
         const clienteId = extractClienteId(data);
@@ -222,7 +335,6 @@ const GtrDashboard: React.FC = () => {
 
         if (clienteId == null) return;
 
-        // Actualizar el estado local de clients para reflejar el flag 'ocupado'
         setClients(prev => prev.map(c => {
           if (c.id === clienteId) {
             return { ...c, ocupado: !!ocupado } as Cliente;
@@ -230,32 +342,25 @@ const GtrDashboard: React.FC = () => {
           return c;
         }));
         
-        // Además, si el evento trae asesorId, actualizar el estado del asesor en el panel GTR
-        try {
-          const msg = data as Record<string, unknown>;
-          const asesorIdCandidate = msg['asesorId'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['asesorId']) ?? (msg['payload'] && (msg['payload'] as Record<string, unknown>)['asesorId']);
-          if (typeof asesorIdCandidate !== 'undefined' && asesorIdCandidate !== null) {
-            const asesorId = Number(asesorIdCandidate);
-            // Marcar en la lista de asesores: si ocupado -> 'Ocupado', si no -> 'Activo'
-            setAsesores(prev => prev.map(a => {
-              // a puede tener asesor_id o usuario_id según cómo fue cargado
-              const matches = (Number(a.asesor_id) === asesorId) || (Number(a.usuario_id) === asesorId) || (Number(a.usuario_id || 0) === asesorId);
-              if (matches) {
-                return { ...a, estado: ocupado ? 'Ocupado' : 'Activo' };
-              }
-              return a;
-            }));
-          }
-        } catch (e) {
-          console.warn('Error actualizando estado de asesor desde CLIENT_OCUPADO:', e);
+        const msg = data as Record<string, unknown>;
+        const asesorIdCandidate = msg['asesorId'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['asesorId']) ?? (msg['payload'] && (msg['payload'] as Record<string, unknown>)['asesorId']);
+        if (typeof asesorIdCandidate !== 'undefined' && asesorIdCandidate !== null) {
+          const asesorId = Number(asesorIdCandidate);
+          setAsesores(prev => prev.map(a => {
+            const matches = (Number(a.asesor_id) === asesorId) || (Number(a.usuario_id) === asesorId) || (Number(a.usuario_id || 0) === asesorId);
+            if (matches) {
+              return { ...a, estado: ocupado ? 'Ocupado' : 'Activo' };
+            }
+            return a;
+          }));
         }
       } catch (e) {
         console.error('Error procesando CLIENT_OCUPADO en GTR:', e);
       }
-    });
+    };
 
-    // Manejar locks duraderos enviados por el backend
-    const unsubscribeLocked = realtimeService.subscribe('CLIENT_LOCKED', (data: unknown) => {
+    // Manejar locks duraderos
+    const handleClientLocked = (data: unknown) => {
       try {
         const clienteId = extractClienteId(data);
         if (clienteId == null) return;
@@ -263,9 +368,9 @@ const GtrDashboard: React.FC = () => {
       } catch (e) {
         console.error('Error procesando CLIENT_LOCKED en GTR:', e);
       }
-    });
+    };
 
-    const unsubscribeUnlocked = realtimeService.subscribe('CLIENT_UNLOCKED', (data: unknown) => {
+    const handleClientUnlocked = (data: unknown) => {
       try {
         const clienteId = extractClienteId(data);
         if (clienteId == null) return;
@@ -273,36 +378,160 @@ const GtrDashboard: React.FC = () => {
       } catch (e) {
         console.error('Error procesando CLIENT_UNLOCKED en GTR:', e);
       }
-    });
+    };
 
-    // Suscribirse a actualizaciones completas de cliente (guardado desde modal u otras fuentes)
-    const unsubscribeUpdated = realtimeService.subscribe('CLIENT_UPDATED', (data: unknown) => {
+    // Actualizaciones completas de cliente
+    const handleClientUpdated = (data: unknown) => {
       try {
         console.log('📣 GTR: Evento CLIENT_UPDATED recibido:', data);
-        // data puede venir en varias formas: { cliente: {...} } o en data/payload
         const msg = data as Record<string, unknown>;
         const clienteRaw = msg['cliente'] || (msg['data'] && (msg['data'] as Record<string, unknown>)['cliente']) || (msg['payload'] && (msg['payload'] as Record<string, unknown>)['cliente']) || msg;
         if (!clienteRaw || typeof clienteRaw !== 'object') return;
         const clienteObj = clienteRaw as Cliente & { id?: number };
         if (!clienteObj.id) return;
 
-        setClients(prev => prev.map(c => c.id === clienteObj.id ? { ...c, ...(clienteObj as Cliente) } : c));
+        setClients(prev => prev.map(c => {
+          if (c.id === clienteObj.id) {
+            const updatedClient = { ...c, ...(clienteObj as Cliente) };
+            if (!clienteObj.asesor && c.asesor) {
+              updatedClient.asesor = c.asesor;
+            }
+            return updatedClient;
+          }
+          return c;
+        }));
       } catch (e) {
         console.error('Error procesando CLIENT_UPDATED en GTR:', e);
       }
-    });
-
-    return () => {
-      unsubscribe();
-      unsubscribeOcupado();
-      unsubscribeLocked();
-      unsubscribeUnlocked();
-      unsubscribeUpdated();
-      // No desconectar automáticamente
     };
-  }, []);
 
+    // Actualizaciones de estatus
+    const handleClientStatusUpdated = (data: unknown) => {
+      try {
+        console.log('📣 GTR: Evento CLIENT_STATUS_UPDATED recibido:', data);
+        const msg = data as Record<string, unknown>;
+        const clienteRaw = msg['cliente'] || (msg['data'] && (msg['data'] as Record<string, unknown>)['cliente']) || (msg['payload'] && (msg['payload'] as Record<string, unknown>)['cliente']) || msg;
+        if (clienteRaw && typeof clienteRaw === 'object') {
+          const clienteObj = clienteRaw as Cliente & { id?: number };
+          if (clienteObj.id) {
+            setClients(prev => prev.map(c => {
+              if (c.id === clienteObj.id) {
+                const updatedClient = { ...c, ...(clienteObj as Cliente) };
+                if (!clienteObj.asesor && c.asesor) {
+                  updatedClient.asesor = c.asesor;
+                }
+                return updatedClient;
+              }
+              return c;
+            }));
+          }
+        }
 
+        const asesorIdCandidate = msg['asesorId'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['asesorId']);
+        const nuevoEstatusCandidate = msg['nuevoEstatus'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['nuevoEstatus']);
+        if (typeof asesorIdCandidate !== 'undefined' && nuevoEstatusCandidate !== undefined) {
+          const asesorId = Number(asesorIdCandidate);
+          const nuevo = String(nuevoEstatusCandidate);
+          setAsesores(prev => prev.map(a => {
+            const matches = (Number(a.asesor_id) === asesorId) || (Number(a.usuario_id) === asesorId);
+            if (matches) {
+              return { ...a, estado: nuevo };
+            }
+            return a;
+          }));
+        }
+      } catch (e) {
+        console.error('Error procesando CLIENT_STATUS_UPDATED en GTR:', e);
+      }
+    };
+
+    // Cliente en gestión (wizard abierto)
+    const handleClientInGestion = (data: unknown) => {
+      try {
+        console.log('🎯 GTR: Evento CLIENT_IN_GESTION recibido:', data);
+        const msg = data as Record<string, unknown>;
+        const clienteId = Number(msg['clienteId'] ?? (msg['data'] as Record<string, unknown>)?.['clienteId']);
+        
+        if (clienteId) {
+          console.log(`✅ GTR: Actualizando cliente ${clienteId} a "en_gestion" en tiempo real`);
+          setClients(prev => prev.map(c => {
+            if (c.id === clienteId) {
+              return { 
+                ...c, 
+                seguimiento_status: 'en_gestion',
+                opened_at: new Date().toISOString()
+              };
+            }
+            return c;
+          }));
+        }
+      } catch (e) {
+        console.error('Error procesando CLIENT_IN_GESTION en GTR:', e);
+      }
+    };
+
+    // Cliente movido a GTR (wizard completado - GESTIONADO)
+    const handleClientMovedToGTR = (data: unknown) => {
+      try {
+        console.log('📋 [GTR FRONTEND] ================================');
+        console.log('📋 [GTR FRONTEND] Evento CLIENT_MOVED_TO_GTR recibido!');
+        console.log('📋 [GTR FRONTEND] Payload completo:', JSON.stringify(data, null, 2));
+        
+        const msg = data as Record<string, unknown>;
+        const clienteId = Number(msg['clienteId']);
+        
+        console.log('📋 [GTR FRONTEND] clienteId extraído:', clienteId);
+        
+        if (clienteId) {
+          console.log(`✅ [GTR FRONTEND] Actualizando cliente ${clienteId} a "gestionado" en tiempo real`);
+          setClients(prev => prev.map(c => {
+            if (c.id === clienteId) {
+              console.log('✅ [GTR FRONTEND] Cliente encontrado, marcando como gestionado:', c.id);
+              return { 
+                ...c, 
+                seguimiento_status: 'gestionado',
+                asesor_asignado: null,
+                estado: 'gestionado'
+              };
+            }
+            return c;
+          }));
+          console.log('✅ [GTR FRONTEND] Lista de clientes actualizada con estado "gestionado"');
+        } else {
+          console.warn('⚠️ [GTR FRONTEND] clienteId inválido en CLIENT_MOVED_TO_GTR');
+        }
+        console.log('📋 [GTR FRONTEND] ================================');
+      } catch (e) {
+        console.error('❌ [GTR FRONTEND] Error procesando CLIENT_MOVED_TO_GTR:', e);
+      }
+    };
+
+    // Registrar todos los listeners
+    socket.on('REASSIGNMENT_CONFIRMED', handleReassignmentConfirmed);
+    socket.on('CLIENT_REASSIGNED', handleClientReassigned);
+    socket.on('CLIENT_RETURNED_TO_GTR', handleClientReturnedToGTR);
+    socket.on('CLIENT_OCUPADO', handleClientOcupado);
+    socket.on('CLIENT_LOCKED', handleClientLocked);
+    socket.on('CLIENT_UNLOCKED', handleClientUnlocked);
+    socket.on('CLIENT_UPDATED', handleClientUpdated);
+    socket.on('CLIENT_STATUS_UPDATED', handleClientStatusUpdated);
+    socket.on('CLIENT_IN_GESTION', handleClientInGestion);
+    socket.on('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+
+    // Cleanup
+    return () => {
+      socket.off('REASSIGNMENT_CONFIRMED', handleReassignmentConfirmed);
+      socket.off('CLIENT_REASSIGNED', handleClientReassigned);
+      socket.off('CLIENT_RETURNED_TO_GTR', handleClientReturnedToGTR);
+      socket.off('CLIENT_OCUPADO', handleClientOcupado);
+      socket.off('CLIENT_LOCKED', handleClientLocked);
+      socket.off('CLIENT_UNLOCKED', handleClientUnlocked);
+      socket.off('CLIENT_UPDATED', handleClientUpdated);
+      socket.off('CLIENT_STATUS_UPDATED', handleClientStatusUpdated);
+      socket.off('CLIENT_IN_GESTION', handleClientInGestion);
+      socket.off('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+    };
+  }, [socket, isConnected]);
 
   if (loading) {
     return (
@@ -366,7 +595,7 @@ const GtrDashboard: React.FC = () => {
             pb: 1,
             '&::-webkit-scrollbar': { display: 'none' }
           }}>
-            {['Clientes', 'Asesores', 'Reportes', 'Configuración'].map((item) => (
+            {['Clientes', 'Asesores', 'Gestión del día', 'Reportes', 'Configuración'].map((item) => (
               <Button
                 key={item}
                 variant={section === item ? 'contained' : 'outlined'}
@@ -400,6 +629,12 @@ const GtrDashboard: React.FC = () => {
         }}>
           Panel GTR
         </Typography>
+        {/* Indicador rápido de features detectadas */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Features: estatus_wizard = {features.hasEstatusWizard ? 'sí' : 'no'} · historial_estados = {features.hasHistorialEstados ? 'sí' : 'no'}
+          </Typography>
+        </Box>
         
         {/* Estadísticas básicas */}
         <Box sx={{ 
@@ -513,6 +748,9 @@ const GtrDashboard: React.FC = () => {
               setClients={setClients}
             />
           </>
+        )}
+        {section === 'Gestión del día' && (
+          <DayManagementPanel />
         )}
         
           {section === 'Reportes' && (

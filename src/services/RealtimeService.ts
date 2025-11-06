@@ -1,13 +1,14 @@
-// Tipos para los mensajes WebSocket
+// Tipos para los mensajes WebSocket (LEGACY - mantener para compatibilidad)
 type MessageCallback = (data: unknown) => void;
 
-interface WebSocketMessage {
-  type: string;
-  data?: unknown;
-  clientType?: 'GTR' | 'ASESOR';
-  advisorName?: string;
-  payload?: unknown;
-}
+// Comentado - no usado en versión actual
+// interface WebSocketMessage {
+//   type: string;
+//   data?: unknown;
+//   clientType?: 'GTR' | 'ASESOR';
+//   advisorName?: string;
+//   payload?: unknown;
+// }
 
 interface ReassignmentData {
   clientId: number;
@@ -22,14 +23,11 @@ interface NewClientData {
 }
 
 // Servicio para manejar la comunicación en tiempo real entre GTR y Asesor usando WebSockets
+// ⚠️ LEGACY CODE - Sistema migrado a Socket.io, mantener solo para compatibilidad
 class RealtimeService {
   private static instance: RealtimeService;
   private ws: WebSocket | null = null;
   private listeners: Map<string, MessageCallback[]> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private clientType: 'GTR' | 'ASESOR' | null = null;
-  private advisorName: string | null = null;
 
   static getInstance(): RealtimeService {
     if (!RealtimeService.instance) {
@@ -38,153 +36,86 @@ class RealtimeService {
     return RealtimeService.instance;
   }
 
-  // Conectar al WebSocket
-  connect(clientType: 'GTR' | 'ASESOR', advisorName?: string) {
-    this.clientType = clientType;
-    this.advisorName = advisorName || null;
-
-    // Determinar URL del WebSocket según el entorno
-    const getWebSocketURL = (): string => {
-      if (typeof window !== 'undefined') {
-        const { protocol, hostname } = window.location;
-        
-        // En desarrollo local
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          return 'ws://localhost:3001';
-        }
-        
-        // En producción
-        const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-        const backendHost = import.meta.env?.VITE_BACKEND_URL || `${protocol}//${hostname}:3001`;
-        
-        // Convertir HTTP/HTTPS URL a WebSocket URL
-        return backendHost.replace(/^https?:/, wsProtocol);
-      }
-      
-      return 'ws://localhost:3001';
-    };
-
-    const wsUrl = getWebSocketURL();
-    console.log('🔌 Conectando WebSocket a:', wsUrl);
-    
-    try {
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        console.log('🔌 Conectado al WebSocket');
-        this.reconnectAttempts = 0;
-        
-        // Identificarse con el servidor
-        this.send({
-          type: 'IDENTIFY',
-          clientType: this.clientType ?? undefined,
-          advisorName: this.advisorName ?? undefined
-        });
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          this.handleMessage(message);
-        } catch (error) {
-          console.error('❌ Error procesando mensaje WebSocket:', error);
-        }
-      };
-
-      this.ws.onclose = () => {
-        console.log('🔌 WebSocket desconectado');
-        this.attemptReconnect();
-      };
-
-      this.ws.onerror = (error) => {
-        console.error('❌ Error en WebSocket:', error);
-      };
-
-    } catch (error) {
-      console.error('❌ Error conectando WebSocket:', error);
-      this.attemptReconnect();
-    }
+  // Conectar al WebSocket (DESACTIVADO - usar useSocket hook)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  connect(_clientType: 'GTR' | 'ASESOR', _advisorName?: string) {
+    // ⚠️ TEMPORALMENTE DESACTIVADO - Sistema migrado a Socket.io
+    // El nuevo sistema usa useSocket hook + SocketService en backend
+    console.warn('⚠️ [RealtimeService] Sistema WebSocket legacy desactivado.');
+    console.warn('⚠️ [RealtimeService] Usa el hook useSocket() para Socket.io');
   }
 
-  // Intentar reconexión
-  private attemptReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`🔄 Intentando reconectar... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      setTimeout(() => {
-        if (this.clientType) {
-          this.connect(this.clientType, this.advisorName || undefined);
-        }
-      }, 3000 * this.reconnectAttempts);
-    } else {
-      console.error('❌ Máximo de intentos de reconexión alcanzado');
-    }
+  // Intentar reconexión (DESACTIVADO - legacy code)
+  // private attemptReconnect() {
+  //   if (this.reconnectAttempts < this.maxReconnectAttempts) {
+  //     this.reconnectAttempts++;
+  //     console.log(`🔄 Intentando reconectar... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+  //     
+  //     setTimeout(() => {
+  //       if (this.clientType) {
+  //         this.connect(this.clientType, this.advisorName || undefined);
+  //       }
+  //     }, 3000 * this.reconnectAttempts);
+  //   } else {
+  //     console.error('❌ Máximo de intentos de reconexión alcanzado');
+  //   }
+  // }
+
+  // Manejar mensajes del servidor (DESACTIVADO - legacy code)
+  // private handleMessage(message: WebSocketMessage) {
+  //   console.log('📨 Mensaje recibido:', message);
+  //   
+  //   switch (message.type) {
+  //     case 'IDENTIFICATION_CONFIRMED':
+  //       console.log('✅ Identificación confirmada');
+  //       this.notify('CONNECTED', message);
+  //       break;
+  //     
+  //     case 'CLIENT_REASSIGNED':
+  //       console.log('🔄 Cliente reasignado:', message.data);
+  //       this.notify('CLIENT_REASSIGNED', message.data);
+  //       break;
+  //     
+  //     case 'NEW_CLIENT_ASSIGNED':
+  //       console.log('👤 Nuevo cliente asignado:', message.data);
+  //       this.notify('NEW_CLIENT', message.data);
+  //       break;
+  //     
+  //     case 'CLIENT_REASSIGNMENT_CONFIRMED':
+  //       console.log('✅ Reasignación confirmada');
+  //       this.notify('REASSIGNMENT_CONFIRMED', message.data);
+  //       break;
+  //     
+  //     case 'reasignacion de cliente':
+  //       console.log('📨 Evento de reasignación recibido:', message.data);
+  //       this.notify('reasignacion de cliente', message.data);
+  //       break;
+  //     
+  //     default:
+  //       console.log('📨 Evento:', message.type, 'Data:', message.data);
+  //       this.notify(message.type, message.data || message);
+  //   }
+  // }
+
+  // Enviar mensaje al servidor (DESACTIVADO - legacy code)
+  // private send(message: WebSocketMessage) {
+  //   if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+  //     this.ws.send(JSON.stringify(message));
+  //   } else {
+  //     console.warn('⚠️ WebSocket no está conectado');
+  //   }
+  // }
+
+  // Emitir evento de reasignación (DESACTIVADO - usar SocketService)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  emitClientReassigned(_data: ReassignmentData) {
+    console.warn('⚠️ [RealtimeService] emitClientReassigned() desactivado. Usa SocketService');
   }
 
-  // Manejar mensajes del servidor
-  private handleMessage(message: WebSocketMessage) {
-    console.log('📨 Mensaje recibido:', message);
-    
-    switch (message.type) {
-      case 'IDENTIFICATION_CONFIRMED':
-        console.log('✅ Identificación confirmada');
-        this.notify('CONNECTED', message);
-        break;
-      
-      case 'CLIENT_REASSIGNED':
-        console.log('🔄 Cliente reasignado:', message.data);
-        this.notify('CLIENT_REASSIGNED', message.data);
-        break;
-      
-      case 'NEW_CLIENT_ASSIGNED':
-        console.log('👤 Nuevo cliente asignado:', message.data);
-        this.notify('NEW_CLIENT', message.data);
-        break;
-      
-      case 'CLIENT_REASSIGNMENT_CONFIRMED':
-        console.log('✅ Reasignación confirmada');
-        this.notify('REASSIGNMENT_CONFIRMED', message.data);
-        break;
-      
-      // Manejar eventos específicos del backend
-      case 'reasignacion de cliente':
-        console.log('� Evento de reasignación recibido:', message.data);
-        this.notify('reasignacion de cliente', message.data);
-        break;
-      
-      default:
-        console.log('📨 Evento:', message.type, 'Data:', message.data);
-        // Notificar eventos genéricos por su tipo
-        this.notify(message.type, message.data || message);
-    }
-  }
-
-  // Enviar mensaje al servidor
-  private send(message: WebSocketMessage) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message));
-    } else {
-      console.warn('⚠️ WebSocket no está conectado');
-    }
-  }
-
-  // Emitir evento de reasignación
-  emitClientReassigned(data: ReassignmentData) {
-    console.log('📡 Enviando reasignación al servidor:', data);
-    this.send({
-      type: 'CLIENT_REASSIGNED',
-      payload: data
-    });
-  }
-
-  // Emitir evento de nuevo cliente
-  emitNewClient(data: NewClientData) {
-    console.log('📡 Enviando nuevo cliente al servidor:', data);
-    this.send({
-      type: 'NEW_CLIENT',
-      payload: data
-    });
+  // Emitir evento de nuevo cliente (DESACTIVADO - usar SocketService)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  emitNewClient(_data: NewClientData) {
+    console.warn('⚠️ [RealtimeService] emitNewClient() desactivado. Usa SocketService');
   }
 
   // Suscribirse a eventos
@@ -206,19 +137,19 @@ class RealtimeService {
     };
   }
 
-  // Notificar a todos los listeners
-  private notify(eventType: string, data: unknown) {
-    const callbacks = this.listeners.get(eventType);
-    if (callbacks) {
-      callbacks.forEach(callback => {
-        try {
-          callback(data);
-        } catch (error) {
-          console.error('❌ Error en callback:', error);
-        }
-      });
-    }
-  }
+  // Notificar a todos los listeners (DESACTIVADO - legacy code)
+  // private notify(eventType: string, data: unknown) {
+  //   const callbacks = this.listeners.get(eventType);
+  //   if (callbacks) {
+  //     callbacks.forEach(callback => {
+  //       try {
+  //         callback(data);
+  //       } catch (error) {
+  //         console.error('❌ Error en callback:', error);
+  //       }
+  //     });
+  //   }
+  // }
 
   // Desconectar
   disconnect() {

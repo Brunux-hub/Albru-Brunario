@@ -4,7 +4,10 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import AsesorSidebar from './AsesorSidebar.tsx';
 import AsesorResumen from './AsesorResumen.tsx';
 import AsesorClientesTable from './AsesorClientesTable.tsx';
-import RealtimeService from '../../services/RealtimeService';
+import AsesorGestionesDia from './AsesorGestionesDia.tsx';
+import AsesorHistorial from './AsesorHistorial.tsx';
+import { useSocket } from '../../hooks/useSocket';
+import { useClientes } from '../../context/AppContext';
 import type { AsesorClientesTableRef } from './AsesorClientesTable';
 const theme = createTheme({
   palette: {
@@ -21,12 +24,16 @@ const theme = createTheme({
 const AsesorPanel: React.FC = () => {
   const [notification, setNotification] = useState<string>('');
   const [showNotification, setShowNotification] = useState(false);
+  const [tabActual, setTabActual] = useState(0);
   const asesorClientesTableRef = useRef<AsesorClientesTableRef | null>(null);
-  const realtimeService = RealtimeService.getInstance();
+  const { socket, isConnected } = useSocket();
+  const { clientes } = useClientes();
 
   useEffect(() => {
-    // Obtener datos del asesor desde localStorage (compatibilidad con varias claves)
-    const rawUser = localStorage.getItem('userData') || localStorage.getItem('albru_user') || localStorage.getItem('albru_user');
+    if (!socket || !isConnected) return;
+
+    // Obtener datos del asesor desde localStorage
+    const rawUser = localStorage.getItem('userData') || localStorage.getItem('albru_user');
     let parsedUser: Record<string, unknown> | null = null;
     try {
       parsedUser = rawUser ? JSON.parse(rawUser) as Record<string, unknown> : null;
@@ -36,74 +43,148 @@ const AsesorPanel: React.FC = () => {
     }
 
     const asesorId = (parsedUser && (parsedUser['id'] ?? parsedUser['usuario_id'])) ?? null;
-  const asesorName = ((parsedUser && (parsedUser['nombre'] as string)) ?? localStorage.getItem('username')) || 'Asesor';
-
-    // Conectar al WebSocket como asesor usando preferentemente el id como identificador
+    const asesorName = ((parsedUser && (parsedUser['nombre'] as string)) ?? localStorage.getItem('username')) || 'Asesor';
     const identifyValue = asesorId ? String(asesorId) : asesorName;
-    if (!realtimeService.isConnected()) {
-      realtimeService.connect('ASESOR', identifyValue);
-    }
 
-    // Suscribirse a eventos de reasignación
-  const unsubscribeReassigned = realtimeService.subscribe('CLIENT_REASSIGNED', (data: unknown) => {
-  console.log('🔔 Asesor: Cliente reasignado recibido:', data);
+    console.log('🔌 Asesor: Socket.io conectado, uniéndose a sala Asesor:', identifyValue);
+    
+    // Unirse a la sala de asesor
+    socket.emit('join-asesor-room', { 
+      asesorId: asesorId, 
+      username: asesorName 
+    });
 
-  // Intentar obtener id y nombre del nuevo asesor desde el payload (con casting defensivo)
-  const payload = (data as Record<string, unknown>) || {};
-  const nuevo = (payload['nuevoAsesor'] as Record<string, unknown>) || {};
-  const nuevoId = (nuevo['usuario_id'] ?? nuevo['id']) ?? null;
-  const nuevoName = (nuevo['nombre'] ?? nuevo['username']) ?? null;
+    // Manejar eventos de reasignación
+    const handleClientReassigned = (data: unknown) => {
+      console.log('🔔 [ASESOR FRONTEND] ================================');
+      console.log('🔔 [ASESOR FRONTEND] Evento CLIENT_REASSIGNED recibido!');
+      console.log('🔔 [ASESOR FRONTEND] Payload completo:', JSON.stringify(data, null, 2));
+      console.log('🔔 [ASESOR FRONTEND] asesorId actual:', asesorId);
+      console.log('🔔 [ASESOR FRONTEND] asesorName actual:', asesorName);
 
-      // Verificar si este asesor recibió un nuevo cliente. Primero por id (más robusto), luego por nombre.
+      const payload = (data as Record<string, unknown>) || {};
+      const nuevo = (payload['nuevoAsesor'] as Record<string, unknown>) || {};
+      const nuevoId = (nuevo['usuario_id'] ?? nuevo['id']) ?? null;
+      const nuevoName = (nuevo['nombre'] ?? nuevo['username']) ?? null;
+
+      console.log('🔔 [ASESOR FRONTEND] nuevoAsesor extraído:', nuevo);
+      console.log('🔔 [ASESOR FRONTEND] nuevoId:', nuevoId, 'nuevoName:', nuevoName);
+
       const matchById = nuevoId !== null && asesorId !== null && Number(nuevoId) === Number(asesorId);
       const matchByName = nuevoName !== null && nuevoName === asesorName;
 
+      console.log('🔔 [ASESOR FRONTEND] matchById:', matchById, 'matchByName:', matchByName);
+
       if (matchById || matchByName) {
-  const clienteObj = payload['cliente'] as Record<string, unknown> | undefined;
-  const clienteNombre = clienteObj ? (clienteObj['nombre'] as string | undefined) : undefined;
-  setNotification(`¡Nuevo cliente asignado: ${clienteNombre ?? 'cliente'}!`);
+        console.log('✅ [ASESOR FRONTEND] ¡Match encontrado! Actualizando lista de clientes...');
+        
+        const clienteObj = payload['cliente'] as Record<string, unknown> | undefined;
+        const clienteNombre = clienteObj ? (clienteObj['nombre'] as string | undefined) : undefined;
+        setNotification(`¡Nuevo cliente asignado: ${clienteNombre ?? 'cliente'}!`);
         setShowNotification(true);
 
         // Actualizar la tabla de clientes
         if (asesorClientesTableRef.current && asesorClientesTableRef.current.refreshClientes) {
+          console.log('✅ [ASESOR FRONTEND] Llamando a refreshClientes()');
           asesorClientesTableRef.current.refreshClientes();
+        } else {
+          console.warn('⚠️ [ASESOR FRONTEND] refreshClientes() no disponible en la ref');
         }
+      } else {
+        console.log('ℹ️ [ASESOR FRONTEND] No match - evento no es para este asesor');
       }
-    });
+      console.log('🔔 [ASESOR FRONTEND] ================================');
+    };
 
-    // Suscribirse a actualizaciones de historial generales (reportes)
-    const unsubscribeHist = realtimeService.subscribe('HISTORIAL_UPDATED', () => {
-      // For simplicity, refrescamos la tabla de clientes del asesor ya que el reporte puede mostrar la gestión
+    // Manejar actualizaciones de historial
+    const handleHistorialUpdated = () => {
       if (asesorClientesTableRef.current && asesorClientesTableRef.current.refreshClientes) {
         asesorClientesTableRef.current.refreshClientes();
       }
-    });
-
-    // Limpiar al desmontar
-    return () => {
-      unsubscribeReassigned();
-      unsubscribeHist();
-      // No desconectar automáticamente para mantener la conexión
     };
-  }, [realtimeService]);
+
+    // Manejar cliente movido a GTR (wizard completado - desaparece de la lista del asesor)
+    const handleClientMovedToGTR = (data: unknown) => {
+      console.log('📋 [ASESOR FRONTEND] ================================');
+      console.log('📋 [ASESOR FRONTEND] Evento CLIENT_MOVED_TO_GTR recibido!');
+      console.log('📋 [ASESOR FRONTEND] Payload completo:', JSON.stringify(data, null, 2));
+      
+      const msg = data as Record<string, unknown>;
+      const clienteId = Number(msg['clienteId']);
+      
+      console.log('📋 [ASESOR FRONTEND] clienteId extraído:', clienteId);
+      
+      if (clienteId) {
+        console.log('✅ [ASESOR FRONTEND] Cliente gestionado - Refrescando lista para removerlo...');
+        
+        // Actualizar la tabla de clientes para que desaparezca el cliente gestionado
+        if (asesorClientesTableRef.current && asesorClientesTableRef.current.refreshClientes) {
+          console.log('✅ [ASESOR FRONTEND] Llamando a refreshClientes() para actualizar lista');
+          asesorClientesTableRef.current.refreshClientes();
+        } else {
+          console.warn('⚠️ [ASESOR FRONTEND] refreshClientes() no disponible en la ref');
+        }
+        
+        // Mostrar notificación de que el cliente fue gestionado
+        setNotification('Cliente movido a GTR - Gestión completada');
+        setShowNotification(true);
+      } else {
+        console.warn('⚠️ [ASESOR FRONTEND] clienteId inválido en CLIENT_MOVED_TO_GTR');
+      }
+      console.log('📋 [ASESOR FRONTEND] ================================');
+    };
+
+    // Registrar listeners
+    socket.on('CLIENT_REASSIGNED', handleClientReassigned);
+    socket.on('HISTORIAL_UPDATED', handleHistorialUpdated);
+    socket.on('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+
+    // Cleanup
+    return () => {
+      socket.off('CLIENT_REASSIGNED', handleClientReassigned);
+      socket.off('HISTORIAL_UPDATED', handleHistorialUpdated);
+      socket.off('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+    };
+  }, [socket, isConnected]);
 
   const handleCloseNotification = () => {
     setShowNotification(false);
   };
 
+  const handleChangeTab = (newTab: number) => {
+    setTabActual(newTab);
+  };
+
+  const getTitulo = () => {
+    switch (tabActual) {
+      case 0: return 'Mis Clientes Asignados';
+      case 1: return 'Gestiones del Día';
+      case 2: return 'Mi Historial';
+      default: return 'Panel del Asesor';
+    }
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <Box sx={{ display: 'flex', minHeight: '100vh', background: '#f7f9fb' }}>
-        <AsesorSidebar />
+        <AsesorSidebar tabActual={tabActual} onTabChange={handleChangeTab} />
         <Box sx={{ flex: 1, p: 3 }}>
-          <Typography variant="h5" fontWeight={700} mb={2}>
-            Mis Clientes Asignados
+          <Typography variant="h5" fontWeight={700} mb={3}>
+            {getTitulo()}
           </Typography>
-          
-          <AsesorResumen />
-          <Box mt={3}>
-            <AsesorClientesTable ref={asesorClientesTableRef} />
-          </Box>
+
+          {tabActual === 0 && (
+            <>
+              <AsesorResumen clientes={clientes} />
+              <Box mt={3}>
+                <AsesorClientesTable ref={asesorClientesTableRef} />
+              </Box>
+            </>
+          )}
+
+          {tabActual === 1 && <AsesorGestionesDia />}
+
+          {tabActual === 2 && <AsesorHistorial />}
         </Box>
       </Box>
 

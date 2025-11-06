@@ -32,6 +32,8 @@ export interface Cliente {
   historial?: Historial[];
   // Usamos fechaCreacion de forma consistente en las vistas
   fechaCreacion: string;
+  // Campo de fecha real de registro en BD
+  created_at?: string;
   comentarios?: string;
   // Campos adicionales del dashboard
   cliente?: string;
@@ -53,6 +55,10 @@ export interface Cliente {
   canal_adquisicion?: string;
   // Flag transitorio/durable que indica si el cliente está siendo gestionado
   ocupado?: boolean;
+  // Nuevos campos introducidos por el flujo de seguimiento / estatus comercial
+  seguimiento_status?: string | null;
+  estatus_comercial_categoria?: string | null;
+  estatus_comercial_subcategoria?: string | null;
 }
 
 // Tipos compartidos para componentes GTR

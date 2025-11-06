@@ -1,6 +1,22 @@
 const pool = require('../config/database');
 const webSocketService = require('../services/WebSocketService');
 
+// Helper: convertir fecha ISO/DATETIME a DATE (YYYY-MM-DD)
+const convertToDateOnly = (isoDate) => {
+  if (!isoDate) return null;
+  try {
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch (e) {
+    console.warn('convertToDateOnly failed for', isoDate, e && e.message);
+    return null;
+  }
+};
+
 // GET /api/clientes/telefono/:telefono
 const getClienteByTelefono = async (req, res) => {
   const { telefono } = req.params;
@@ -76,23 +92,17 @@ const getAllClientes = async (req, res) => {
     const [cols] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes'", [dbName]);
     const colSet = new Set(cols.map(c => c.COLUMN_NAME));
 
-    // Construir cláusula WHERE para excluir clientes ya gestionados
-    let whereClause = '';
-    if (colSet.has('estado')) {
-      whereClause = "WHERE (c.estado IS NULL OR c.estado != 'gestionado')";
-    } else if (colSet.has('wizard_data_json')) {
-      // Usar flag JSON fallback
-      whereClause = `WHERE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(COALESCE(c.wizard_data_json, JSON_OBJECT()), '$.moved_to_gtr')), 'false') != 'true'`;
-    }
+    // NO excluir clientes gestionados - GTR necesita ver el historial completo
+    // Anteriormente se excluían clientes con estado='gestionado', pero ahora
+    // el GTR debe poder ver todos los clientes incluyendo los ya gestionados
+    const whereClause = ''; // Sin filtro - mostrar todos los clientes
 
     const sql = `
       SELECT
         c.*,
-        COALESCE(u_direct.nombre, u_from_asesor.nombre) AS asesor_nombre
+        u.nombre AS asesor_nombre
       FROM clientes c
-      LEFT JOIN usuarios u_direct ON c.asesor_asignado = u_direct.id AND u_direct.tipo = 'asesor'
-      LEFT JOIN asesores a ON c.asesor_asignado = a.id
-      LEFT JOIN usuarios u_from_asesor ON a.usuario_id = u_from_asesor.id
+      LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       ${whereClause}
       ORDER BY c.created_at DESC
       LIMIT ?
@@ -101,6 +111,14 @@ const getAllClientes = async (req, res) => {
     const [rows] = await pool.query(sql, [limit]);
     
     console.log(`📋 Obteniendo ${rows.length} clientes desde la base de datos`);
+    
+    // Deshabilitar caché para evitar que el navegador use datos antiguos (304)
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     return res.json({ success: true, clientes: rows, total: rows.length });
   } catch (err) {
     console.error('Error getAllClientes', err);
@@ -115,11 +133,9 @@ const getClienteById = async (req, res) => {
   try {
     // Intentamos devolver también el nombre del asesor si la columna existe y está poblada
     const [rows] = await pool.query(`
-      SELECT c.*, COALESCE(u_direct.nombre, u_from_asesor.nombre) AS asesor_nombre
+      SELECT c.*, u.nombre AS asesor_nombre
       FROM clientes c
-      LEFT JOIN usuarios u_direct ON c.asesor_asignado = u_direct.id AND u_direct.tipo = 'asesor'
-      LEFT JOIN asesores a ON c.asesor_asignado = a.id
-      LEFT JOIN usuarios u_from_asesor ON a.usuario_id = u_from_asesor.id
+      LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       WHERE c.id = ?
       LIMIT 1
     `, [id]);
@@ -205,8 +221,9 @@ const createCliente = async (req, res) => {
       estado: 'nuevo',
       tipo_cliente_wizard: tipo_cliente_wizard || null,
       lead_score: lead_score || null,
-      telefono_registro: telefono_registro || null,
-      fecha_nacimiento: fecha_nacimiento || null,
+  telefono_registro: telefono_registro || null,
+  // Convertir fecha de nacimiento a DATE si viene en ISO/DATETIME
+  fecha_nacimiento: fecha_nacimiento ? convertToDateOnly(fecha_nacimiento) : null,
       dni_nombre_titular: dni_nombre_titular || null,
       parentesco_titular: parentesco_titular || null,
       telefono_referencia_wizard: telefono_referencia_wizard || null,
@@ -223,6 +240,8 @@ const createCliente = async (req, res) => {
       wizard_completado: wizard_completado ? 1 : 0,
       fecha_wizard_completado: wizard_completado ? new Date() : null,
       wizard_data_json: wizard_data_json ? JSON.stringify(wizard_data_json) : null
+      ,
+      estatus_wizard: req.body && req.body.estatus_wizard ? req.body.estatus_wizard : null
     };
 
     const insertCols = [];
@@ -278,11 +297,15 @@ const updateCliente = async (req, res) => {
     asesor_asignado, observaciones_asesor,
     
     // Campos específicos del wizard
-    tipo_cliente_wizard, lead_score, telefono_registro, fecha_nacimiento,
+    tipo_cliente_wizard, lead_score, coordenadas, tipo_documento, lugar_nacimiento,
+    telefono_registro, fecha_nacimiento, departamento, distrito, correo_electronico,
     dni_nombre_titular, parentesco_titular, telefono_referencia_wizard, telefono_grabacion_wizard,
     direccion_completa, numero_piso_wizard, tipo_plan, servicio_contratado, velocidad_contratada,
     precio_plan, dispositivos_adicionales_wizard, plataforma_digital_wizard,
-    pago_adelanto_instalacion_wizard, wizard_completado, wizard_data_json
+    pago_adelanto_instalacion_wizard, wizard_completado, wizard_data_json,
+    
+    // Nuevos campos: estatus comercial
+    estatus_comercial_categoria, estatus_comercial_subcategoria
   } = req.body;
 
   if (!id) {
@@ -294,8 +317,11 @@ const updateCliente = async (req, res) => {
 
   try {
     console.log('📋 Backend: Actualizando cliente ID:', id, 'con datos del wizard:', {
-      nombre, apellidos, telefono, tipo_cliente_wizard, lead_score, wizard_completado
+      nombre, apellidos, telefono, tipo_cliente_wizard, lead_score, wizard_completado,
+      estatus_comercial_categoria, estatus_comercial_subcategoria
     });
+
+    // Usar helper global convertToDateOnly definido al inicio del archivo
 
     // Obtener los datos actuales del cliente
     const [currentClient] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
@@ -347,26 +373,38 @@ const updateCliente = async (req, res) => {
       ingresos_mensuales: ingresos_mensuales !== undefined ? ingresos_mensuales : clienteActual.ingresos_mensuales,
       asesor_asignado: asesor_asignado !== undefined ? asesor_asignado : clienteActual.asesor_asignado,
       observaciones_asesor: observaciones_asesor !== undefined ? observaciones_asesor : clienteActual.observaciones_asesor,
-      // Campos del wizard
+      // Campos del wizard - Paso 1
       tipo_cliente_wizard: tipo_cliente_wizard !== undefined ? tipo_cliente_wizard : clienteActual.tipo_cliente_wizard,
       lead_score: lead_score !== undefined ? lead_score : clienteActual.lead_score,
+      coordenadas: coordenadas !== undefined ? coordenadas : clienteActual.coordenadas,
+      tipo_documento: tipo_documento !== undefined ? tipo_documento : clienteActual.tipo_documento,
+      // Campos del wizard - Paso 2
       telefono_registro: telefono_registro !== undefined ? telefono_registro : clienteActual.telefono_registro,
-      fecha_nacimiento: fecha_nacimiento !== undefined ? fecha_nacimiento : clienteActual.fecha_nacimiento,
+      fecha_nacimiento: fecha_nacimiento !== undefined ? convertToDateOnly(fecha_nacimiento) : clienteActual.fecha_nacimiento,
+      lugar_nacimiento: lugar_nacimiento !== undefined ? lugar_nacimiento : clienteActual.lugar_nacimiento,
+      departamento: departamento !== undefined ? departamento : clienteActual.departamento,
+      distrito: distrito !== undefined ? distrito : clienteActual.distrito,
+      correo_electronico: correo_electronico !== undefined ? correo_electronico : clienteActual.correo_electronico,
       dni_nombre_titular: dni_nombre_titular !== undefined ? dni_nombre_titular : clienteActual.dni_nombre_titular,
       parentesco_titular: parentesco_titular !== undefined ? parentesco_titular : clienteActual.parentesco_titular,
       telefono_referencia_wizard: telefono_referencia_wizard !== undefined ? telefono_referencia_wizard : clienteActual.telefono_referencia_wizard,
       telefono_grabacion_wizard: telefono_grabacion_wizard !== undefined ? telefono_grabacion_wizard : clienteActual.telefono_grabacion_wizard,
       direccion_completa: direccion_completa !== undefined ? direccion_completa : clienteActual.direccion_completa,
       numero_piso_wizard: numero_piso_wizard !== undefined ? numero_piso_wizard : clienteActual.numero_piso_wizard,
+      // Campos del wizard - Paso 3
       tipo_plan: tipo_plan !== undefined ? tipo_plan : clienteActual.tipo_plan,
       servicio_contratado: servicio_contratado !== undefined ? servicio_contratado : clienteActual.servicio_contratado,
       velocidad_contratada: velocidad_contratada !== undefined ? velocidad_contratada : clienteActual.velocidad_contratada,
       precio_plan: precio_plan !== undefined ? precio_plan : clienteActual.precio_plan,
+      // Campos del wizard - Paso 4
       dispositivos_adicionales_wizard: dispositivos_adicionales_wizard !== undefined ? dispositivos_adicionales_wizard : clienteActual.dispositivos_adicionales_wizard,
       plataforma_digital_wizard: plataforma_digital_wizard !== undefined ? plataforma_digital_wizard : clienteActual.plataforma_digital_wizard,
       pago_adelanto_instalacion_wizard: pago_adelanto_instalacion_wizard !== undefined ? pago_adelanto_instalacion_wizard : clienteActual.pago_adelanto_instalacion_wizard,
       wizard_completado: wizard_completado !== undefined ? (wizard_completado ? 1 : 0) : clienteActual.wizard_completado,
-      wizard_data_json: wizard_data_json !== undefined ? (wizard_data_json ? JSON.stringify(wizard_data_json) : null) : (clienteActual.wizard_data_json ? (typeof clienteActual.wizard_data_json === 'string' ? clienteActual.wizard_data_json : JSON.stringify(clienteActual.wizard_data_json)) : null)
+      wizard_data_json: wizard_data_json !== undefined ? (wizard_data_json ? JSON.stringify(wizard_data_json) : null) : (clienteActual.wizard_data_json ? (typeof clienteActual.wizard_data_json === 'string' ? clienteActual.wizard_data_json : JSON.stringify(clienteActual.wizard_data_json)) : null),
+      // Nuevos campos: estatus comercial
+      estatus_comercial_categoria: estatus_comercial_categoria !== undefined ? estatus_comercial_categoria : clienteActual.estatus_comercial_categoria,
+      estatus_comercial_subcategoria: estatus_comercial_subcategoria !== undefined ? estatus_comercial_subcategoria : clienteActual.estatus_comercial_subcategoria
     };
 
     // Actualizar el cliente con datos combinados (construir UPDATE dinámico según columnas existentes)
@@ -402,8 +440,14 @@ const updateCliente = async (req, res) => {
     // Campos wizard
     pushIfExists('tipo_cliente_wizard', datosActualizados.tipo_cliente_wizard);
     pushIfExists('lead_score', datosActualizados.lead_score);
+    pushIfExists('coordenadas', datosActualizados.coordenadas);
+    pushIfExists('tipo_documento', datosActualizados.tipo_documento);
     pushIfExists('telefono_registro', datosActualizados.telefono_registro);
     pushIfExists('fecha_nacimiento', datosActualizados.fecha_nacimiento);
+    pushIfExists('lugar_nacimiento', datosActualizados.lugar_nacimiento);
+    pushIfExists('departamento', datosActualizados.departamento);
+    pushIfExists('distrito', datosActualizados.distrito);
+    pushIfExists('correo_electronico', datosActualizados.correo_electronico);
     pushIfExists('dni_nombre_titular', datosActualizados.dni_nombre_titular);
     pushIfExists('parentesco_titular', datosActualizados.parentesco_titular);
     pushIfExists('telefono_referencia_wizard', datosActualizados.telefono_referencia_wizard);
@@ -419,6 +463,11 @@ const updateCliente = async (req, res) => {
     pushIfExists('pago_adelanto_instalacion_wizard', datosActualizados.pago_adelanto_instalacion_wizard);
     pushIfExists('wizard_completado', datosActualizados.wizard_completado);
     pushIfExists('wizard_data_json', datosActualizados.wizard_data_json);
+    pushIfExists('estatus_wizard', datosActualizados.estatus_wizard);
+    
+    // Campos estatus comercial
+    pushIfExists('estatus_comercial_categoria', datosActualizados.estatus_comercial_categoria);
+    pushIfExists('estatus_comercial_subcategoria', datosActualizados.estatus_comercial_subcategoria);
 
     // Siempre actualizar updated_at si la columna existe
     if (colSet.has('updated_at')) {
@@ -431,6 +480,80 @@ const updateCliente = async (req, res) => {
       await pool.query(updateSql, values);
     }
 
+    // 🔥 NOTIFICACIÓN TIEMPO REAL: Estatus comercial actualizado
+    if (estatus_comercial_categoria !== undefined || estatus_comercial_subcategoria !== undefined) {
+      try {
+        // Obtener nombre del asesor actual para el evento WebSocket
+        let asesorNombre = null;
+        let asesorId = null;
+        if (clienteActual.asesor_asignado) {
+          try {
+            const [asesorRows] = await pool.query(
+              `SELECT u.id, u.nombre AS nombre
+               FROM usuarios u
+               WHERE u.id = ? AND u.tipo = 'asesor' LIMIT 1`,
+              [clienteActual.asesor_asignado]
+            );
+            if (asesorRows && asesorRows.length > 0) {
+              asesorId = asesorRows[0].id;
+              asesorNombre = asesorRows[0].nombre;
+            }
+          } catch (e) {
+            console.warn('No se pudo obtener nombre del asesor para notificación:', e.message);
+          }
+        }
+
+        // 📝 REGISTRAR CAMBIO EN HISTORIAL si la categoría o subcategoría cambió
+        const categoriaAnterior = clienteActual.estatus_comercial_categoria;
+        const subcategoriaAnterior = clienteActual.estatus_comercial_subcategoria;
+        const categoriaNueva = datosActualizados.estatus_comercial_categoria;
+        const subcategoriaNueva = datosActualizados.estatus_comercial_subcategoria;
+
+        const hubocambio = (
+          (categoriaAnterior !== categoriaNueva && categoriaNueva !== undefined) ||
+          (subcategoriaAnterior !== subcategoriaNueva && subcategoriaNueva !== undefined)
+        );
+
+        if (hubocambio && asesorId) {
+          try {
+            const descripcionAnterior = categoriaAnterior 
+              ? `${categoriaAnterior}${subcategoriaAnterior ? ' → ' + subcategoriaAnterior : ''}`
+              : 'Sin estatus';
+            const descripcionNueva = categoriaNueva 
+              ? `${categoriaNueva}${subcategoriaNueva ? ' → ' + subcategoriaNueva : ''}`
+              : 'Sin estatus';
+
+            await pool.query(
+              'INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)',
+              [
+                id,
+                asesorId,
+                'cambio_estatus',
+                `Cambio de estatus: ${descripcionAnterior} → ${descripcionNueva}`,
+                categoriaNueva || null
+              ]
+            );
+            console.log('✅ Historial: Cambio de estatus comercial registrado para cliente', id);
+          } catch (histErr) {
+            console.warn('⚠️ Error registrando cambio de estatus en historial:', histErr.message);
+          }
+        }
+
+        // Emitir evento WebSocket a todos los clientes conectados (GTR + Asesores)
+        webSocketService.notifyAll('CLIENT_STATUS_UPDATED', {
+          clienteId: id,
+          estatus_comercial_categoria: datosActualizados.estatus_comercial_categoria,
+          estatus_comercial_subcategoria: datosActualizados.estatus_comercial_subcategoria,
+          asesor: asesorNombre,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log('📡 WebSocket: CLIENT_STATUS_UPDATED emitido para cliente', id);
+      } catch (wsError) {
+        console.warn('⚠️ Error emitiendo evento WebSocket CLIENT_STATUS_UPDATED:', wsError.message);
+      }
+    }
+
     // Si la gestión indica que el cliente debe moverse a GTR (por ejemplo
     // wizard_completado = true) entonces limpiar el asesor asignado y marcar
     // el estado como 'gestionado' para que desaparezca del panel de asesor y
@@ -439,17 +562,26 @@ const updateCliente = async (req, res) => {
     const moveToGtrFlag = (datosActualizados.wizard_completado && Number(datosActualizados.wizard_completado) === 1) || (req.body && (req.body.moveToGtr === true || req.body.moveToGtr === 'true'));
 
     // Si se requiere mover a GTR, aplicar una actualización explícita y atómica
-    // para limpiar asesor_asignado y marcar estado, evitando problemas con
-    // la construcción dinámica previa.
+    // para marcar estado como 'gestionado', evitando problemas con la construcción dinámica previa.
+    // NOTA: NO limpiamos asesor_asignado para mantener el registro de quién gestionó al cliente
     if (moveToGtrFlag) {
       try {
         const updates = [];
         const params = [];
-        if (colSet.has('asesor_asignado')) {
-          updates.push('asesor_asignado = NULL');
-        }
+        // COMENTADO: No limpiar asesor_asignado para que aparezca en validaciones
+        // if (colSet.has('asesor_asignado')) {
+        //   updates.push('asesor_asignado = NULL');
+        // }
         if (colSet.has('estado')) {
           updates.push("estado = 'gestionado'");
+        }
+        // Marcar seguimiento_status como 'gestionado' cuando se completa el wizard
+        if (colSet.has('seguimiento_status')) {
+          updates.push("seguimiento_status = 'gestionado'");
+        }
+        // ✨ NUEVO: Actualizar fecha_wizard_completado cuando se completa el wizard
+        if (colSet.has('fecha_wizard_completado')) {
+          updates.push('fecha_wizard_completado = NOW()');
         }
         if (colSet.has('updated_at')) {
           updates.push('updated_at = NOW()');
@@ -475,14 +607,37 @@ const updateCliente = async (req, res) => {
 
     // Registrar en historial_cliente que se realizó una gestión (si la tabla existe)
     try {
-      const usuarioId = req.body && req.body.usuario_id ? req.body.usuario_id : null;
+      // Validar que el usuario proporcionado exista para evitar fallo por FK en historial_cliente
+      let usuarioId = req.body && req.body.usuario_id ? req.body.usuario_id : null;
+      if (usuarioId) {
+        try {
+          const [uCheck] = await pool.query('SELECT id FROM usuarios WHERE id = ? LIMIT 1', [usuarioId]);
+          if (!uCheck || uCheck.length === 0) {
+            // Usuario no existe, usar NULL para no violar FK
+            usuarioId = null;
+          }
+        } catch (ux) {
+          console.warn('Error comprobando usuario_id para historial (se ignorará):', ux.message);
+          usuarioId = null;
+        }
+      }
+      // Si usuarioId no existe o es null, intentar usar un usuario existente como fallback
+      if (!usuarioId) {
+        try {
+          const [anyUser] = await pool.query('SELECT id FROM usuarios LIMIT 1');
+          if (anyUser && anyUser.length > 0) {
+            usuarioId = anyUser[0].id;
+          }
+        } catch (ux2) {
+          console.warn('No se pudo obtener usuario fallback para historial:', ux2.message);
+        }
+      }
   // Evitar prefijos duplicados: si la observación ya contiene la palabra
   // 'Gestión' o 'Gestión:' no la volvemos a anteponer.
   let descripcion = datosActualizados.observaciones_asesor ? String(datosActualizados.observaciones_asesor) : null;
   if (!descripcion) descripcion = 'Gestión registrada desde interfaz de asesor';
       const estadoNuevo = datosActualizados.estado ? datosActualizados.estado : (moveToGtrFlag && colSet.has('estado') ? 'gestionado' : null);
       const accion = moveToGtrFlag ? 'moved_to_gtr' : 'gestion';
-
   await pool.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)', [id, usuarioId, accion, descripcion, estadoNuevo]);
 
 
@@ -512,7 +667,7 @@ const updateCliente = async (req, res) => {
         }
 
         try {
-          webSocketService.notifyAll('CLIENT_MOVED_TO_GTR', {
+          const payload = {
             clienteId: id,
             dni: clienteMin.dni,
             informe: descripcion,
@@ -520,8 +675,14 @@ const updateCliente = async (req, res) => {
             usuarioId: usuarioId,
             usuarioNombre: usuarioNombre,
             accion: accion
-          });
-        } catch (e) { console.warn('WS notify CLIENT_MOVED_TO_GTR failed', e.message); }
+          };
+          
+          console.log('🚀 [WIZARD COMPLETADO] Enviando evento CLIENT_MOVED_TO_GTR vía WebSocket:', JSON.stringify(payload, null, 2));
+          webSocketService.notifyAll('CLIENT_MOVED_TO_GTR', payload);
+          console.log('✅ [WIZARD COMPLETADO] Evento CLIENT_MOVED_TO_GTR enviado correctamente');
+        } catch (e) { 
+          console.error('❌ [WIZARD COMPLETADO] Error enviando evento CLIENT_MOVED_TO_GTR:', e.message); 
+        }
       } else {
         // Para otras gestiones notificamos el historial como antes
         try {
@@ -576,6 +737,7 @@ const getClientesByAsesor = async (req, res) => {
     `, [asesorId]);
 
     if (asesorInfo.length === 0) {
+      console.error(`❌ Asesor no encontrado con ID: ${asesorId}`);
       return res.status(404).json({
         success: false,
         message: 'Asesor no encontrado'
@@ -583,6 +745,7 @@ const getClientesByAsesor = async (req, res) => {
     }
 
     const asesorNombre = asesorInfo[0].asesor_nombre;
+    console.log(`✅ Asesor encontrado: ${asesorNombre} (ID: ${asesorId})`);
 
     // Construir SELECT dinámico según columnas realmente presentes en la tabla `clientes`
     const [cols] = await pool.query(`
@@ -601,7 +764,13 @@ const getClientesByAsesor = async (req, res) => {
       created_at: 'c.created_at',
       fecha_ultimo_contacto: 'c.fecha_ultimo_contacto',
       servicio_contratado: 'c.servicio_contratado',
-      leads_original_telefono: 'c.leads_original_telefono'
+      leads_original_telefono: 'c.leads_original_telefono',
+      seguimiento_status: 'c.seguimiento_status',
+      derivado_at: 'c.derivado_at',
+      opened_at: 'c.opened_at',
+      asesor_asignado: 'c.asesor_asignado',
+      estatus_comercial_categoria: 'c.estatus_comercial_categoria',
+      estatus_comercial_subcategoria: 'c.estatus_comercial_subcategoria'
     };
 
     const selectParts = [];
@@ -629,23 +798,48 @@ const getClientesByAsesor = async (req, res) => {
     if (colSet.has('leads_original_telefono')) selectParts.push(`${wanted.leads_original_telefono} AS leads_original_telefono`);
     else selectParts.push(`NULL AS leads_original_telefono`);
 
+    // CRÍTICO: Incluir seguimiento_status para que el frontend pueda mostrar el estado
+    if (colSet.has('seguimiento_status')) selectParts.push(`${wanted.seguimiento_status} AS seguimiento_status`);
+    else selectParts.push(`NULL AS seguimiento_status`);
+
+    if (colSet.has('derivado_at')) selectParts.push(`${wanted.derivado_at} AS derivado_at`);
+    else selectParts.push(`NULL AS derivado_at`);
+
+    if (colSet.has('opened_at')) selectParts.push(`${wanted.opened_at} AS opened_at`);
+    else selectParts.push(`NULL AS opened_at`);
+
+    if (colSet.has('asesor_asignado')) selectParts.push(`${wanted.asesor_asignado} AS asesor_asignado`);
+    else selectParts.push(`NULL AS asesor_asignado`);
+
+    // Agregar categoría y subcategoría para mostrar en el panel del asesor
+    if (colSet.has('estatus_comercial_categoria')) selectParts.push(`${wanted.estatus_comercial_categoria} AS estatus_comercial_categoria`);
+    else selectParts.push(`NULL AS estatus_comercial_categoria`);
+
+    if (colSet.has('estatus_comercial_subcategoria')) selectParts.push(`${wanted.estatus_comercial_subcategoria} AS estatus_comercial_subcategoria`);
+    else selectParts.push(`NULL AS estatus_comercial_subcategoria`);
+
     const selectClause = selectParts.join(',\n        ');
 
-  // Buscar clientes donde 'asesor_asignado' sea el id de usuario del asesor
-  // O donde 'asesor_asignado' sea el id de la tabla `asesores` que referencia a este usuario.
-      // Excluir clientes gestionados (si existe columna 'estado' o flag JSON)
-      let excludeClause = '';
-      if (colSet.has('estado')) {
-        excludeClause = "AND (c.estado IS NULL OR c.estado != 'gestionado')";
-      } else if (colSet.has('wizard_data_json')) {
-        excludeClause = `AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(COALESCE(c.wizard_data_json, JSON_OBJECT()), '$.moved_to_gtr')), 'false') != 'true'`;
-      }
+    // FILTRAR: Mostrar solo clientes que NO han completado el wizard
+    // Los clientes gestionados (wizard_completado = 1) van a "Gestiones del Día" o "Mi Historial"
+    
+    // asesor_asignado debe guardar siempre el usuario_id, no el asesor_id de tabla asesores
+    const sql = `SELECT
+        ${selectClause}
+      FROM clientes c
+      WHERE c.asesor_asignado = ?
+        AND (c.wizard_completado IS NULL OR c.wizard_completado = 0)
+      ORDER BY c.created_at DESC`;
+    
+    console.log(`🔍 [GET_CLIENTES_ASESOR] Ejecutando query con asesorId: ${asesorId}`);
+    console.log(`📋 [GET_CLIENTES_ASESOR] SQL: ${sql}`);
+    
+    const [clientes] = await pool.query(sql, [asesorId]);
 
-      const sql = `SELECT\n        ${selectClause}\n      FROM clientes c\n      WHERE (c.asesor_asignado = ? OR c.asesor_asignado IN (SELECT id FROM asesores WHERE usuario_id = ?)) ${excludeClause}\n      ORDER BY c.created_at DESC`;
-
-  const [clientes] = await pool.query(sql, [asesorId, asesorId]);
-
-    console.log(`✅ Encontrados ${clientes.length} clientes para asesor ${asesorNombre} (ID: ${asesorId})`);
+    console.log(`✅ [GET_CLIENTES_ASESOR] Encontrados ${clientes.length} clientes para asesor ${asesorId}`);
+    if (clientes.length > 0) {
+      console.log(`📝 [GET_CLIENTES_ASESOR] Primer cliente:`, JSON.stringify(clientes[0], null, 2));
+    }
 
     return res.json({
       success: true,
@@ -659,6 +853,93 @@ const getClientesByAsesor = async (req, res) => {
 
   } catch (err) {
     console.error('Error getClientesByAsesor:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: err.message
+    });
+  }
+};
+
+// Obtener historial de clientes gestionados por el asesor (wizard completado)
+const getHistorialByAsesor = async (req, res) => {
+  const asesorId = Number(req.params.asesorId);
+  
+  if (!asesorId) {
+    return res.status(400).json({
+      success: false,
+      message: 'asesorId es requerido'
+    });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT 
+        id,
+        nombre,
+        telefono,
+        dni,
+        estatus_comercial_categoria,
+        estatus_comercial_subcategoria,
+        fecha_wizard_completado,
+        wizard_completado
+       FROM clientes
+       WHERE wizard_completado = 1
+         AND JSON_SEARCH(historial_asesores, 'one', ?) IS NOT NULL
+       ORDER BY fecha_wizard_completado DESC`,
+      [asesorId.toString()]
+    );
+
+    return res.status(200).json({
+      success: true,
+      clientes: rows
+    });
+  } catch (err) {
+    console.error('Error getHistorialByAsesor:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: err.message
+    });
+  }
+};
+
+// Obtener gestiones del día actual del asesor (wizard completado HOY)
+const getGestionesDiaByAsesor = async (req, res) => {
+  const asesorId = Number(req.params.asesorId);
+  
+  if (!asesorId) {
+    return res.status(400).json({
+      success: false,
+      message: 'asesorId es requerido'
+    });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT 
+        id,
+        nombre,
+        telefono,
+        dni,
+        estatus_comercial_categoria,
+        estatus_comercial_subcategoria,
+        fecha_wizard_completado,
+        wizard_completado
+       FROM clientes
+       WHERE wizard_completado = 1
+         AND DATE(fecha_wizard_completado) = CURDATE()
+         AND JSON_SEARCH(historial_asesores, 'one', ?) IS NOT NULL
+       ORDER BY fecha_wizard_completado DESC`,
+      [asesorId.toString()]
+    );
+
+    return res.status(200).json({
+      success: true,
+      clientes: rows
+    });
+  } catch (err) {
+    console.error('Error getGestionesDiaByAsesor:', err);
     return res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -766,17 +1047,379 @@ const getLockStatus = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Error interno' });
   }
 };
-module.exports = {
-  getClienteByTelefono,
-  getClienteByDni,
-  searchClientes,
-  getAllClientes,
-  getClienteById,
-  createCliente,
-  updateCliente,
-  lockCliente,
-  unlockCliente,
-  heartbeatCliente,
-  getLockStatus,
-  getClientesByAsesor
+ 
+
+// POST /api/clientes/:id/open-wizard
+const openWizard = async (req, res) => {
+  const id = Number(req.params.id);
+  const { asesorId, lockToken } = req.body || {};
+  if (!id || !asesorId) return res.status(400).json({ success: false, message: 'clienteId y asesorId requeridos' });
+
+  try {
+    // Validar lock
+    const [locks] = await pool.query('SELECT locked_by, lock_expires_at, lock_token FROM cliente_locks WHERE cliente_id = ? LIMIT 1', [id]);
+    if (!locks || locks.length === 0) {
+      return res.status(409).json({ success: false, message: 'No existe lock para este cliente. Obtén un lock antes de abrir el wizard.' });
+    }
+    const lock = locks[0];
+    const now = new Date();
+    if (lock.lock_expires_at && new Date(lock.lock_expires_at) < now) {
+      return res.status(409).json({ success: false, message: 'Lock expirado' });
+    }
+    if (!(String(lock.lock_token) === String(lockToken) || Number(lock.locked_by) === Number(asesorId))) {
+      return res.status(403).json({ success: false, message: 'Token inválido o no eres el propietario del lock' });
+    }
+
+    // Marcar opened_at, last_activity y seguimiento_status = 'en_gestion'
+    await pool.query("UPDATE clientes SET seguimiento_status = 'en_gestion', opened_at = NOW(), last_activity = NOW(), updated_at = NOW() WHERE id = ?", [id]);
+
+    // Insertar en historial_estados si existe
+    try {
+      await pool.query('INSERT INTO historial_estados (cliente_id, usuario_id, tipo, estado_anterior, estado_nuevo, comentarios) VALUES (?, ?, ?, ?, ?, ?)', [id, asesorId, 'asesor', 'derivado', 'en_gestion', 'Asesor abrió el wizard y pasó a En Gestión']);
+    } catch (e) { console.warn('No se pudo insertar en historial_estados (openWizard):', e.message); }
+
+    // Insertar en historial_cliente
+    try {
+      await pool.query('INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)', [id, asesorId, 'en_gestion', 'Asesor abrió el wizard (marcado En Gestión)', 'en_gestion']);
+    } catch (e) { console.warn('No se pudo insertar en historial_cliente (openWizard):', e.message); }
+
+    // Notificar por websocket
+    try { webSocketService.notifyAll('CLIENT_IN_GESTION', { clienteId: id, asesorId, timestamp: new Date().toISOString() }); } catch (e) { console.warn('WS notify CLIENT_IN_GESTION failed', e.message); }
+
+    const [updatedRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+    return res.json({ success: true, cliente: updatedRows[0] });
+  } catch (e) {
+    console.error('Error openWizard:', e);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
 };
+
+// POST /api/clientes/:id/complete-wizard
+// Marca el cliente como "terminado" cuando el asesor completa la gestión
+const completeWizard = async (req, res) => {
+  const id = Number(req.params.id);
+  const { asesorId } = req.body || {};
+  if (!id || !asesorId) return res.status(400).json({ success: false, message: 'clienteId y asesorId requeridos' });
+
+  try {
+    // Verificar que el cliente existe y está en gestión
+    const [rows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
+    }
+
+    const cliente = rows[0];
+    
+    // Solo permitir completar si está en gestión
+    if (cliente.seguimiento_status !== 'en_gestion') {
+      return res.status(400).json({ 
+        success: false, 
+        message: `No se puede completar. Estado actual: ${cliente.seguimiento_status}` 
+      });
+    }
+
+    // Actualizar a estado "gestionado" (para que GTR lo vea)
+    // Y agregar el asesor al historial_asesores JSON array
+    await pool.query(`
+      UPDATE clientes 
+      SET 
+        seguimiento_status = 'gestionado',
+        asesor_asignado = NULL,
+        last_activity = NULL,
+        wizard_completado = 1,
+        fecha_wizard_completado = NOW(),
+        historial_asesores = JSON_ARRAY_APPEND(
+          COALESCE(historial_asesores, '[]'), 
+          '$', 
+          ?
+        ),
+        updated_at = NOW()
+      WHERE id = ?
+    `, [asesorId.toString(), id]);
+
+    // Insertar en historial_estados
+    try {
+      await pool.query(
+        'INSERT INTO historial_estados (cliente_id, usuario_id, tipo, estado_anterior, estado_nuevo, comentarios) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, asesorId, 'asesor', 'en_gestion', 'gestionado', 'Asesor completó la gestión del wizard']
+      );
+    } catch (e) { 
+      console.warn('No se pudo insertar en historial_estados (completeWizard):', e.message); 
+    }
+
+    // Insertar en historial_cliente
+    try {
+      await pool.query(
+        'INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)',
+        [id, asesorId, 'gestionado', 'Asesor completó la gestión (wizard finalizado)', 'gestionado']
+      );
+    } catch (e) { 
+      console.warn('No se pudo insertar en historial_cliente (completeWizard):', e.message); 
+    }
+
+    // Notificar por WebSocket
+    try {
+      webSocketService.notifyAll('CLIENT_COMPLETED', { 
+        clienteId: id, 
+        asesorId, 
+        timestamp: new Date().toISOString() 
+      });
+    } catch (e) { 
+      console.warn('WS notify CLIENT_COMPLETED failed', e.message); 
+    }
+
+    const [updatedRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+    return res.json({ success: true, cliente: updatedRows[0] });
+  } catch (e) {
+    console.error('Error completeWizard:', e);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
+// POST /api/clientes/reasignar
+const reasignarCliente = async (req, res) => {
+  const { clienteId, nuevoAsesorId, gtrId, comentario } = req.body || {};
+
+  console.log('🎯 Backend: Reasignación solicitada. Payload recibido:', JSON.stringify(req.body, null, 2));
+
+  // Validaciones
+  if (!clienteId) {
+    console.error('❌ Backend: clienteId faltante');
+    return res.status(400).json({ 
+      success: false, 
+      message: 'clienteId es requerido',
+      received: { clienteId, nuevoAsesorId, gtrId }
+    });
+  }
+
+  if (!nuevoAsesorId) {
+    console.error('❌ Backend: nuevoAsesorId faltante');
+    return res.status(400).json({ 
+      success: false, 
+      message: 'nuevoAsesorId es requerido',
+      received: { clienteId, nuevoAsesorId, gtrId }
+    });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Verificar qué columnas existen
+    const dbName = process.env.DB_NAME || 'albru';
+    const [colEstado] = await connection.query(
+      "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes' AND COLUMN_NAME = 'estado' LIMIT 1", 
+      [dbName]
+    );
+
+    // Construir SELECT dinámico
+    let selectCols = ['id', 'nombre', 'telefono', 'asesor_asignado'];
+    if (colEstado && colEstado.length > 0) selectCols.push('estado');
+
+    const selectSql = `SELECT ${selectCols.join(', ')} FROM clientes WHERE id = ?`;
+    const [clienteRows] = await connection.query(selectSql, [clienteId]);
+    
+    if (!clienteRows || clienteRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado' });
+    }
+
+    const cliente = clienteRows[0];
+    const antiguoAsesorId = cliente.asesor_asignado;
+
+    // Obtener usuario_id del nuevo asesor
+    const [nuevoAsesorData] = await connection.query(
+      'SELECT usuario_id FROM asesores WHERE id = ?', 
+      [nuevoAsesorId]
+    );
+    
+    if (!nuevoAsesorData || nuevoAsesorData.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: 'Asesor no encontrado' });
+    }
+    
+    const nuevoUsuarioId = nuevoAsesorData[0].usuario_id;
+
+    // Actualizar cliente
+    await connection.query(
+      'UPDATE clientes SET asesor_asignado = ?, seguimiento_status = ?, derivado_at = NOW(), updated_at = NOW() WHERE id = ?', 
+      [nuevoUsuarioId, 'derivado', clienteId]
+    );
+
+    // Registrar en historial
+    try {
+      const descripcionHist = comentario ? `${comentario} | nuevo_asesor_id:${nuevoAsesorId}` : `Reasignado a asesor ${nuevoAsesorId}`;
+      const estadoNuevo = cliente.estado || null;
+      await connection.query(
+        'INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)', 
+        [clienteId, gtrId || null, 'reasignado_asesor', descripcionHist, estadoNuevo]
+      );
+    } catch (e) {
+      console.warn('No se pudo insertar en historial_cliente:', e.message);
+    }
+
+    // Actualizar contadores
+    if (antiguoAsesorId) {
+      await connection.query(
+        'UPDATE asesores SET clientes_asignados = GREATEST(IFNULL(clientes_asignados,0) - 1,0), updated_at = CURRENT_TIMESTAMP WHERE usuario_id = ?', 
+        [antiguoAsesorId]
+      );
+    }
+    await connection.query(
+      'UPDATE asesores SET clientes_asignados = IFNULL(clientes_asignados,0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', 
+      [nuevoAsesorId]
+    );
+
+    // Obtener datos del nuevo asesor
+    const [asesorRows] = await connection.query(
+      'SELECT a.id, u.nombre, u.id as usuario_id FROM asesores a JOIN usuarios u ON a.usuario_id = u.id WHERE a.id = ?', 
+      [nuevoAsesorId]
+    );
+
+    await connection.commit();
+
+    res.json({
+      success: true,
+      message: 'Cliente reasignado exitosamente',
+      data: {
+        cliente: {
+          id: cliente.id,
+          nombre: cliente.nombre,
+          telefono: cliente.telefono,
+          estado: cliente.estado || null
+        },
+        asesor: asesorRows[0] || { id: nuevoAsesorId },
+        fecha_reasignacion: new Date()
+      }
+    });
+
+    // Notificar por WebSocket
+    try {
+      const payload = {
+        cliente: {
+          id: cliente.id,
+          nombre: cliente.nombre,
+          telefono: cliente.telefono,
+          estado: cliente.estado || null,
+          seguimiento_status: 'derivado'
+        },
+        nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
+        antiguoAsesor: { id: antiguoAsesorId },
+        fecha_reasignacion: new Date(),
+        clienteId: clienteId,
+        nuevoAsesorId: nuevoAsesorId
+      };
+      
+      console.log('🚀 [REASIGNAR] Enviando evento CLIENT_REASSIGNED vía WebSocket:', JSON.stringify(payload, null, 2));
+      webSocketService.notifyAll('CLIENT_REASSIGNED', payload);
+      console.log('✅ [REASIGNAR] Evento CLIENT_REASSIGNED enviado correctamente');
+    } catch (e) {
+      console.error('❌ [REASIGNAR] Error enviando evento CLIENT_REASSIGNED:', e.message);
+    }
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error en reasignación:', error);
+    return res.status(500).json({ success: false, message: 'Error al reasignar cliente' });
+  } finally {
+    connection.release();
+  }
+};
+
+// GET /api/clientes/gestionados-hoy - Obtener clientes gestionados del día con categoría y subcategoría
+const getClientesGestionadosHoy = async (req, res) => {
+  try {
+    // Obtener clientes que fueron marcados como "gestionado" hoy (wizard completado)
+    const sql = `
+      SELECT 
+        c.id,
+        c.nombre,
+        c.telefono,
+        c.leads_original_telefono,
+        c.dni,
+        c.campana,
+        c.canal,
+        c.sala_asignada,
+        c.compania,
+        c.estatus_comercial_categoria,
+        c.estatus_comercial_subcategoria,
+        c.fecha_wizard_completado,
+        c.seguimiento_status,
+        c.asesor_asignado,
+        c.fecha_registro,
+        u.nombre AS asesor_nombre
+      FROM clientes c
+      LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
+      WHERE c.seguimiento_status = 'gestionado'
+        AND DATE(c.fecha_wizard_completado) = CURDATE()
+      ORDER BY c.fecha_wizard_completado DESC
+    `;
+
+    const [rows] = await pool.query(sql);
+    
+    console.log(`📋 Obteniendo ${rows.length} clientes gestionados del día`);
+    
+    return res.json({ 
+      success: true, 
+      clientes: rows, 
+      total: rows.length 
+    });
+  } catch (err) {
+    console.error('Error getClientesGestionadosHoy', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
+// GET /api/clientes/preventa-cerrada - Clientes con categoría "Preventa completa" o "Preventa" para validaciones
+const getClientesPreventaCerrada = async (req, res) => {
+  try {
+    const limit = Math.min(1000, Number(req.query.limit) || 100);
+    
+    const query = `
+      SELECT 
+        c.*,
+        u.nombre AS asesor_nombre
+      FROM clientes c
+      LEFT JOIN usuarios u ON c.asesor_asignado = u.id
+      WHERE c.estatus_comercial_categoria IN ('Preventa completa', 'Preventa')
+        AND c.wizard_completado = 1
+      ORDER BY c.fecha_wizard_completado DESC, c.id DESC
+      LIMIT ?
+    `;
+    
+    const [clientes] = await pool.query(query, [limit]);
+    
+    console.log(`📊 Clientes con Preventa (completa o normal) y wizard completado: ${clientes.length}`);
+    
+    return res.json({
+      success: true,
+      clientes,
+      total: clientes.length
+    });
+  } catch (err) {
+    console.error('Error getClientesPreventaCerrada', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
+  module.exports = {
+    getClienteByTelefono,
+    getClienteByDni,
+    searchClientes,
+    getAllClientes,
+    getClienteById,
+    createCliente,
+    updateCliente,
+    lockCliente,
+    unlockCliente,
+    heartbeatCliente,
+    getLockStatus,
+    getClientesByAsesor,
+    getHistorialByAsesor,
+    getGestionesDiaByAsesor,
+    getClientesGestionadosHoy,
+    getClientesPreventaCerrada,
+    openWizard,
+    completeWizard,
+    reasignarCliente
+  };

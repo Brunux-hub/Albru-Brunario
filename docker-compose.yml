@@ -56,6 +56,25 @@ services:
       - "${FRONTEND_PORT:-5173}:80"
     depends_on:
       - backend
+  # Development frontend with Vite + HMR (bind-mounts source for fast edits)
+  frontend-dev:
+    image: node:20-alpine
+    container_name: albru-frontend-dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    working_dir: /app
+    volumes:
+      - ./:/app:delegated
+      - /app/node_modules
+    ports:
+      # Map to 5174 on the host to avoid conflict with the production frontend (which uses 5173->80)
+      - "5174:5173"
+    # Force dev dependencies to be installed for the dev container by setting NODE_ENV=development
+    # (the global .env sets NODE_ENV=production for other services). This installs vite and friends.
+    command: sh -c "NODE_ENV=development npm ci --silent --include=dev && npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      - backend
 
   adminer:
     image: adminer
@@ -65,5 +84,16 @@ services:
     ports:
       - "${ADMINER_PORT:-8080}:8080"
 
+  redis:
+    image: redis:7-alpine
+    container_name: albru-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_albru_2025}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
   db_data:
+  redis_data:

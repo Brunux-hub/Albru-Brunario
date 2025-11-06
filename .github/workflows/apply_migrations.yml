@@ -1,0 +1,62 @@
+name: Apply DB Migrations (secure CI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Optional label for this run (e.g. staging)'
+        required: false
+
+jobs:
+  apply-migrations:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: apply-migrations-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup PowerShell
+        uses: actions/setup-powershell@v2
+
+      - name: Install mysql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client
+
+      - name: Run apply_migrations.ps1
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
+          pwsh -Command "Write-Host 'Starting apply_migrations on runner'; $env:MYSQL_PWD='${{ secrets.DB_PASSWORD }}'; pwsh ./backend/scripts/apply_migrations.ps1 -DbHost $env:DB_HOST -DbPort $env:DB_PORT -DbUser $env:DB_USER -DbPassword $env:DB_PASSWORD -DbName $env:DB_NAME > migration_output.txt 2>&1; Write-Host 'apply_migrations finished'"
+
+      - name: Upload migration log
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-output
+          path: migration_output.txt
+
+      - name: Run verify_migrations.ps1
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
+          pwsh -Command "Write-Host 'Starting verify_migrations on runner'; $env:MYSQL_PWD='${{ secrets.DB_PASSWORD }}'; pwsh ./backend/scripts/verify_migrations.ps1 -DbHost $env:DB_HOST -DbPort $env:DB_PORT -DbUser $env:DB_USER -DbPassword $env:DB_PASSWORD -DbName $env:DB_NAME > verify_output.txt 2>&1; Write-Host 'verify_migrations finished'"
+
+      - name: Upload verify log
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-output
+          path: verify_output.txt
+
+      - name: Emit summary
+        run: |
+          echo "Migration run finished. Download artifacts 'migration-output' and 'verify-output' from the workflow run to inspect logs." 
