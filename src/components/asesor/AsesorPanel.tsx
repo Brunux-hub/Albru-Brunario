@@ -26,25 +26,31 @@ const AsesorPanel: React.FC = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [tabActual, setTabActual] = useState(0);
   const asesorClientesTableRef = useRef<AsesorClientesTableRef | null>(null);
-  const { socket, isConnected } = useSocket();
   const { clientes } = useClientes();
+
+  // Obtener datos del asesor desde localStorage ANTES de useSocket
+  const rawUser = localStorage.getItem('userData') || localStorage.getItem('albru_user');
+  let parsedUser: Record<string, unknown> | null = null;
+  try {
+    parsedUser = rawUser ? JSON.parse(rawUser) as Record<string, unknown> : null;
+  } catch (error) {
+    console.warn('Error parsing stored userData for advisor identification:', error);
+    parsedUser = null;
+  }
+
+  const asesorId = (parsedUser && (parsedUser['id'] ?? parsedUser['usuario_id'])) ?? null;
+  const asesorName = ((parsedUser && (parsedUser['nombre'] as string)) ?? localStorage.getItem('username')) || 'Asesor';
+  const identifyValue = asesorId ? String(asesorId) : asesorName;
+
+  // Inicializar socket CON autenticación
+  const { socket, isConnected } = useSocket({
+    userId: asesorId ? Number(asesorId) : undefined,
+    role: 'asesor',
+    autoConnect: true
+  });
 
   useEffect(() => {
     if (!socket || !isConnected) return;
-
-    // Obtener datos del asesor desde localStorage
-    const rawUser = localStorage.getItem('userData') || localStorage.getItem('albru_user');
-    let parsedUser: Record<string, unknown> | null = null;
-    try {
-      parsedUser = rawUser ? JSON.parse(rawUser) as Record<string, unknown> : null;
-    } catch (error) {
-      console.warn('Error parsing stored userData for advisor identification:', error);
-      parsedUser = null;
-    }
-
-    const asesorId = (parsedUser && (parsedUser['id'] ?? parsedUser['usuario_id'])) ?? null;
-    const asesorName = ((parsedUser && (parsedUser['nombre'] as string)) ?? localStorage.getItem('username')) || 'Asesor';
-    const identifyValue = asesorId ? String(asesorId) : asesorName;
 
     console.log('🔌 Asesor: Socket.io conectado, uniéndose a sala Asesor:', identifyValue);
     

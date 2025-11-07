@@ -4,7 +4,31 @@
  * @module services/sessionApi
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Detecta dinámicamente la URL del backend
+const getAPIUrl = (): string => {
+  // Si existe VITE_API_URL, usarla
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Si existe VITE_BACKEND_URL, construir API_URL desde ella
+  if (import.meta.env.VITE_BACKEND_URL) {
+    return `${import.meta.env.VITE_BACKEND_URL}/api`;
+  }
+  
+  // Detección dinámica basada en window.location
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `${protocol}//${hostname}:3001/api`;
+    }
+  }
+  
+  // Fallback a localhost
+  return 'http://localhost:3001/api';
+};
+
+const API_URL = getAPIUrl();
 
 export interface SessionStartRequest {
   clienteId: number;

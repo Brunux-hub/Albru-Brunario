@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor, getHistorialByAsesor, getGestionesDiaByAsesor, getClientesGestionadosHoy, getClientesPreventaCerrada, openWizard, completeWizard, reasignarCliente } = require('../controllers/clientesController');
+const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor, getHistorialByAsesor, getGestionesDiaByAsesor, getClientesGestionadosHoy, getClientesGestionadosMes, getClientesPreventaCerrada, openWizard, completeWizard, reasignarCliente, notifyClienteOcupado } = require('../controllers/clientesController');
 const { lockCliente, unlockCliente, heartbeatCliente, getLockStatus } = require('../controllers/clientesController');
 const { updateEstatus } = require('../controllers/estatusController');
 const { activityTracker } = require('../middleware/activityTracker');
@@ -8,6 +8,7 @@ const { activityTracker } = require('../middleware/activityTracker');
 // Rutas POST
 router.post('/', createCliente);
 router.post('/reasignar', reasignarCliente);
+router.post('/notify-ocupado', notifyClienteOcupado);
 
 // Rutas PUT - con tracking de actividad
 router.put('/:id', activityTracker, updateCliente);
@@ -19,6 +20,7 @@ router.get('/asesor/:asesorId', getClientesByAsesor);
 router.get('/asesor/:asesorId/historial', getHistorialByAsesor);
 router.get('/asesor/:asesorId/gestiones-dia', getGestionesDiaByAsesor);
 router.get('/gestionados-hoy', getClientesGestionadosHoy);
+router.get('/gestionados-mes', getClientesGestionadosMes);
 router.get('/preventa-cerrada', getClientesPreventaCerrada);
 router.get('/search', searchClientes);
 

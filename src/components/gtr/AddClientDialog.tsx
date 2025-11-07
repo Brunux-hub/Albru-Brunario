@@ -29,6 +29,8 @@ interface NewClientData {
   nombre?: string;
   dni?: string;
   coordenadas?: string;
+  estatus_comercial_categoria?: string;
+  estatus_comercial_subcategoria?: string;
 }
 
 const AddClientDialog: React.FC<{ open: boolean; onClose: () => void; onSave: (data: NewClientData) => void }> = ({

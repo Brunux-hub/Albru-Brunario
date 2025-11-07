@@ -1,5 +1,12 @@
 // Configuración de URLs para el entorno
 function getNetworkIP(): string {
+  // Primero intenta usar variables de entorno
+  if (import.meta.env?.VITE_BACKEND_URL) {
+    const url = new URL(import.meta.env.VITE_BACKEND_URL);
+    console.log('✅ Usando hostname desde VITE_BACKEND_URL:', url.hostname);
+    return url.hostname;
+  }
+
   // En el navegador, obtenemos la IP desde el hostname actual
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
@@ -19,9 +26,9 @@ function getNetworkIP(): string {
 
 const NETWORK_IP = getNetworkIP();
 
-// URLs base del backend y frontend
-export const backendURL = `http://${NETWORK_IP}:3001`;
-export const frontendURL = `http://${NETWORK_IP}:5173`;
+// URLs base del backend y frontend (con soporte para variables de entorno)
+export const backendURL = import.meta.env?.VITE_BACKEND_URL || `http://${NETWORK_IP}:3001`;
+export const frontendURL = import.meta.env?.VITE_FRONTEND_URL || `http://${NETWORK_IP}:5173`;
 
 // Funciones auxiliares para construir URLs de API
 export const getAPIUrl = (endpoint: string): string => {

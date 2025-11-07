@@ -11,13 +11,8 @@ import {
   Paper,
   Divider,
   Avatar,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem
+  TextField
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 
 import type { ClientHistoryData, Cliente } from './types';
@@ -31,29 +26,21 @@ interface ClientHistoryDialogProps {
   onSave?: (updatedClient: Partial<Cliente> & { leads_original_telefono?: string }) => void;
 }
 
-const TIPIFICACIONES = [
-  '',
-  'Contactado',
-  'Interesado',
-  'No interesado',
-  'Cita agendada',
-  'Rechazado',
-  'Pendiente'
-];
-
 const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose, clientData, onSave }) => {
   const { user } = useApp();
   const isGtr = user?.tipo === 'gtr';
 
   const [form, setForm] = useState({
-    telefono: '',
+    leads_original_telefono: '',
     dni: '',
     email: '',
     campana: '',
     canal: '',
-    estado: '',
+    sala: '',
+    compania: '',
     nombre: '',
-    tipificacion_back: '' as string | null
+    coordenadas: '',
+    estado: ''
   });
   const [originalForm, setOriginalForm] = useState<typeof form | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -61,25 +48,29 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
   useEffect(() => {
     if (clientData) {
       setForm({
-        telefono: clientData.cliente || '',
+        leads_original_telefono: clientData.cliente || '',
         dni: clientData.dni || '',
         email: clientData.email || '',
         campana: clientData.campana || '',
         canal: clientData.canal || '',
-        estado: clientData.estado || '',
+        sala: '', // Se llenará desde el cliente
+        compania: '', // Se llenará desde el cliente
         nombre: clientData.nombre || '',
-        tipificacion_back: clientData.tipificacion_back || ''
+        coordenadas: '', // Se llenará desde el cliente
+        estado: clientData.estado || ''
       });
       // guardar snapshot para poder cancelar edición
       setOriginalForm({
-        telefono: clientData.cliente || '',
+        leads_original_telefono: clientData.cliente || '',
         dni: clientData.dni || '',
         email: clientData.email || '',
         campana: clientData.campana || '',
         canal: clientData.canal || '',
-        estado: clientData.estado || '',
+        sala: '',
+        compania: '',
         nombre: clientData.nombre || '',
-        tipificacion_back: clientData.tipificacion_back || ''
+        coordenadas: '',
+        estado: clientData.estado || ''
       });
       setIsEditing(false);
     }
@@ -87,7 +78,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
 
   if (!clientData) return null;
 
-  type FormKey = 'telefono' | 'dni' | 'email' | 'campana' | 'canal' | 'estado' | 'nombre' | 'tipificacion_back';
+  type FormKey = 'leads_original_telefono' | 'dni' | 'email' | 'campana' | 'canal' | 'sala' | 'compania' | 'nombre' | 'coordenadas' | 'estado';
   const handleChange = (key: FormKey, value: string | null) => setForm(f => ({ ...f, [key]: value }));
 
   const handleStartEdit = () => {
@@ -106,11 +97,12 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
       const payload: Record<string, unknown> = {
         nombre: form.nombre || undefined,
         dni: form.dni || undefined,
-        telefono: form.telefono || undefined,
+        leads_original_telefono: form.leads_original_telefono || undefined,
         campana: form.campana || undefined,
         canal_adquisicion: form.canal || undefined,
-        // tipificación back => backend column is tipificacion_back
-        tipificacion_back: form.tipificacion_back || null,
+        sala_asignada: form.sala || undefined,
+        compania: form.compania || undefined,
+        coordenadas: form.coordenadas || undefined,
         // estado column may be called 'estado' in DB, update via campo existente
         estado: form.estado || undefined
       };
@@ -196,8 +188,8 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
           
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
             <Box>
-              <Typography variant="caption" color="text.secondary">Teléfono</Typography>
-              <TextField fullWidth size="small" value={form.telefono} onChange={(e) => handleChange('telefono', e.target.value)} disabled={!isEditing || !isGtr} />
+              <Typography variant="caption" color="text.secondary">Lead (Teléfono)</Typography>
+              <TextField fullWidth size="small" value={form.leads_original_telefono} onChange={(e) => handleChange('leads_original_telefono', e.target.value)} disabled={!isEditing || !isGtr} />
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">DNI</Typography>
@@ -216,27 +208,34 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
               <TextField fullWidth size="small" value={form.canal} onChange={(e) => handleChange('canal', e.target.value)} disabled={!isEditing || !isGtr} />
             </Box>
             <Box>
+              <Typography variant="caption" color="text.secondary">Sala</Typography>
+              <TextField fullWidth size="small" value={form.sala} onChange={(e) => handleChange('sala', e.target.value)} disabled={!isEditing || !isGtr} />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Compañía</Typography>
+              <TextField fullWidth size="small" value={form.compania} onChange={(e) => handleChange('compania', e.target.value)} disabled={!isEditing || !isGtr} />
+            </Box>
+            <Box>
               <Typography variant="caption" color="text.secondary">Estado Actual</Typography>
               <TextField fullWidth size="small" value={form.estado} onChange={(e) => handleChange('estado', e.target.value)} disabled={!isEditing || !isGtr} />
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">Nombre completo</Typography>
+              <TextField fullWidth size="small" value={form.nombre} onChange={(e) => handleChange('nombre', e.target.value)} disabled={!isEditing || !isGtr} />
             </Box>
           </Box>
 
           <Box sx={{ mt: 2 }}>
-              <FormControl fullWidth>
-              <InputLabel id="tipificacion-back-label">Tipificación back</InputLabel>
-              <Select
-                labelId="tipificacion-back-label"
-                value={form.tipificacion_back || ''}
-                label="Tipificación back"
-                onChange={(e: SelectChangeEvent<string>) => handleChange('tipificacion_back', String(e.target.value))}
-                size="small"
-                disabled={!isEditing || !isGtr}
-              >
-                {TIPIFICACIONES.map(opt => (
-                  <MenuItem key={opt} value={opt}>{opt || <em>Sin tipificación</em>}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Typography variant="caption" color="text.secondary">Coordenadas</Typography>
+            <TextField 
+              fullWidth 
+              size="small" 
+              value={form.coordenadas} 
+              onChange={(e) => handleChange('coordenadas', e.target.value)} 
+              disabled={!isEditing || !isGtr}
+              multiline
+              rows={2}
+            />
           </Box>
         </Paper>
 

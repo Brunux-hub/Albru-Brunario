@@ -7,11 +7,26 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// En producción (puerto 5173), usar URL relativa para que pase por Nginx proxy
-// En desarrollo (puerto 5174), conectar directamente al backend
-const SOCKET_URL = window.location.port === '5173' 
-  ? window.location.origin  // Usar misma URL (pasará por Nginx proxy a /socket.io)
-  : (import.meta.env.VITE_WS_URL || 'http://localhost:3001');
+// Detecta la URL del backend dinámicamente basándose en window.location
+const getSocketURL = (): string => {
+  if (window.location.port === '5173') {
+    // Producción: usar Nginx proxy en el mismo origin
+    return window.location.origin;
+  }
+  
+  // Desarrollo (puerto 5174): conectar directamente al backend
+  // Si estamos accediendo por IP, usar esa IP para el backend
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    return `${protocol}//${hostname}:3001`;
+  }
+  
+  // Fallback a variable de entorno o localhost
+  return import.meta.env.VITE_WS_URL || 'http://localhost:3001';
+};
+
+const SOCKET_URL = getSocketURL();
 
 interface UseSocketOptions {
   userId?: number;

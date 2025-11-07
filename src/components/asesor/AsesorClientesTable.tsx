@@ -21,6 +21,7 @@ import GestionarClienteDialog from './GestionarClienteDialog';
 import { useClientes } from '../../context/AppContext';
 import type { Cliente } from '../../context/AppContext';
 import RealtimeService from '../../services/RealtimeService';
+import { getBackendUrl } from '../../utils/getBackendUrl';
 
 const estados = ['Todos los estados', 'En gestión', 'En seguimiento', 'Nuevo'];
 const gestiones = ['Todas las gestiones', 'En proceso', 'Derivado'];
@@ -244,7 +245,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
 
       // Notificar al backend (diagnóstico) para que podamos verificar en logs y
       // también enviar un evento WebSocket para que GTR reciba la señal en tiempo real.
-      const backendUrl = API_BASE || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const backendUrl = API_BASE || getBackendUrl();
       fetch(`${backendUrl}/api/clientes/notify-ocupado`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -267,7 +268,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
         }
 
         // Solicitar lock al backend
-        const backendUrl = API_BASE || import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = API_BASE || getBackendUrl();
         const lockRes = await fetch(`${backendUrl}/api/clientes/${cliente.id}/lock`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -384,9 +385,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
               <TableCell>Fecha Asignación</TableCell>
               <TableCell>Cliente</TableCell>
               <TableCell>Teléfono</TableCell>
-              <TableCell>DNI</TableCell>
-              <TableCell>Categoría</TableCell>
-              <TableCell>Subcategoría</TableCell>
+              <TableCell>Seguimiento</TableCell>
               <TableCell>Acciones</TableCell>
             
             </TableRow>
@@ -408,28 +407,20 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
                     cliente.telefono || '-'
                   )}
                 </TableCell>
-                <TableCell>{cliente.dni}</TableCell>
-                
                 <TableCell>
-                  {cliente.estatus_comercial_categoria ? (
+                  {cliente.seguimiento_status ? (
                     <Chip 
-                      label={cliente.estatus_comercial_categoria} 
-                      color="primary"
+                      label={cliente.seguimiento_status} 
+                      color={
+                        cliente.seguimiento_status === 'derivado' ? 'info' :
+                        cliente.seguimiento_status === 'en_gestion' ? 'warning' :
+                        cliente.seguimiento_status === 'gestionado' ? 'success' :
+                        'default'
+                      }
                       size="small"
                     />
                   ) : (
-                    <span style={{ color: '#9ca3af' }}>No especificado</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {cliente.estatus_comercial_subcategoria ? (
-                    <Chip 
-                      label={cliente.estatus_comercial_subcategoria} 
-                      color="secondary"
-                      size="small"
-                    />
-                  ) : (
-                    <span style={{ color: '#9ca3af' }}>No especificado</span>
+                    <span style={{ color: '#9ca3af' }}>Sin seguimiento</span>
                   )}
                 </TableCell>
                 <TableCell>

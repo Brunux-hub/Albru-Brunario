@@ -1,157 +1,262 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, List, ListItem, ListItemText, Divider, CircularProgress, Alert } from '@mui/material';
-import RealtimeService from '../../services/RealtimeService';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, CircularProgress, Chip } from '@mui/material';
+import { getBackendUrl } from '../../utils/getBackendUrl';
 
-interface HistorialItem {
+interface ClienteGestionado {
   id: number;
-  cliente_id: number;
-  usuario_id: number | null;
-  usuario_nombre?: string | null;
-  accion: string;
-  descripcion: string;
-  estado_nuevo?: string | null;
-  fecha_accion: string;
+  nombre: string;
+  telefono: string;
+  leads_original_telefono?: string;
+  dni?: string;
+  campana?: string;
+  canal?: string;
+  sala_asignada?: string;
+  compania?: string;
+  asesor_nombre: string;
+  asesor_asignado?: number;
+  estatus_comercial_categoria: string;
+  estatus_comercial_subcategoria: string;
+  fecha_wizard_completado: string;
+  seguimiento_status: string;
+  fecha_registro?: string;
 }
 
-type MovedItem = {
-  dni?: string | null;
-  informe?: string | null;
-  usuarioNombre?: string | null;
-  fecha?: string;
-  clienteId?: number;
-};
+// Todas las categorías disponibles
+const CATEGORIAS = [
+  'Seleccionar categoría',
+  'Lista negra',
+  'Preventa completa',
+  'Preventa',
+  'Sin facilidades',
+  'Retirado',
+  'Rechazado',
+  'Agendado',
+  'Seguimiento',
+  'Sin contacto'
+];
 
 const ReportesPanel: React.FC = () => {
-  const [historial, setHistorial] = useState<HistorialItem[]>([]);
-  const [movedToGtr, setMovedToGtr] = useState<MovedItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [clientesGestionadosMes, setClientesGestionadosMes] = useState<ClienteGestionado[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>('Todos');
 
   useEffect(() => {
-    const fetchHistorial = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await fetch('/api/historial');
-        const data = await res.json();
-        if (data && data.success) {
-          // Filtrar entradas relacionadas a reasignaciones para que no se muestren en el panel
-          const raw: HistorialItem[] = (data.historial as HistorialItem[]) || [];
-          const filtered = raw.filter((h: HistorialItem) => {
-            const acc = (h.accion || '').toString().toLowerCase();
-            // Excluir acciones que contengan 'reasign' o 'reasignado'
-            if (acc.includes('reasign')) return false;
-            return true;
-          });
-          setHistorial(filtered);
-        } else {
-          setError('No fue posible cargar el historial');
+        
+        const backendUrl = getBackendUrl();
+        
+        // Cargar clientes gestionados del MES
+        const respClientes = await fetch(`${backendUrl}/api/clientes/gestionados-mes`);
+        const jClientes = await respClientes.json();
+        if (jClientes && jClientes.success && Array.isArray(jClientes.clientes)) {
+          setClientesGestionadosMes(jClientes.clientes as ClienteGestionado[]);
         }
       } catch (e) {
-        console.error('Error cargando historial:', e);
-        setError('Error de conexión al cargar historial');
+        console.warn('Error cargando datos para Reportes Mensuales', e);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchHistorial();
-
-    const realtime = RealtimeService.getInstance();
-    if (!realtime.isConnected()) realtime.connect('GTR', localStorage.getItem('username') || 'GTR');
-    const unsubscribe = realtime.subscribe('HISTORIAL_UPDATED', () => {
-      // refetch and apply same filter to exclude reasignaciones
-      fetch('/api/historial').then(r => r.json()).then(j => {
-        if (j && j.success) {
-          const raw: HistorialItem[] = (j.historial as HistorialItem[]) || [];
-          const filtered = raw.filter((h: HistorialItem) => {
-            const acc = (h.accion || '').toString().toLowerCase();
-            if (acc.includes('reasign')) return false;
-            return true;
-          });
-          setHistorial(filtered);
-        }
-      }).catch(e => console.warn('Error refetch historial after WS', e));
-    });
-
-    const unsubMoved = realtime.subscribe('CLIENT_MOVED_TO_GTR', (payload: unknown) => {
-      try {
-        const msg = payload as Record<string, unknown>;
-
-        // Narrow and validate fields coming from unknown payload
-        const dniCandidate = msg['dni'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['dni']);
-        const dni = typeof dniCandidate === 'string' ? dniCandidate : null;
-
-        const informeCandidate = msg['informe'] ?? msg['descripcion'];
-        const informe = typeof informeCandidate === 'string' ? informeCandidate : null;
-
-        const usuarioNombreCandidate = msg['usuarioNombre'] ?? msg['usuario_nombre'];
-        const usuarioNombre = typeof usuarioNombreCandidate === 'string' ? usuarioNombreCandidate : null;
-
-        const fecha = typeof msg['fecha'] === 'string' ? msg['fecha'] : new Date().toISOString();
-
-        const clienteIdRaw = msg['clienteId'] ?? msg['cliente_id'];
-        const clienteId = typeof clienteIdRaw === 'number' ? clienteIdRaw : (typeof clienteIdRaw === 'string' && /^\\d+$/.test(clienteIdRaw) ? Number(clienteIdRaw) : undefined);
-
-        const newItem: MovedItem = { dni, informe, usuarioNombre, fecha, clienteId };
-
-        setMovedToGtr(prev => [newItem, ...(Array.isArray(prev) ? prev : [])].slice(0, 100));
-      } catch (e) {
-        console.warn('Error procesando CLIENT_MOVED_TO_GTR en ReportesPanel', e);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      try { unsubMoved(); } catch (e) { console.warn('Error unsubscribing CLIENT_MOVED_TO_GTR', e); }
-    };
+    fetchData();
   }, []);
+
+  // Calcular métricas
+  const totalGestiones = clientesGestionadosMes.length;
+  
+  // Clientes que van a Preventa (categorías: "Preventa" o "Preventa completa")
+  const clientesAPreventa = clientesGestionadosMes.filter(c => 
+    c.estatus_comercial_categoria === 'Preventa' || 
+    c.estatus_comercial_categoria === 'Preventa completa'
+  ).length;
+  
+  // Clientes que se quedan en GTR (todos los que NO van a preventa)
+  const clientesEnGTR = totalGestiones - clientesAPreventa;
+
+  // Contar por categoría
+  const contarPorCategoria = (categoria: string): number => {
+    return clientesGestionadosMes.filter(c => c.estatus_comercial_categoria === categoria).length;
+  };
+
+  // Filtrar clientes según categoría seleccionada
+  const clientesFiltrados = categoriaSeleccionada === 'Todos' 
+    ? clientesGestionadosMes 
+    : clientesGestionadosMes.filter(c => c.estatus_comercial_categoria === categoriaSeleccionada);
+
+  // Componente de botón de categoría
+  const CategoriaButton: React.FC<{ categoria: string }> = ({ categoria }) => {
+    const count = contarPorCategoria(categoria);
+    const isActive = categoriaSeleccionada === categoria;
+    
+    return (
+      <Paper 
+        sx={{ 
+          p: 2, 
+          textAlign: 'center',
+          cursor: 'pointer',
+          border: isActive ? '2px solid #1976d2' : '1px solid #e0e0e0',
+          bgcolor: isActive ? '#e3f2fd' : 'white',
+          transition: 'all 0.2s',
+          '&:hover': {
+            bgcolor: isActive ? '#e3f2fd' : '#f5f5f5',
+            transform: 'translateY(-2px)',
+            boxShadow: 2
+          }
+        }}
+        onClick={() => setCategoriaSeleccionada(categoria)}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          {categoria}
+        </Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: isActive ? '#1976d2' : 'text.primary' }}>
+          {count}
+        </Typography>
+        {isActive && (
+          <Typography variant="caption" sx={{ color: '#1976d2', fontWeight: 600 }}>
+            ✓ Activo
+          </Typography>
+        )}
+      </Paper>
+    );
+  };
 
   return (
     <Box>
-      <Typography variant="h5" mb={2}>Reportes - Historial de gestiones</Typography>
-      {loading && <Box display="flex" alignItems="center"><CircularProgress size={20} /><Typography sx={{ ml:1 }}>Cargando historial...</Typography></Box>}
-      {error && <Alert severity="error">{error}</Alert>}
+      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>Reportes - Gestiones Mensuales</Typography>
 
-      {!loading && !error && (
-        <Paper elevation={1} sx={{ maxHeight: '60vh', overflow: 'auto' }}>
-          {/* Sección de notificaciones en tiempo real: clientes movidos a GTR (payload reducido) */}
-          {movedToGtr.length > 0 && (
-            <Box sx={{ p: 2, borderBottom: '1px solid #e5e7eb', bgcolor: '#f8fafc' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Clientes gestionados (en tiempo real)</Typography>
-              <List>
-                {movedToGtr.map((m, idx) => (
-                  <React.Fragment key={`moved-${idx}-${m.clienteId || ''}`}>
-                    <ListItem>
-                      <ListItemText
-                        primary={`${m.dni || 'SIN DNI'} — ${m.usuarioNombre || 'DESCONOCIDO'}`}
-                        secondary={<>{m.informe}<br/><span style={{ fontSize: '0.8rem', color: '#6b7280' }}>{new Date(m.fecha || '').toLocaleString('es-PE')}</span></>}
-                      />
-                    </ListItem>
-                  </React.Fragment>
-                ))}
-              </List>
+      {loading ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <CircularProgress size={24} />
+          <Typography>Cargando datos del mes...</Typography>
+        </Box>
+      ) : (
+        <>
+          {/* 3 Cards superiores */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+              <Typography variant="subtitle2" color="text.secondary">Gestiones del mes</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: '#2e7d32' }}>{totalGestiones}</Typography>
+            </Paper>
+
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="subtitle2" color="text.secondary">Registrados en GTR</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: '#f57c00' }}>{clientesEnGTR}</Typography>
+            </Paper>
+
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+              <Typography variant="subtitle2" color="text.secondary">A Preventa</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: '#1976d2' }}>{clientesAPreventa}</Typography>
+            </Paper>
+          </Box>
+
+          {/* Desglose por Categoría Comercial */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              Desglose por Categoría Comercial (Click para filtrar)
+            </Typography>
+            
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 2, mb: 2 }}>
+              {CATEGORIAS.map(cat => (
+                <CategoriaButton key={cat} categoria={cat} />
+              ))}
+              
+              {/* Botón "Todos" */}
+              <Paper 
+                sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  border: categoriaSeleccionada === 'Todos' ? '2px solid #4caf50' : '1px solid #e0e0e0',
+                  bgcolor: categoriaSeleccionada === 'Todos' ? '#e8f5e9' : 'white',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    bgcolor: categoriaSeleccionada === 'Todos' ? '#e8f5e9' : '#f5f5f5',
+                    transform: 'translateY(-2px)',
+                    boxShadow: 2
+                  }
+                }}
+                onClick={() => setCategoriaSeleccionada('Todos')}
+              >
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Todos
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: categoriaSeleccionada === 'Todos' ? '#4caf50' : 'text.primary' }}>
+                  {totalGestiones}
+                </Typography>
+                {categoriaSeleccionada === 'Todos' && (
+                  <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 600 }}>
+                    ✓ Activo
+                  </Typography>
+                )}
+              </Paper>
             </Box>
-          )}
-          <List>
-            {historial.map((h) => (
-              <React.Fragment key={h.id}>
-                <ListItem alignItems="flex-start">
-                  <ListItemText
-                    primary={`${h.accion} — cliente ${h.cliente_id} — usuario: ${h.usuario_nombre || h.usuario_id || 'N/A'}`}
-                    secondary={<>
-                      <Typography component="span" variant="body2" color="text.primary">{new Date(h.fecha_accion).toLocaleString('es-PE')}</Typography>
-                      {' — '}{h.descripcion}
-                    </>}
-                  />
-                </ListItem>
-                <Divider component="li" />
-              </React.Fragment>
-            ))}
-            {historial.length === 0 && (
-              <ListItem><ListItemText primary="No hay gestiones registradas." /></ListItem>
-            )}
-          </List>
-        </Paper>
+          </Box>
+
+          {/* Tabla de Clientes Gestionados Filtrados */}
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              Clientes Gestionados - {categoriaSeleccionada} ({clientesFiltrados.length})
+            </Typography>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Lead</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Campaña</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Canal</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Sala</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Categoría</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Asesor</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Seguimiento</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {clientesFiltrados.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                      No hay clientes gestionados en esta categoría este mes
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  clientesFiltrados.map(cliente => (
+                    <TableRow key={cliente.id} hover>
+                      <TableCell>
+                        <div>
+                          <div style={{ fontWeight: 600, color: '#1976d2' }}>
+                            {cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono'}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{cliente.campana || '-'}</TableCell>
+                      <TableCell>{cliente.canal || '-'}</TableCell>
+                      <TableCell>{cliente.sala_asignada || '-'}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={cliente.estatus_comercial_categoria || 'Sin categoría'}
+                          size="small"
+                          color="primary"
+                        />
+                      </TableCell>
+                      <TableCell>{cliente.asesor_nombre || 'Disponible'}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={cliente.seguimiento_status || 'gestionado'} 
+                          size="small"
+                          color={
+                            cliente.seguimiento_status === 'derivado' ? 'info' :
+                            cliente.seguimiento_status === 'en_gestion' ? 'warning' :
+                            'success'
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Paper>
+        </>
       )}
     </Box>
   );

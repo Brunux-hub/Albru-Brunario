@@ -160,7 +160,12 @@ const createCliente = async (req, res) => {
     dni_nombre_titular, parentesco_titular, telefono_referencia_wizard, telefono_grabacion_wizard,
     direccion_completa, numero_piso_wizard, tipo_plan, servicio_contratado, velocidad_contratada,
     precio_plan, dispositivos_adicionales_wizard, plataforma_digital_wizard,
-    pago_adelanto_instalacion_wizard, wizard_completado, wizard_data_json
+    pago_adelanto_instalacion_wizard, wizard_completado, wizard_data_json,
+    
+    // Campos de leads/back office
+    tipo_base, leads_original_telefono, campana, canal_adquisicion, sala_asignada, compania,
+    back_office_info, tipificacion_back, datos_leads, comentarios_back, ultima_fecha_gestion,
+    coordenadas, estatus_comercial_categoria, estatus_comercial_subcategoria
   } = req.body;
 
   // Validación básica: teléfono es obligatorio
@@ -239,9 +244,24 @@ const createCliente = async (req, res) => {
       pago_adelanto_instalacion_wizard: pago_adelanto_instalacion_wizard || null,
       wizard_completado: wizard_completado ? 1 : 0,
       fecha_wizard_completado: wizard_completado ? new Date() : null,
-      wizard_data_json: wizard_data_json ? JSON.stringify(wizard_data_json) : null
-      ,
-      estatus_wizard: req.body && req.body.estatus_wizard ? req.body.estatus_wizard : null
+      wizard_data_json: wizard_data_json ? JSON.stringify(wizard_data_json) : null,
+      estatus_wizard: req.body && req.body.estatus_wizard ? req.body.estatus_wizard : null,
+      
+      // Campos de leads/back office
+      tipo_base: tipo_base || null,
+      leads_original_telefono: leads_original_telefono || telefono || null,
+      campana: campana || null,
+      canal_adquisicion: canal_adquisicion || null,
+      sala_asignada: sala_asignada || null,
+      compania: compania || null,
+      back_office_info: back_office_info || null,
+      tipificacion_back: tipificacion_back || null,
+      datos_leads: datos_leads || null,
+      comentarios_back: comentarios_back || null,
+      ultima_fecha_gestion: ultima_fecha_gestion || null,
+      coordenadas: coordenadas || null,
+      estatus_comercial_categoria: estatus_comercial_categoria || null,
+      estatus_comercial_subcategoria: estatus_comercial_subcategoria || null
     };
 
     const insertCols = [];
@@ -1157,19 +1177,30 @@ const completeWizard = async (req, res) => {
       console.warn('No se pudo insertar en historial_cliente (completeWizard):', e.message); 
     }
 
-    // Notificar por WebSocket
+    // Notificar por WebSocket - Enviar datos completos del cliente para actualización en tiempo real
     try {
+      const [updatedRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+      const clienteActualizado = updatedRows[0];
+      
       webSocketService.notifyAll('CLIENT_COMPLETED', { 
         clienteId: id, 
-        asesorId, 
+        asesorId,
+        cliente: clienteActualizado, // 🔥 Enviar datos completos para actualizar UI
         timestamp: new Date().toISOString() 
+      });
+      
+      console.log('📢 [WebSocket] CLIENT_COMPLETED enviado con datos actualizados:', {
+        id: clienteActualizado.id,
+        categoria: clienteActualizado.estatus_comercial_categoria,
+        subcategoria: clienteActualizado.estatus_comercial_subcategoria,
+        seguimiento_status: clienteActualizado.seguimiento_status
       });
     } catch (e) { 
       console.warn('WS notify CLIENT_COMPLETED failed', e.message); 
     }
 
-    const [updatedRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
-    return res.json({ success: true, cliente: updatedRows[0] });
+    const [finalRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+    return res.json({ success: true, cliente: finalRows[0] });
   } catch (e) {
     console.error('Error completeWizard:', e);
     return res.status(500).json({ success: false, message: 'Error interno' });
@@ -1326,10 +1357,10 @@ const reasignarCliente = async (req, res) => {
   }
 };
 
-// GET /api/clientes/gestionados-hoy - Obtener clientes gestionados del día con categoría y subcategoría
+// GET /api/clientes/gestionados-hoy - Obtener clientes gestionados del DÍA con categoría y subcategoría
 const getClientesGestionadosHoy = async (req, res) => {
   try {
-    // Obtener clientes que fueron marcados como "gestionado" hoy (wizard completado)
+    // Obtener clientes gestionados del DÍA ACTUAL (wizard completado)
     const sql = `
       SELECT 
         c.id,
@@ -1338,7 +1369,7 @@ const getClientesGestionadosHoy = async (req, res) => {
         c.leads_original_telefono,
         c.dni,
         c.campana,
-        c.canal,
+        c.canal_adquisicion AS canal,
         c.sala_asignada,
         c.compania,
         c.estatus_comercial_categoria,
@@ -1346,18 +1377,29 @@ const getClientesGestionadosHoy = async (req, res) => {
         c.fecha_wizard_completado,
         c.seguimiento_status,
         c.asesor_asignado,
-        c.fecha_registro,
+        c.created_at AS fecha_registro,
         u.nombre AS asesor_nombre
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
-      WHERE c.seguimiento_status = 'gestionado'
-        AND DATE(c.fecha_wizard_completado) = CURDATE()
-      ORDER BY c.fecha_wizard_completado DESC
+      WHERE c.wizard_completado = 1
+        AND (
+          DATE(c.fecha_wizard_completado) = CURDATE()
+          OR (c.fecha_wizard_completado IS NULL AND DATE(c.updated_at) = CURDATE())
+        )
+      ORDER BY c.fecha_wizard_completado DESC, c.updated_at DESC
     `;
 
     const [rows] = await pool.query(sql);
     
-    console.log(`📋 Obteniendo ${rows.length} clientes gestionados del día`);
+    console.log(`📋 [GESTIONADOS HOY] Encontrados ${rows.length} clientes gestionados del día`);
+    if (rows.length > 0) {
+      console.log(`📋 [GESTIONADOS HOY] Primer cliente:`, {
+        id: rows[0].id,
+        categoria: rows[0].estatus_comercial_categoria,
+        subcategoria: rows[0].estatus_comercial_subcategoria,
+        fecha_wizard: rows[0].fecha_wizard_completado
+      });
+    }
     
     return res.json({ 
       success: true, 
@@ -1366,6 +1408,62 @@ const getClientesGestionadosHoy = async (req, res) => {
     });
   } catch (err) {
     console.error('Error getClientesGestionadosHoy', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
+// GET /api/clientes/gestionados-mes - Obtener clientes gestionados del MES ACTUAL con categoría y subcategoría
+const getClientesGestionadosMes = async (req, res) => {
+  try {
+    // Obtener clientes gestionados del MES ACTUAL (wizard completado)
+    const sql = `
+      SELECT 
+        c.id,
+        c.nombre,
+        c.telefono,
+        c.leads_original_telefono,
+        c.dni,
+        c.campana,
+        c.canal_adquisicion AS canal,
+        c.sala_asignada,
+        c.compania,
+        c.estatus_comercial_categoria,
+        c.estatus_comercial_subcategoria,
+        c.fecha_wizard_completado,
+        c.seguimiento_status,
+        c.asesor_asignado,
+        c.created_at AS fecha_registro,
+        u.nombre AS asesor_nombre
+      FROM clientes c
+      LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
+      WHERE c.wizard_completado = 1
+        AND (
+          (MONTH(c.fecha_wizard_completado) = MONTH(CURDATE()) AND YEAR(c.fecha_wizard_completado) = YEAR(CURDATE()))
+          OR (c.fecha_wizard_completado IS NULL AND MONTH(c.updated_at) = MONTH(CURDATE()) AND YEAR(c.updated_at) = YEAR(CURDATE()))
+        )
+      ORDER BY c.fecha_wizard_completado DESC, c.updated_at DESC
+      LIMIT 1000
+    `;
+
+    const [rows] = await pool.query(sql);
+    
+    console.log(`📊 [GESTIONADOS MENSUALES] Encontrados ${rows.length} clientes gestionados del mes`);
+    if (rows.length > 0) {
+      console.log(`📊 [GESTIONADOS MENSUALES] Primer cliente:`, {
+        id: rows[0].id,
+        categoria: rows[0].estatus_comercial_categoria,
+        subcategoria: rows[0].estatus_comercial_subcategoria,
+        fecha_wizard: rows[0].fecha_wizard_completado
+      });
+    }
+    
+    return res.json({ 
+      success: true, 
+      clientes: rows, 
+      total: rows.length 
+    });
+  } catch (err) {
+    console.error('Error getClientesGestionadosMes', err);
     return res.status(500).json({ success: false, message: 'Error interno' });
   }
 };
@@ -1402,6 +1500,41 @@ const getClientesPreventaCerrada = async (req, res) => {
   }
 };
 
+// POST /api/clientes/notify-ocupado - Notifica en tiempo real que un cliente está siendo gestionado
+const notifyClienteOcupado = async (req, res) => {
+  const { clienteId, asesorId, ocupado } = req.body || {};
+
+  if (!clienteId) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'clienteId es requerido' 
+    });
+  }
+
+  try {
+    // Emitir evento WebSocket a la sala GTR
+    webSocketService.notifyRoom('gtr-room', 'CLIENT_OCUPADO', {
+      clienteId,
+      asesorId,
+      ocupado: ocupado === true,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`📢 Notificado a GTR: Cliente ${clienteId} ${ocupado ? 'ocupado' : 'liberado'} por asesor ${asesorId || 'desconocido'}`);
+
+    return res.json({ 
+      success: true, 
+      message: 'Notificación enviada al GTR' 
+    });
+  } catch (error) {
+    console.error('❌ Error en notify-ocupado:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error al enviar notificación' 
+    });
+  }
+};
+
   module.exports = {
     getClienteByTelefono,
     getClienteByDni,
@@ -1418,8 +1551,10 @@ const getClientesPreventaCerrada = async (req, res) => {
     getHistorialByAsesor,
     getGestionesDiaByAsesor,
     getClientesGestionadosHoy,
+    getClientesGestionadosMes,
     getClientesPreventaCerrada,
     openWizard,
     completeWizard,
-    reasignarCliente
+    reasignarCliente,
+    notifyClienteOcupado
   };

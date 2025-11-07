@@ -19,6 +19,7 @@ import {
   Checkbox,
   FormGroup
 } from '@mui/material';
+import { getBackendUrl } from '../../utils/getBackendUrl';
 
 // Datos del wizard paso 1
 interface Step1Data {
@@ -211,7 +212,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
   useEffect(() => {
     if (!open || !cliente) return;
 
-    const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    const backend = getBackendUrl();
     let mounted = true;
 
     const takeLock = async () => {
@@ -310,7 +311,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         if (!token || !asesorId) return;
 
         try {
-          const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+          const backend = getBackendUrl();
           await fetch(`${backend}/api/clientes/${cliente.id}/unlock`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ asesorId, lockToken: token })
@@ -343,7 +344,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
 
   // cleanup on unmount / reload: ensure we attempt to release lock
   useEffect(() => {
-    const backend = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    const backend = getBackendUrl();
     const handleBeforeUnload = () => {
       const token = lockTokenRef.current;
       const asesorId = asesorIdRef.current;
@@ -554,6 +555,21 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     // Validar el último paso antes de guardar
     if (!validateStep4()) return;
 
+    // 🔥 VALIDACIÓN: Asegurar que categoría y subcategoría estén seleccionadas
+    if (!estatusCategoria || !estatusSubcategoria) {
+      alert('⚠️ Por favor selecciona la Categoría y Subcategoría del estatus antes de guardar.');
+      setActiveStep(0); // Regresar al paso 1 donde están los campos
+      return;
+    }
+
+    // 🔥 DEBUG: Verificar valores de categoría y subcategoría
+    console.log('🔍 WIZARD DEBUG - Valores capturados:', {
+      estatusCategoria,
+      estatusSubcategoria,
+      tipoCliente: step1Data.tipoCliente,
+      nombresApellidos: step1Data.nombresApellidos
+    });
+
     // Preparar todos los datos del wizard para enviar al backend
     const wizardData = {
       step1: step1Data,
@@ -615,7 +631,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     
     try {
       // PASO 1: Enviar datos del wizard al backend
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}`, {
+      const response = await fetch(`${getBackendUrl()}/api/clientes/${cliente!.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datosParaBackend)
@@ -635,7 +651,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       const userData = JSON.parse(localStorage.getItem('userData') || '{}');
       const asesorId = userData.id;
       
-      const completeResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}/complete-wizard`, {
+      const completeResponse = await fetch(`${getBackendUrl()}/api/clientes/${cliente!.id}/complete-wizard`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -692,7 +708,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     console.log('🚀 WIZARD: Enviando datos de cierre rápido al backend:', datosParaBackend);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/clientes/${cliente!.id}`, {
+      const response = await fetch(`${getBackendUrl()}/api/clientes/${cliente!.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datosParaBackend)

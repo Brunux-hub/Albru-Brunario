@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, CircularProgress, Alert, Button, TextField, FormControlLabel, Checkbox } from '@mui/material';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Box, Typography, CircularProgress, Alert, Button, Fab } from '@mui/material';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import AddIcon from '@mui/icons-material/Add';
 import GtrSidebar from '../components/gtr/GtrSidebar';
 import { useSocket } from '../hooks/useSocket';
 
-import GtrStatusMenu from '../components/gtr/GtrStatusMenu';
 import GtrClientsTable from '../components/gtr/GtrClientsTable';
 import GtrAsesoresTable from '../components/gtr/GtrAsesoresTable';
 import AddClientDialog from '../components/gtr/AddClientDialog';
 import type { Asesor, Cliente } from '../components/gtr/types';
 import ReportesPanel from '../components/common/ReportesPanel';
 import DayManagementPanel from '../components/gtr/DayManagementPanel';
+import FiltersDrawer, { type FilterState } from '../components/gtr/FiltersDrawer';
 
 // Interfaces adicionales
 interface AsesorAPI {
@@ -90,20 +92,115 @@ const GtrDashboard: React.FC = () => {
     return null;
   };
   const [section, setSection] = useState('Clientes');
-  const [status, setStatus] = useState('Todos');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClient, setNewClient] = useState<Cliente | null>(null);
   const [clients, setClients] = useState<Cliente[]>([]);
-  const [filterStartDate, setFilterStartDate] = useState<string>('');
-  const [filterEndDate, setFilterEndDate] = useState<string>('');
-  const [filterMonth, setFilterMonth] = useState<string>('');
-  const [filterNoContactado, setFilterNoContactado] = useState<boolean>(false);
-  const [filtersApplied, setFiltersApplied] = useState<number>(0);
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [features] = useState<{ hasEstatusWizard: boolean; hasHistorialEstados: boolean }>({ hasEstatusWizard: false, hasHistorialEstados: false });
+  
+  // Estados para el Drawer de Filtros
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<FilterState>({
+    categorias: [],
+    dateRangeType: 'thisMonth',
+    startDate: '',
+    endDate: '',
+    campanas: [],
+    salas: [],
+    companias: []
+  });
+
+  // Extraer valores únicos para filtros
+  const uniqueCampanas = useMemo(() => 
+    [...new Set(clients.map(c => c.campana).filter(Boolean))].sort() as string[],
+    [clients]
+  );
+  const uniqueSalas = useMemo(() => 
+    [...new Set(clients.map(c => c.sala_asignada || c.sala).filter(Boolean))].sort() as string[],
+    [clients]
+  );
+  const uniqueCompanias = useMemo(() => 
+    [...new Set(clients.map(c => c.compania).filter(Boolean))].sort() as string[],
+    [clients]
+  );
+
+  // Aplicar filtros a los clientes
+  const filteredClients = useMemo(() => {
+    return clients.filter(client => {
+      // Filtrar por categorías
+      if (activeFilters.categorias.length > 0) {
+        const categoria = client.estatus_comercial_categoria || '';
+        if (!activeFilters.categorias.includes(categoria)) {
+          return false;
+        }
+      }
+
+      // Filtrar por rango de fechas
+      if (activeFilters.startDate && activeFilters.endDate) {
+        const clientDate = new Date(client.fechaCreacion || client.created_at || '');
+        const startDate = new Date(activeFilters.startDate);
+        const endDate = new Date(activeFilters.endDate);
+        endDate.setHours(23, 59, 59, 999); // Incluir todo el día final
+        
+        if (clientDate < startDate || clientDate > endDate) {
+          return false;
+        }
+      }
+
+      // Filtrar por campañas
+      if (activeFilters.campanas.length > 0) {
+        const campana = client.campana || '';
+        if (!activeFilters.campanas.includes(campana)) {
+          return false;
+        }
+      }
+
+      // Filtrar por salas
+      if (activeFilters.salas.length > 0) {
+        const sala = client.sala_asignada || client.sala || '';
+        if (!activeFilters.salas.includes(sala)) {
+          return false;
+        }
+      }
+
+      // Filtrar por compañías
+      if (activeFilters.companias.length > 0) {
+        const compania = client.compania || '';
+        if (!activeFilters.companias.includes(compania)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [clients, activeFilters]);
+
+  // Callback para aplicar filtros
+  const handleApplyFilters = (filters: FilterState) => {
+    setActiveFilters(filters);
+    setFiltersDrawerOpen(false);
+  };
+
+  // Obtener datos del GTR desde localStorage ANTES de useSocket
+  const rawUser = localStorage.getItem('userData') || localStorage.getItem('albru_user');
+  let parsedUser: Record<string, unknown> | null = null;
+  try {
+    parsedUser = rawUser ? JSON.parse(rawUser) as Record<string, unknown> : null;
+  } catch (error) {
+    console.warn('Error parsing stored userData for GTR identification:', error);
+    parsedUser = null;
+  }
+
+  const gtrId = (parsedUser && (parsedUser['id'] ?? parsedUser['usuario_id'])) ?? null;
+  
+  // Inicializar socket CON autenticación
+  const { socket, isConnected } = useSocket({
+    userId: gtrId ? Number(gtrId) : undefined,
+    role: 'gtr',
+    autoConnect: true
+  });
 
   // Cargar asesores desde la API
   useEffect(() => {
@@ -165,14 +262,7 @@ const GtrDashboard: React.FC = () => {
   useEffect(() => {
     const fetchClientes = async () => {
       try {
-        const params = new URLSearchParams();
-        if (filterStartDate) params.append('startDate', filterStartDate);
-        if (filterEndDate) params.append('endDate', filterEndDate);
-        if (filterMonth) params.append('month', filterMonth);
-        if (status && status !== 'Todos') params.append('estado', status);
-        if (filterNoContactado) params.append('no_contactado', '1');
-
-        const url = '/api/clientes' + (Array.from(params).length ? `?${params.toString()}` : '');
+        const url = '/api/clientes';
 
         const response = await fetch(url, {
           headers: {
@@ -225,7 +315,7 @@ const GtrDashboard: React.FC = () => {
     };
 
     fetchClientes();
-  }, [filterStartDate, filterEndDate, filterMonth, status, filterNoContactado, filtersApplied]);
+  }, []);
 
   // Manejar nuevo cliente agregado
   useEffect(() => {
@@ -235,9 +325,7 @@ const GtrDashboard: React.FC = () => {
     }
   }, [newClient]);
 
-  // Conectar Socket.io para GTR
-  const { socket, isConnected } = useSocket();
-
+  // Conectar eventos de Socket.io para GTR
   useEffect(() => {
     if (!socket || !isConnected) return;
 
@@ -408,25 +496,42 @@ const GtrDashboard: React.FC = () => {
     // Actualizaciones de estatus
     const handleClientStatusUpdated = (data: unknown) => {
       try {
-        console.log('📣 GTR: Evento CLIENT_STATUS_UPDATED recibido:', data);
+        console.log('📣 [GTR FRONTEND] ================================');
+        console.log('📣 [GTR FRONTEND] Evento CLIENT_STATUS_UPDATED recibido!');
+        console.log('📣 [GTR FRONTEND] Payload completo:', JSON.stringify(data, null, 2));
+        
         const msg = data as Record<string, unknown>;
-        const clienteRaw = msg['cliente'] || (msg['data'] && (msg['data'] as Record<string, unknown>)['cliente']) || (msg['payload'] && (msg['payload'] as Record<string, unknown>)['cliente']) || msg;
-        if (clienteRaw && typeof clienteRaw === 'object') {
-          const clienteObj = clienteRaw as Cliente & { id?: number };
-          if (clienteObj.id) {
-            setClients(prev => prev.map(c => {
-              if (c.id === clienteObj.id) {
-                const updatedClient = { ...c, ...(clienteObj as Cliente) };
-                if (!clienteObj.asesor && c.asesor) {
-                  updatedClient.asesor = c.asesor;
-                }
-                return updatedClient;
-              }
-              return c;
-            }));
-          }
+        const clienteId = Number(msg['clienteId']);
+        const categoria = msg['estatus_comercial_categoria'] as string | undefined;
+        const subcategoria = msg['estatus_comercial_subcategoria'] as string | undefined;
+        
+        console.log('📣 [GTR FRONTEND] Datos extraídos:', {
+          clienteId,
+          categoria,
+          subcategoria
+        });
+        
+        if (clienteId) {
+          console.log(`📣 [GTR FRONTEND] Actualizando categoría/subcategoría del cliente ${clienteId}`);
+          
+          setClients(prev => prev.map(c => {
+            if (c.id === clienteId) {
+              console.log('✅ [GTR FRONTEND] Cliente encontrado, actualizando estatus comercial:', c.id);
+              return {
+                ...c,
+                estatus_comercial_categoria: categoria || c.estatus_comercial_categoria,
+                estatus_comercial_subcategoria: subcategoria || c.estatus_comercial_subcategoria
+              } as Cliente;
+            }
+            return c;
+          }));
+          
+          console.log('✅ [GTR FRONTEND] Cliente actualizado con nueva categoría/subcategoría');
+        } else {
+          console.warn('⚠️ [GTR FRONTEND] clienteId inválido en CLIENT_STATUS_UPDATED');
         }
 
+        // Actualizar estado del asesor si viene en el payload
         const asesorIdCandidate = msg['asesorId'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['asesorId']);
         const nuevoEstatusCandidate = msg['nuevoEstatus'] ?? (msg['data'] && (msg['data'] as Record<string, unknown>)['nuevoEstatus']);
         if (typeof asesorIdCandidate !== 'undefined' && nuevoEstatusCandidate !== undefined) {
@@ -440,8 +545,10 @@ const GtrDashboard: React.FC = () => {
             return a;
           }));
         }
+        
+        console.log('📣 [GTR FRONTEND] ================================');
       } catch (e) {
-        console.error('Error procesando CLIENT_STATUS_UPDATED en GTR:', e);
+        console.error('❌ [GTR FRONTEND] Error procesando CLIENT_STATUS_UPDATED:', e);
       }
     };
 
@@ -506,6 +613,59 @@ const GtrDashboard: React.FC = () => {
       }
     };
 
+    // Escuchar cuando un asesor completa el wizard
+    const handleClientCompleted = (data: unknown) => {
+      try {
+        console.log('✅ [GTR FRONTEND] ================================');
+        console.log('✅ [GTR FRONTEND] Evento CLIENT_COMPLETED recibido!');
+        console.log('✅ [GTR FRONTEND] Payload completo:', JSON.stringify(data, null, 2));
+        
+        const msg = data as Record<string, unknown>;
+        const clienteId = Number(msg['clienteId']);
+        const clienteData = msg['cliente'] as Record<string, unknown> | undefined;
+        
+        console.log('✅ [GTR FRONTEND] clienteId:', clienteId);
+        console.log('✅ [GTR FRONTEND] clienteData:', clienteData);
+        
+        if (!clienteId || !clienteData) {
+          console.warn('⚠️ [GTR FRONTEND] clienteId o clienteData faltantes en CLIENT_COMPLETED');
+          return;
+        }
+        
+        // Extraer los campos actualizados
+        const categoria = String(clienteData['estatus_comercial_categoria'] || '');
+        const subcategoria = String(clienteData['estatus_comercial_subcategoria'] || '');
+        const seguimientoStatus = String(clienteData['seguimiento_status'] || 'gestionado');
+        
+        console.log('✅ [GTR FRONTEND] Datos extraídos:', {
+          categoria,
+          subcategoria,
+          seguimientoStatus
+        });
+        
+        // Actualizar el cliente en el estado
+        setClients(prev => prev.map(c => {
+          if (c.id === clienteId) {
+            console.log('✅ [GTR FRONTEND] Cliente encontrado, actualizando categoría/subcategoría:', c.id);
+            return {
+              ...c,
+              estatus_comercial_categoria: categoria,
+              estatus_comercial_subcategoria: subcategoria,
+              seguimiento_status: seguimientoStatus,
+              wizard_completado: 1,
+              estado: 'gestionado'
+            } as Cliente;
+          }
+          return c;
+        }));
+        
+        console.log('✅ [GTR FRONTEND] Cliente actualizado en tiempo real con categoría/subcategoría');
+        console.log('✅ [GTR FRONTEND] ================================');
+      } catch (e) {
+        console.error('❌ [GTR FRONTEND] Error procesando CLIENT_COMPLETED:', e);
+      }
+    };
+
     // Registrar todos los listeners
     socket.on('REASSIGNMENT_CONFIRMED', handleReassignmentConfirmed);
     socket.on('CLIENT_REASSIGNED', handleClientReassigned);
@@ -517,6 +677,7 @@ const GtrDashboard: React.FC = () => {
     socket.on('CLIENT_STATUS_UPDATED', handleClientStatusUpdated);
     socket.on('CLIENT_IN_GESTION', handleClientInGestion);
     socket.on('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+    socket.on('CLIENT_COMPLETED', handleClientCompleted);
 
     // Cleanup
     return () => {
@@ -530,6 +691,7 @@ const GtrDashboard: React.FC = () => {
       socket.off('CLIENT_STATUS_UPDATED', handleClientStatusUpdated);
       socket.off('CLIENT_IN_GESTION', handleClientInGestion);
       socket.off('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+      socket.off('CLIENT_COMPLETED', handleClientCompleted);
     };
   }, [socket, isConnected]);
 
@@ -629,12 +791,6 @@ const GtrDashboard: React.FC = () => {
         }}>
           Panel GTR
         </Typography>
-        {/* Indicador rápido de features detectadas */}
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            Features: estatus_wizard = {features.hasEstatusWizard ? 'sí' : 'no'} · historial_estados = {features.hasHistorialEstados ? 'sí' : 'no'}
-          </Typography>
-        </Box>
         
         {/* Estadísticas básicas */}
         <Box sx={{ 
@@ -696,55 +852,9 @@ const GtrDashboard: React.FC = () => {
         
         {section === 'Clientes' && (
           <>
-            <GtrStatusMenu 
-              selected={status} 
-              onSelect={setStatus}
-              onAddClient={() => setDialogOpen(true)}
-            />
-
-            {/* Controles de filtrado */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
-              <TextField
-                label="Fecha inicio"
-                type="date"
-                size="small"
-                InputLabelProps={{ shrink: true }}
-                value={filterStartDate}
-                onChange={(e) => setFilterStartDate(e.target.value)}
-              />
-
-              <TextField
-                label="Fecha fin"
-                type="date"
-                size="small"
-                InputLabelProps={{ shrink: true }}
-                value={filterEndDate}
-                onChange={(e) => setFilterEndDate(e.target.value)}
-              />
-
-              <TextField
-                label="Mes"
-                type="month"
-                size="small"
-                InputLabelProps={{ shrink: true }}
-                value={filterMonth}
-                onChange={(e) => setFilterMonth(e.target.value)}
-              />
-
-              <FormControlLabel
-                control={<Checkbox checked={filterNoContactado} onChange={(e) => setFilterNoContactado(e.target.checked)} />}
-                label="No contactado"
-              />
-
-              <Button variant="outlined" size="small" onClick={() => setFiltersApplied(f => f + 1)}>
-                Aplicar filtros
-              </Button>
-            </Box>
-
             <GtrClientsTable 
-              clients={clients}
+              clients={filteredClients}
               asesores={asesores}
-              statusFilter={status}
               setClients={setClients}
             />
           </>
@@ -811,6 +921,10 @@ const GtrDashboard: React.FC = () => {
                 dni: data.dni || null,
                 coordenadas: data.coordenadas || null,
 
+                // Estatus Comercial
+                estatus_comercial_categoria: data.estatus_comercial_categoria || null,
+                estatus_comercial_subcategoria: data.estatus_comercial_subcategoria || null,
+
                 estado_cliente: 'nuevo',
                 asesor_asignado: null // Sin asignar inicialmente
               })
@@ -838,6 +952,47 @@ const GtrDashboard: React.FC = () => {
             alert('Error de conexión. Verifique su conexión a internet.');
           }
         }}
+      />
+
+      {/* Floating Action Buttons */}
+      {/* Botón para agregar cliente */}
+      <Fab 
+        color="secondary" 
+        aria-label="agregar cliente"
+        onClick={() => setDialogOpen(true)}
+        sx={{ 
+          position: 'fixed', 
+          bottom: 96, // Encima del botón de filtros
+          right: 24,
+          zIndex: 1000
+        }}
+      >
+        <AddIcon />
+      </Fab>
+
+      {/* Botón para abrir filtros */}
+      <Fab 
+        color="primary" 
+        aria-label="filtros"
+        onClick={() => setFiltersDrawerOpen(true)}
+        sx={{ 
+          position: 'fixed', 
+          bottom: 24, 
+          right: 24,
+          zIndex: 1000
+        }}
+      >
+        <FilterListIcon />
+      </Fab>
+
+      {/* Drawer de filtros avanzados */}
+      <FiltersDrawer
+        open={filtersDrawerOpen}
+        onClose={() => setFiltersDrawerOpen(false)}
+        onApplyFilters={handleApplyFilters}
+        availableCampanas={uniqueCampanas}
+        availableSalas={uniqueSalas}
+        availableCompanias={uniqueCompanias}
       />
     </Box>
   );

@@ -16,7 +16,7 @@ import RealtimeService from '../../services/RealtimeService';
 
 
 interface GtrClientsTableProps {
-  statusFilter: string;
+  statusFilter?: string;
   newClient?: Partial<Cliente>; // Cliente parcial para nuevos datos
   clients: Cliente[]; // Lista de clientes
   setClients: React.Dispatch<React.SetStateAction<Cliente[]>>; // Actualizar clientes
@@ -62,7 +62,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   let filtered = sortedClients;
   if (statusFilter === 'Solo números') {
     filtered = sortedClients.filter(c => !c.nombre && !c.dni && !c.email);
-  } else if (statusFilter !== 'Todos') {
+  } else if (statusFilter && statusFilter !== 'Todos') {
     filtered = sortedClients.filter(c => c.estado === statusFilter);
   }
 

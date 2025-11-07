@@ -1,17 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, CircularProgress, Chip, IconButton, Button } from '@mui/material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
-
-interface HistRow {
-  id: number;
-  cliente_id: number;
-  usuario_id: number | null;
-  accion: string;
-  descripcion: string;
-  estado_nuevo: string | null;
-  created_at: string;
-}
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, CircularProgress, Chip } from '@mui/material';
+import { getBackendUrl } from '../../utils/getBackendUrl';
 
 interface ClienteGestionado {
   id: number;
@@ -32,25 +21,32 @@ interface ClienteGestionado {
   fecha_registro?: string;
 }
 
+// Todas las categorías disponibles
+const CATEGORIAS = [
+  'Seleccionar categoría',
+  'Lista negra',
+  'Preventa completa',
+  'Preventa',
+  'Sin facilidades',
+  'Retirado',
+  'Rechazado',
+  'Agendado',
+  'Seguimiento',
+  'Sin contacto'
+];
+
 const DayManagementPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [historial, setHistorial] = useState<HistRow[]>([]);
   const [clientesGestionadosHoy, setClientesGestionadosHoy] = useState<ClienteGestionado[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>('Todos');
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+        const backendUrl = getBackendUrl();
         
-        // Cargar historial
-        const respHist = await fetch(`${backendUrl}/api/historial?limit=1000`);
-        const jHist = await respHist.json();
-        if (jHist && jHist.success && Array.isArray(jHist.historial)) {
-          setHistorial(jHist.historial as HistRow[]);
-        }
-
         // Cargar clientes gestionados del día
         const respClientes = await fetch(`${backendUrl}/api/clientes/gestionados-hoy`);
         const jClientes = await respClientes.json();
@@ -67,59 +63,68 @@ const DayManagementPanel: React.FC = () => {
     fetchData();
   }, []);
 
-  // Filtrar solo entradas del día actual
-  const startOfDay = new Date();
-  startOfDay.setHours(0,0,0,0);
-  const endOfDay = new Date();
-  endOfDay.setHours(23,59,59,999);
+  // Calcular métricas
+  const totalGestiones = clientesGestionadosHoy.length;
+  
+  // Clientes que van a Preventa (categorías: "Preventa" o "Preventa completa")
+  const clientesAPreventa = clientesGestionadosHoy.filter(c => 
+    c.estatus_comercial_categoria === 'Preventa' || 
+    c.estatus_comercial_categoria === 'Preventa completa'
+  ).length;
+  
+  // Clientes que se quedan en GTR (todos los que NO van a preventa)
+  const clientesEnGTR = totalGestiones - clientesAPreventa;
 
-  const todays = historial.filter(h => {
-    const d = new Date(h.created_at);
-    return d >= startOfDay && d <= endOfDay;
-  });
+  // Contar por categoría
+  const contarPorCategoria = (categoria: string): number => {
+    return clientesGestionadosHoy.filter(c => c.estatus_comercial_categoria === categoria).length;
+  };
 
-  const totalGestiones = todays.length;
-  const clientesGestionados = new Set(todays.map(h => h.cliente_id)).size;
-  const avgGestionesPorCliente = clientesGestionados ? (totalGestiones / clientesGestionados).toFixed(2) : '0';
+  // Filtrar clientes según categoría seleccionada
+  const clientesFiltrados = categoriaSeleccionada === 'Todos' 
+    ? clientesGestionadosHoy 
+    : clientesGestionadosHoy.filter(c => c.estatus_comercial_categoria === categoriaSeleccionada);
 
-  // Calcular tasa de moved_to_gtr: clientes que tuvieron accion moved_to_gtr hoy
-  const movedToGtrSet = new Set(todays.filter(h => (h.accion || '').toLowerCase().includes('moved_to_gtr')).map(h => h.cliente_id));
-  const clientesMovedToGtr = movedToGtrSet.size;
-  const tasaGestion = clientesGestionados ? ((clientesMovedToGtr / clientesGestionados) * 100).toFixed(1) + '%' : '0%';
-
-  // Calcular tiempo medio hasta moved_to_gtr (en minutos) usando primera acción del día -> moved_to_gtr
-  const timeDiffsMinutes: number[] = [];
-  // Agrupar por cliente
-  const mapByCliente = new Map<number, HistRow[]>();
-  todays.forEach(h => {
-    const arr = mapByCliente.get(h.cliente_id) || [];
-    arr.push(h);
-    mapByCliente.set(h.cliente_id, arr);
-  });
-
-  // Note: avoid declaring an unused clienteId to satisfy TS linter
-  mapByCliente.forEach((arr) => {
-    const sorted = arr.slice().sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    const first = sorted[0];
-    const moved = sorted.find(s => (s.accion || '').toLowerCase().includes('moved_to_gtr'));
-    if (first && moved && new Date(moved.created_at).getTime() >= new Date(first.created_at).getTime()) {
-      const diffMs = new Date(moved.created_at).getTime() - new Date(first.created_at).getTime();
-      timeDiffsMinutes.push(diffMs / 60000);
-    }
-  });
-
-  const avgTimeMinutes = timeDiffsMinutes.length ? (timeDiffsMinutes.reduce((a,b) => a+b, 0) / timeDiffsMinutes.length) : 0;
-  const formatMinutes = (mins: number) => {
-    if (!mins || mins <= 0) return '0m';
-    const h = Math.floor(mins / 60);
-    const m = Math.floor(mins % 60);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
+  // Componente de botón de categoría
+  const CategoriaButton: React.FC<{ categoria: string }> = ({ categoria }) => {
+    const count = contarPorCategoria(categoria);
+    const isActive = categoriaSeleccionada === categoria;
+    
+    return (
+      <Paper 
+        sx={{ 
+          p: 2, 
+          textAlign: 'center',
+          cursor: 'pointer',
+          border: isActive ? '2px solid #1976d2' : '1px solid #e0e0e0',
+          bgcolor: isActive ? '#e3f2fd' : 'white',
+          transition: 'all 0.2s',
+          '&:hover': {
+            bgcolor: isActive ? '#e3f2fd' : '#f5f5f5',
+            transform: 'translateY(-2px)',
+            boxShadow: 2
+          }
+        }}
+        onClick={() => setCategoriaSeleccionada(categoria)}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          {categoria}
+        </Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: isActive ? '#1976d2' : 'text.primary' }}>
+          {count}
+        </Typography>
+        {isActive && (
+          <Typography variant="caption" sx={{ color: '#1976d2', fontWeight: 600 }}>
+            ✓ Activo
+          </Typography>
+        )}
+      </Paper>
+    );
   };
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>Gestión del día</Typography>
+      <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>Gestión del día</Typography>
 
       {loading ? (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -128,155 +133,126 @@ const DayManagementPanel: React.FC = () => {
         </Box>
       ) : (
         <>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-            <Paper sx={{ p: 2, flex: '1 1 30%', minWidth: 200 }}>
+          {/* 3 Cards superiores */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
               <Typography variant="subtitle2" color="text.secondary">Gestiones hoy</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>{totalGestiones}</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: '#2e7d32' }}>{totalGestiones}</Typography>
             </Paper>
 
-            <Paper sx={{ p: 2, flex: '1 1 30%', minWidth: 200 }}>
-              <Typography variant="subtitle2" color="text.secondary">Clientes gestionados</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>{clientesGestionados}</Typography>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="subtitle2" color="text.secondary">Registrados en GTR</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: '#f57c00' }}>{clientesEnGTR}</Typography>
             </Paper>
 
-            <Paper sx={{ p: 2, flex: '1 1 30%', minWidth: 200 }}>
-              <Typography variant="subtitle2" color="text.secondary">Avg gest./cliente</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>{avgGestionesPorCliente}</Typography>
-            </Paper>
-
-            <Paper sx={{ p: 2, flex: '1 1 30%', minWidth: 200 }}>
-              <Typography variant="subtitle2" color="text.secondary">Clientes moved_to_gtr</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>{clientesMovedToGtr}</Typography>
-              <Typography variant="caption" color="text.secondary">Tasa: {tasaGestion}</Typography>
-            </Paper>
-
-            <Paper sx={{ p: 2, flex: '1 1 30%', minWidth: 200 }}>
-              <Typography variant="subtitle2" color="text.secondary">Tiempo medio hasta moved_to_gtr</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 700 }}>{formatMinutes(avgTimeMinutes)}</Typography>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+              <Typography variant="subtitle2" color="text.secondary">A Preventa</Typography>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: '#1976d2' }}>{clientesAPreventa}</Typography>
             </Paper>
           </Box>
 
-          {/* Tabla de Clientes Gestionados del Día */}
-          <Paper sx={{ p: 2, mb: 2 }}>
+          {/* Desglose por Categoría Comercial */}
+          <Box sx={{ mb: 3 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Clientes Gestionados Hoy ({clientesGestionadosHoy.length})
+              Desglose por Categoría Comercial (Click para filtrar)
+            </Typography>
+            
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 2, mb: 2 }}>
+              {CATEGORIAS.map(cat => (
+                <CategoriaButton key={cat} categoria={cat} />
+              ))}
+              
+              {/* Botón "Todos" */}
+              <Paper 
+                sx={{ 
+                  p: 2, 
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  border: categoriaSeleccionada === 'Todos' ? '2px solid #4caf50' : '1px solid #e0e0e0',
+                  bgcolor: categoriaSeleccionada === 'Todos' ? '#e8f5e9' : 'white',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    bgcolor: categoriaSeleccionada === 'Todos' ? '#e8f5e9' : '#f5f5f5',
+                    transform: 'translateY(-2px)',
+                    boxShadow: 2
+                  }
+                }}
+                onClick={() => setCategoriaSeleccionada('Todos')}
+              >
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                  Todos
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: categoriaSeleccionada === 'Todos' ? '#4caf50' : 'text.primary' }}>
+                  {totalGestiones}
+                </Typography>
+                {categoriaSeleccionada === 'Todos' && (
+                  <Typography variant="caption" sx={{ color: '#4caf50', fontWeight: 600 }}>
+                    ✓ Activo
+                  </Typography>
+                )}
+              </Paper>
+            </Box>
+          </Box>
+
+          {/* Tabla de Clientes Gestionados Filtrados */}
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+              Clientes Gestionados - {categoriaSeleccionada} ({clientesFiltrados.length})
             </Typography>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Fecha Registro</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Lead</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Campaña</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Canal</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Sala</TableCell>
-                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Compañía</TableCell>
-                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Estatus Comercial</TableCell>
-                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Asesor asignado</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Categoría</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Asesor</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Seguimiento</TableCell>
-                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Acciones</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {clientesGestionadosHoy.length === 0 ? (
+                {clientesFiltrados.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                      No hay clientes gestionados hoy
+                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                      No hay clientes gestionados en esta categoría hoy
                     </TableCell>
                   </TableRow>
                 ) : (
-                  clientesGestionadosHoy.map(cliente => (
+                  clientesFiltrados.map(cliente => (
                     <TableRow key={cliente.id} hover>
-                      <TableCell>
-                        {cliente.fecha_registro 
-                          ? new Date(cliente.fecha_registro).toLocaleDateString('es-PE')
-                          : '-'
-                        }
-                      </TableCell>
                       <TableCell>
                         <div>
                           <div style={{ fontWeight: 600, color: '#1976d2' }}>
                             {cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono'}
                           </div>
-                          {cliente.leads_original_telefono && cliente.telefono && cliente.telefono !== cliente.leads_original_telefono && (
-                            <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                              ({cliente.telefono})
-                            </div>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell>{cliente.campana || '-'}</TableCell>
                       <TableCell>{cliente.canal || '-'}</TableCell>
                       <TableCell>{cliente.sala_asignada || '-'}</TableCell>
-                      <TableCell>{cliente.compania || '-'}</TableCell>
                       <TableCell>
-                        <div>
-                          <Chip 
-                            label={cliente.estatus_comercial_categoria || 'Sin categoría'}
-                            size="small"
-                            color="primary"
-                            sx={{ mb: 0.5 }}
-                          />
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {cliente.estatus_comercial_subcategoria || 'Sin subcategoría'}
-                          </Typography>
-                        </div>
+                        <Chip 
+                          label={cliente.estatus_comercial_categoria || 'Sin categoría'}
+                          size="small"
+                          color="primary"
+                        />
                       </TableCell>
                       <TableCell>{cliente.asesor_nombre || 'Disponible'}</TableCell>
                       <TableCell>
                         <Chip 
-                          label="Gestionado" 
+                          label={cliente.seguimiento_status || 'gestionado'} 
                           size="small"
-                          color="success"
+                          color={
+                            cliente.seguimiento_status === 'derivado' ? 'info' :
+                            cliente.seguimiento_status === 'en_gestion' ? 'warning' :
+                            'success'
+                          }
                         />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <IconButton 
-                            size="small" 
-                            color="primary"
-                            title="Ver detalles"
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<SwapHorizIcon />}
-                            sx={{ minWidth: 'auto', px: 1 }}
-                          >
-                            REASIGNAR
-                          </Button>
-                        </Box>
                       </TableCell>
                     </TableRow>
                   ))
                 )}
-              </TableBody>
-            </Table>
-          </Paper>
-
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" sx={{ mb: 1 }}>Últimas gestiones (hoy)</Typography>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Hora</TableCell>
-                  <TableCell>Cliente ID</TableCell>
-                  <TableCell>Acción</TableCell>
-                  <TableCell>Usuario</TableCell>
-                  <TableCell>Descripción</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {todays.slice(0, 50).map(row => (
-                  <TableRow key={row.id}>
-                    <TableCell>{new Date(row.created_at).toLocaleTimeString('es-ES')}</TableCell>
-                    <TableCell>{row.cliente_id}</TableCell>
-                    <TableCell>{row.accion}</TableCell>
-                    <TableCell>{row.usuario_id ?? 'Sistema'}</TableCell>
-                    <TableCell style={{ maxWidth: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.descripcion}</TableCell>
-                  </TableRow>
-                ))}
               </TableBody>
             </Table>
           </Paper>
