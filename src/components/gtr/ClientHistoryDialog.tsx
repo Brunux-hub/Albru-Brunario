@@ -248,7 +248,14 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
         
         {/* Vista de tarjetas del historial */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {clientData.historial.map((evento, index) => (
+          {!clientData.historial || clientData.historial.length === 0 ? (
+            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#f8fafc' }}>
+              <Typography color="text.secondary">
+                No hay eventos en el historial de este cliente
+              </Typography>
+            </Paper>
+          ) : (
+            clientData.historial.map((evento, index) => (
             <Paper
               key={`${evento.fecha}-${index}`}
               sx={{
@@ -356,7 +363,8 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                 {evento.comentarios}
               </Typography>
             </Paper>
-          ))}
+            ))
+          )}
         </Box>
       </DialogContent>
       

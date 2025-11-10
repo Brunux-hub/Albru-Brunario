@@ -59,6 +59,10 @@ export interface Cliente {
   seguimiento_status?: string | null;
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  // Campos para tracking de gestiones
+  asesor_asignado?: number | null;
+  ultima_fecha_gestion?: string | null;
+  fecha_ultimo_contacto?: string | null;
 }
 
 // Tipos compartidos para componentes GTR

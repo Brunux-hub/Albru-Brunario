@@ -77,6 +77,10 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   }
   
   const handleViewHistory = (client: Cliente) => {
+    console.log('📋 GTR Frontend: Cliente seleccionado:', client.id);
+    console.log('📋 GTR Frontend: Historial recibido:', client.historial);
+    console.log('📋 GTR Frontend: Longitud historial:', client.historial?.length || 0);
+    
     const clientHistoryData: ClientHistoryData = {
       id: client.id,
       nombre: client.nombre || '',
@@ -89,6 +93,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   fechaCreacion: client.fechaCreacion,
       historial: client.historial || []
     };
+    console.log('📋 GTR Frontend: ClientHistoryData preparado:', clientHistoryData);
     setSelectedClient(clientHistoryData);
     setHistoryDialogOpen(true);
   };

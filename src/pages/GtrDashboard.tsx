@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Alert, Button, Fab } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Button, Fab, IconButton, Tooltip } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddIcon from '@mui/icons-material/Add';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import GtrSidebar from '../components/gtr/GtrSidebar';
 import { useSocket } from '../hooks/useSocket';
 
@@ -58,6 +60,15 @@ interface ClienteAPI {
   derivado_at?: string | null;
   opened_at?: string | null;
   asesor_asignado?: number | null;
+  // Historial de gestiones
+  historial?: Array<{
+    fecha: string;
+    asesor: string;
+    accion: string;
+    estadoAnterior?: string;
+    estadoNuevo?: string;
+    comentarios: string;
+  }>;
   // Campos de estatus comercial (del wizard)
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
@@ -99,6 +110,12 @@ const GtrDashboard: React.FC = () => {
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // 📄 Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [clientsPerPage] = useState(500); // Clientes por página
+  const [totalClientsInDB, setTotalClientsInDB] = useState(0);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc'); // Orden por fecha
   
   // Estados para el Drawer de Filtros
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
@@ -260,9 +277,11 @@ const GtrDashboard: React.FC = () => {
 
   // Cargar clientes desde la API
   useEffect(() => {
-    const fetchClientes = async () => {
+    const fetchClientes = async (page: number = 1, append: boolean = false) => {
       try {
-        const url = '/api/clientes';
+        const limit = clientsPerPage;
+        const offset = (page - 1) * limit;
+        const url = `/api/clientes?limit=${limit}&offset=${offset}&orderBy=${sortOrder}`;
 
         const response = await fetch(url, {
           headers: {
@@ -273,9 +292,13 @@ const GtrDashboard: React.FC = () => {
         const data = await response.json();
 
         if (data.success && data.clientes) {
+          setTotalClientsInDB(data.total || data.clientes.length);
+          
           const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
             id: cliente.id,
             fecha: new Date(cliente.created_at || cliente.fecha_asignacion || Date.now()).toLocaleDateString('es-ES'),
+            // ✅ MAPEAR created_at para que se muestre en la tabla
+            created_at: cliente.created_at || null,
             // Priorizar leads_original_telefono si está disponible
             cliente: cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono',
             nombre: cliente.nombre || 'Sin nombre',
@@ -298,7 +321,7 @@ const GtrDashboard: React.FC = () => {
             telefono: cliente.telefono || '',
             email: cliente.correo_electronico || '',
             direccion: cliente.direccion || '',
-            historial: [],
+            historial: cliente.historial || [],
             ultima_fecha_gestion: cliente.ultima_fecha_gestion || null,
             fecha_ultimo_contacto: cliente.fecha_ultimo_contacto || null,
             // CRÍTICO: Mapear campos de seguimiento automático desde el backend
@@ -307,15 +330,20 @@ const GtrDashboard: React.FC = () => {
             estatus_comercial_categoria: cliente.estatus_comercial_categoria || null,
             estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null
           }));
-          setClients(clientesFormateados);
+          
+          if (append) {
+            setClients(prev => [...prev, ...clientesFormateados]);
+          } else {
+            setClients(clientesFormateados);
+          }
         }
       } catch (error) {
         console.error('Error cargando clientes:', error);
       }
     };
 
-    fetchClientes();
-  }, []);
+    fetchClientes(currentPage);
+  }, [currentPage, clientsPerPage, sortOrder]);
 
   // Manejar nuevo cliente agregado
   useEffect(() => {
@@ -852,6 +880,111 @@ const GtrDashboard: React.FC = () => {
         
         {section === 'Clientes' && (
           <>
+            {/* 📊 Indicador de paginación */}
+            <Box sx={{ 
+              mb: 2, 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              p: 2,
+              bgcolor: '#f8fafc',
+              borderRadius: 2
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body1" sx={{ fontWeight: 600, color: '#64748b' }}>
+                  Mostrando {clients.length} de {totalClientsInDB} clientes totales
+                </Typography>
+                <Tooltip title={sortOrder === 'desc' ? 'Más recientes primero' : 'Más antiguos primero'}>
+                  <IconButton 
+                    onClick={() => {
+                      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+                      setCurrentPage(1);
+                      setClients([]); // Limpiar para forzar recarga
+                    }}
+                    sx={{ 
+                      bgcolor: 'white', 
+                      boxShadow: 1,
+                      '&:hover': { bgcolor: '#f1f5f9' }
+                    }}
+                  >
+                    {sortOrder === 'desc' ? <ArrowDownwardIcon /> : <ArrowUpwardIcon />}
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                {clients.length < totalClientsInDB && (
+                  <>
+                    <Button 
+                      variant="outlined" 
+                      onClick={() => setCurrentPage(prev => prev + 1)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Cargar 500 más
+                    </Button>
+                    <Button 
+                      variant="contained" 
+                      onClick={async () => {
+                        // Cargar todos los clientes
+                        try {
+                          const response = await fetch(`/api/clientes?limit=50000&orderBy=${sortOrder}`, {
+                            headers: {
+                              'Cache-Control': 'no-cache, no-store, must-revalidate',
+                              'Pragma': 'no-cache'
+                            }
+                          });
+                          const data = await response.json();
+                          if (data.success && data.clientes) {
+                            const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
+                              id: cliente.id,
+                              fecha: new Date(cliente.created_at || cliente.fecha_asignacion || Date.now()).toLocaleDateString('es-ES'),
+                              created_at: cliente.created_at || null,
+                              cliente: cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono',
+                              nombre: cliente.nombre || 'Sin nombre',
+                              lead_id: cliente.lead_id,
+                              lead: cliente.lead_id?.toString() || cliente.id.toString(),
+                              ciudad: cliente.distrito || 'Sin ciudad',
+                              plan: cliente.plan_seleccionado || 'Sin plan',
+                              precio: cliente.precio_final || 0,
+                              estado: cliente.estado_cliente || 'nuevo',
+                              asesor: cliente.asesor_nombre || 'Disponible',
+                              canal: cliente.canal_adquisicion || 'Web',
+                              distrito: cliente.distrito || 'Sin distrito',
+                              leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || '',
+                              campana: cliente.campana || cliente.campania || null,
+                              compania: cliente.compania || cliente.compania || null,
+                              sala_asignada: cliente.sala_asignada || cliente.sala || null,
+                              clienteNuevo: true,
+                              observaciones: cliente.observaciones_asesor || '',
+                              telefono: cliente.telefono || '',
+                              email: cliente.correo_electronico || '',
+                              direccion: cliente.direccion || '',
+                              historial: [],
+                              ultima_fecha_gestion: cliente.ultima_fecha_gestion || null,
+                              fecha_ultimo_contacto: cliente.fecha_ultimo_contacto || null,
+                              seguimiento_status: cliente.seguimiento_status || null,
+                              estatus_comercial_categoria: cliente.estatus_comercial_categoria || null,
+                              estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null
+                            }));
+                            setClients(clientesFormateados);
+                          }
+                        } catch (error) {
+                          console.error('Error cargando todos los clientes:', error);
+                        }
+                      }}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Ver todos ({totalClientsInDB})
+                    </Button>
+                  </>
+                )}
+                {clients.length >= totalClientsInDB && (
+                  <Typography variant="body2" sx={{ color: '#10b981', fontWeight: 600 }}>
+                    ✓ Todos los clientes cargados
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+
             <GtrClientsTable 
               clients={filteredClients}
               asesores={asesores}

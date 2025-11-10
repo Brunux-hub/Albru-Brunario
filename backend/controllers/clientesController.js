@@ -80,7 +80,10 @@ const searchClientes = async (req, res) => {
 // GET /api/clientes (obtener todos los clientes)
 const getAllClientes = async (req, res) => {
   try {
-    const limit = Math.min(1000, Number(req.query.limit) || 100);
+    const limit = Math.min(50000, Number(req.query.limit) || 500);
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const orderBy = req.query.orderBy === 'asc' ? 'ASC' : 'DESC'; // Ordenar por fecha
+    
     // Compatibilidad: en distintas partes del sistema el campo `asesor_asignado`
     // puede contener el id de la tabla `asesores` o directamente el id en `usuarios`.
     // Para evitar que el nombre del asesor no aparezca al recargar, intentamos
@@ -97,6 +100,9 @@ const getAllClientes = async (req, res) => {
     // el GTR debe poder ver todos los clientes incluyendo los ya gestionados
     const whereClause = ''; // Sin filtro - mostrar todos los clientes
 
+    // Obtener total de clientes para paginación
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM clientes');
+
     const sql = `
       SELECT
         c.*,
@@ -104,13 +110,75 @@ const getAllClientes = async (req, res) => {
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       ${whereClause}
-      ORDER BY c.created_at DESC
-      LIMIT ?
+      ORDER BY c.created_at ${orderBy}
+      LIMIT ? OFFSET ?
     `;
 
-    const [rows] = await pool.query(sql, [limit]);
+    const [rows] = await pool.query(sql, [limit, offset]);
     
-    console.log(`📋 Obteniendo ${rows.length} clientes desde la base de datos`);
+    console.log(`📋 Obteniendo ${rows.length} clientes (${offset + 1}-${offset + rows.length} de ${total})`);
+    
+    // Cargar historial para cada cliente (optimizado con una sola query)
+    if (rows.length > 0) {
+      const clienteIds = rows.map(r => r.id);
+      
+      try {
+        const [historialRows] = await pool.query(`
+          SELECT 
+            h.cliente_id,
+            h.id,
+            h.created_at as fecha,
+            h.tipo,
+            h.estado_anterior as estadoAnterior,
+            h.estado_nuevo as estadoNuevo,
+            h.comentarios,
+            u.nombre as asesor
+          FROM historial_estados h
+          LEFT JOIN usuarios u ON h.usuario_id = u.id
+          WHERE h.cliente_id IN (?)
+          ORDER BY h.created_at DESC
+        `, [clienteIds]);
+        
+        // Agrupar historial por cliente_id
+        const historialPorCliente = {};
+        historialRows.forEach(h => {
+          if (!historialPorCliente[h.cliente_id]) {
+            historialPorCliente[h.cliente_id] = [];
+          }
+          historialPorCliente[h.cliente_id].push({
+            fecha: new Date(h.fecha).toLocaleString('es-PE', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+            asesor: h.asesor || 'Sistema',
+            accion: h.tipo === 'reasignacion' ? 'Reasignación' : 
+                    h.tipo === 'asesor' ? 'Gestión de Asesor' :
+                    h.tipo === 'estatus' ? 'Cambio de Estatus' :
+                    h.tipo === 'wizard' ? 'Completó Wizard' :
+                    h.comentarios || 'Cambio de Estado',
+            estadoAnterior: h.estadoAnterior,
+            estadoNuevo: h.estadoNuevo,
+            comentarios: h.comentarios || ''
+          });
+        });
+        
+        // Asignar historial a cada cliente
+        rows.forEach(cliente => {
+          cliente.historial = historialPorCliente[cliente.id] || [];
+        });
+        
+        console.log(`📋 Historial cargado para ${Object.keys(historialPorCliente).length} clientes`);
+      } catch (histErr) {
+        console.warn('⚠️ No se pudo cargar historial_estados:', histErr.message);
+        // Si falla, dejar historial vacío
+        rows.forEach(cliente => {
+          cliente.historial = [];
+        });
+      }
+    }
     
     // Deshabilitar caché para evitar que el navegador use datos antiguos (304)
     res.set({
@@ -119,7 +187,7 @@ const getAllClientes = async (req, res) => {
       'Expires': '0'
     });
     
-    return res.json({ success: true, clientes: rows, total: rows.length });
+    return res.json({ success: true, clientes: rows, total: total, showing: rows.length });
   } catch (err) {
     console.error('Error getAllClientes', err);
     return res.status(500).json({ success: false, message: 'Error interno' });
@@ -140,7 +208,53 @@ const getClienteById = async (req, res) => {
       LIMIT 1
     `, [id]);
     if (!rows || rows.length === 0) return res.status(404).json({ success:false, message: 'Cliente no encontrado' });
-    return res.json({ success:true, cliente: rows[0] });
+    
+    const cliente = rows[0];
+    
+    // Cargar historial desde historial_estados si existe
+    try {
+      const [historial] = await pool.query(`
+        SELECT 
+          h.id,
+          h.created_at as fecha,
+          h.tipo,
+          h.estado_anterior as estadoAnterior,
+          h.estado_nuevo as estadoNuevo,
+          h.comentarios,
+          u.nombre as asesor
+        FROM historial_estados h
+        LEFT JOIN usuarios u ON h.usuario_id = u.id
+        WHERE h.cliente_id = ?
+        ORDER BY h.created_at DESC
+      `, [id]);
+      
+      // Formatear historial con acciones más descriptivas
+      cliente.historial = historial.map(h => ({
+        fecha: new Date(h.fecha).toLocaleString('es-PE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        asesor: h.asesor || 'Sistema',
+        accion: h.tipo === 'reasignacion' ? 'Reasignación' : 
+                h.tipo === 'asesor' ? 'Gestión de Asesor' :
+                h.tipo === 'estatus' ? 'Cambio de Estatus' :
+                h.tipo === 'wizard' ? 'Completó Wizard' :
+                h.comentarios || 'Cambio de Estado',
+        estadoAnterior: h.estadoAnterior,
+        estadoNuevo: h.estadoNuevo,
+        comentarios: h.comentarios || ''
+      }));
+      
+      console.log(`📋 Historial cargado para cliente ${id}: ${historial.length} eventos`);
+    } catch (histErr) {
+      console.warn('⚠️ No se pudo cargar historial_estados:', histErr.message);
+      cliente.historial = [];
+    }
+    
+    return res.json({ success:true, cliente });
   } catch (err) {
     console.error('Error getClienteById', err);
     return res.status(500).json({ success:false, message: 'Error interno' });
@@ -893,22 +1007,26 @@ const getHistorialByAsesor = async (req, res) => {
   }
 
   try {
+    // Obtener solo las gestiones del MES ACTUAL del asesor
     const [rows] = await pool.query(
       `SELECT 
         id,
-        nombre,
         telefono,
-        dni,
+        campana,
         estatus_comercial_categoria,
         estatus_comercial_subcategoria,
         fecha_wizard_completado,
-        wizard_completado
+        DATE_FORMAT(fecha_wizard_completado, '%d/%m/%Y %H:%i') as fecha_cierre_formateada
        FROM clientes
        WHERE wizard_completado = 1
-         AND JSON_SEARCH(historial_asesores, 'one', ?) IS NOT NULL
+         AND asesor_asignado = ?
+         AND YEAR(fecha_wizard_completado) = YEAR(CURDATE())
+         AND MONTH(fecha_wizard_completado) = MONTH(CURDATE())
        ORDER BY fecha_wizard_completado DESC`,
-      [asesorId.toString()]
+      [asesorId]
     );
+
+    console.log(`📋 [HISTORIAL ASESOR ${asesorId}] Encontradas ${rows.length} gestiones del mes`);
 
     return res.status(200).json({
       success: true,
@@ -942,6 +1060,7 @@ const getGestionesDiaByAsesor = async (req, res) => {
         nombre,
         telefono,
         dni,
+        campana,
         estatus_comercial_categoria,
         estatus_comercial_subcategoria,
         fecha_wizard_completado,
@@ -949,10 +1068,12 @@ const getGestionesDiaByAsesor = async (req, res) => {
        FROM clientes
        WHERE wizard_completado = 1
          AND DATE(fecha_wizard_completado) = CURDATE()
-         AND JSON_SEARCH(historial_asesores, 'one', ?) IS NOT NULL
+         AND asesor_asignado = ?
        ORDER BY fecha_wizard_completado DESC`,
-      [asesorId.toString()]
+      [asesorId]
     );
+
+    console.log(`📋 [GESTIONES DIA ASESOR ${asesorId}] Encontrados ${rows.length} clientes gestionados hoy`);
 
     return res.status(200).json({
       success: true,
