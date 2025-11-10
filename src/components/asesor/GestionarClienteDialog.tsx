@@ -67,7 +67,7 @@ interface Step4Data {
 // Importar el tipo Cliente existente
 import type { Cliente } from '../../context/AppContext';
 import { ubigeoService, type Departamento, type Distrito } from '../../services/UbigeoService';
-import { CATEGORIAS, permiteRierreRapido, getSubcategorias } from '../../constants/estatusComercial';
+import { CATEGORIAS, getSubcategorias } from '../../constants/estatusComercial';
 
 interface Props {
   open: boolean;
@@ -79,8 +79,6 @@ interface Props {
 const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSave }) => {
   // Lock state
   const [, setLockToken] = useState<string | null>(null);
-  const [isLockedByMe, setIsLockedByMe] = useState(false);
-  const [lockedByOther, setLockedByOther] = useState<number | null>(null);
   const heartbeatRef = React.useRef<number | null>(null);
   const lockTokenRef = React.useRef<string | null>(null);
   const asesorIdRef = React.useRef<number | null>(null);
@@ -232,9 +230,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         if (resp.status === 409) {
           const body = await resp.json().catch(() => ({}));
           if (!mounted) return;
-          setIsLockedByMe(false);
-          setLockedByOther(body.owner?.locked_by || body.owner || null);
-          alert('El cliente ya está siendo gestionado por otro asesor. No puedes editarlo.');
+          alert(`El cliente ya está siendo gestionado por otro asesor (ID: ${body.owner?.locked_by || body.owner || 'desconocido'}). No puedes editarlo.`);
           return;
         }
 
@@ -247,8 +243,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         if (!mounted) return;
         setLockToken(j.lockToken || null);
         lockTokenRef.current = j.lockToken || null;
-        setIsLockedByMe(true);
-        setLockedByOther(null);
 
         // 🔥 CRÍTICO: Cambiar seguimiento_status a "en_gestion" cuando el asesor abre el wizard
         if (cliente.seguimiento_status === 'derivado') {
@@ -327,7 +321,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         }
         lockTokenRef.current = null;
         setLockToken(null);
-        setIsLockedByMe(false);
       };
 
       doUnlock();
@@ -557,8 +550,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
 
     // 🔥 VALIDACIÓN: Asegurar que categoría y subcategoría estén seleccionadas
     if (!estatusCategoria || !estatusSubcategoria) {
-      alert('⚠️ Por favor selecciona la Categoría y Subcategoría del estatus antes de guardar.');
-      setActiveStep(0); // Regresar al paso 1 donde están los campos
+      alert('⚠️ Por favor selecciona la Categoría y Subcategoría del estatus en el header antes de finalizar.');
       return;
     }
 
@@ -1434,79 +1426,6 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
         )}
       </Box>
 
-      {/* CATEGORÍA DE ESTATUS */}
-      <Box sx={{ mb: 3 }}>
-        <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
-          CATEGORÍA DE ESTATUS *
-        </FormLabel>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.75rem', fontStyle: 'italic' }}>
-          Selecciona la categoría principal del resultado de la gestión
-        </Typography>
-        <FormControl fullWidth size="small">
-          <Select
-            value={estatusCategoria}
-            onChange={(e) => setEstatusCategoria(e.target.value)}
-            displayEmpty
-            sx={{
-              backgroundColor: '#f5f5f5',
-              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-            }}
-          >
-            <MenuItem disabled value="">Selecciona categoría</MenuItem>
-            {CATEGORIAS.map((cat) => (
-              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
-
-      {/* SUBCATEGORÍA DE ESTATUS (se habilita solo cuando hay categoría) */}
-      <Box sx={{ mb: 3 }}>
-        <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
-          SUBCATEGORÍA DE ESTATUS *
-        </FormLabel>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.75rem', fontStyle: 'italic' }}>
-          Selecciona el detalle específico del estatus
-        </Typography>
-        <FormControl fullWidth size="small" disabled={!estatusCategoria || subcategoriasDisponibles.length === 0}>
-          <Select
-            value={estatusSubcategoria}
-            onChange={(e) => setEstatusSubcategoria(e.target.value)}
-            displayEmpty
-            sx={{
-              backgroundColor: estatusCategoria ? '#f5f5f5' : '#e0e0e0',
-              '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
-            }}
-          >
-            <MenuItem disabled value="">
-              {estatusCategoria ? 'Selecciona subcategoría' : 'Primero selecciona una categoría'}
-            </MenuItem>
-            {subcategoriasDisponibles.map((subcat) => (
-              <MenuItem key={subcat} value={subcat}>{subcat}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
-
-      {/* ALERTA DE CIERRE RÁPIDO */}
-      {estatusCategoria && permiteRierreRapido(estatusCategoria) && (
-        <Box sx={{ 
-          mb: 3, 
-          p: 2, 
-          bgcolor: '#fff3cd', 
-          border: '1px solid #ffc107', 
-          borderRadius: 1 
-        }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: '#856404', mb: 1 }}>
-            ⚡ Cierre Rápido Disponible
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#856404', fontSize: '0.875rem' }}>
-            Has seleccionado una categoría que permite guardar el cliente sin completar todos los pasos del wizard.
-            Puedes usar el botón "GUARDAR Y CERRAR" abajo para finalizar ahora.
-          </Typography>
-        </Box>
-      )}
-
       {/* LEAD */}
       <Box sx={{ mb: 3 }}>
         <FormLabel component="legend" sx={{ mb: 1, fontWeight: 600, color: '#000' }}>
@@ -1703,26 +1622,104 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <Box sx={{ p: 2 }}>
-        {/* Header del wizard */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Formulario de Registro de Cliente - Wizard
-          </Typography>
-          <Button onClick={onClose} sx={{ minWidth: 'auto', p: 1 }}>
-            ×
-          </Button>
+        {/* Header del wizard con Categorización Sticky */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'flex-start', 
+          mb: 2,
+          pb: 2,
+          borderBottom: '1px solid #e0e0e0'
+        }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              Formulario de Registro de Cliente - Wizard
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              Tienes el cliente bloqueado para edición
+            </Typography>
+          </Box>
+
+          {/* Categorización en el header (siempre visible) */}
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+            {/* Categoría */}
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600 }}>
+                Categoría *
+              </Typography>
+              <Select
+                value={estatusCategoria}
+                onChange={(e) => setEstatusCategoria(e.target.value)}
+                displayEmpty
+                disabled={activeStep === 3} // Habilitado en paso final
+                sx={{
+                  backgroundColor: activeStep === 3 ? '#fff3cd' : '#f5f5f5',
+                  '& .MuiOutlinedInput-notchedOutline': { 
+                    border: activeStep === 3 ? '2px solid #ffc107' : 'none' 
+                  }
+                }}
+              >
+                <MenuItem disabled value="">Selecciona</MenuItem>
+                {CATEGORIAS.map((cat) => (
+                  <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Subcategoría */}
+            <FormControl 
+              size="small" 
+              sx={{ minWidth: 180 }}
+              disabled={!estatusCategoria || subcategoriasDisponibles.length === 0}
+            >
+              <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600 }}>
+                Subcategoría *
+              </Typography>
+              <Select
+                value={estatusSubcategoria}
+                onChange={(e) => setEstatusSubcategoria(e.target.value)}
+                displayEmpty
+                disabled={activeStep === 3 ? false : (!estatusCategoria || subcategoriasDisponibles.length === 0)}
+                sx={{
+                  backgroundColor: activeStep === 3 ? '#fff3cd' : (estatusCategoria ? '#f5f5f5' : '#e0e0e0'),
+                  '& .MuiOutlinedInput-notchedOutline': { 
+                    border: activeStep === 3 ? '2px solid #ffc107' : 'none' 
+                  }
+                }}
+              >
+                <MenuItem disabled value="">
+                  {estatusCategoria ? 'Selecciona' : 'Primero categoría'}
+                </MenuItem>
+                {subcategoriasDisponibles.map((subcat) => (
+                  <MenuItem key={subcat} value={subcat}>{subcat}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Botón cerrar */}
+            <Button onClick={onClose} sx={{ minWidth: 'auto', p: 1, mt: 2 }}>
+              ×
+            </Button>
+          </Box>
         </Box>
 
-        {/* Indicador de lock */}
-        {lockedByOther ? (
-          <Typography variant="body2" color="error" sx={{ mb: 2 }}>
-            Cliente ocupado por otro asesor (ID: {String(lockedByOther)})
-          </Typography>
-        ) : isLockedByMe ? (
-          <Typography variant="body2" color="success.main" sx={{ mb: 2 }}>
-            Tienes el cliente bloqueado para edición
-          </Typography>
-        ) : null}
+        {/* Alerta de categorización obligatoria en paso final */}
+        {activeStep === 3 && (!estatusCategoria || !estatusSubcategoria) && (
+          <Box sx={{ 
+            mb: 2, 
+            p: 2, 
+            bgcolor: '#fff3cd', 
+            border: '2px solid #ffc107', 
+            borderRadius: 1 
+          }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, color: '#856404' }}>
+              ⚠️ Categorización Obligatoria
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#856404', fontSize: '0.875rem', mt: 0.5 }}>
+              Debes seleccionar la Categoría y Subcategoría antes de finalizar el wizard.
+            </Typography>
+          </Box>
+        )}
 
         {/* Stepper */}
         <Stepper activeStep={activeStep} sx={{ mb: 3 }}>
@@ -1767,8 +1764,8 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
               </Button>
             )}
             
-            {/* Botón de cierre rápido (solo en paso 1 y con categorías específicas) */}
-            {activeStep === 0 && estatusCategoria && estatusSubcategoria && permiteRierreRapido(estatusCategoria) && (
+            {/* Botón "Categorizar y Cerrar" (visible en pasos 1-3 si hay categorización) */}
+            {activeStep < 3 && estatusCategoria && estatusSubcategoria && (
               <Button 
                 onClick={handleQuickSave}
                 variant="contained"
@@ -1780,7 +1777,7 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
                   '&:hover': { backgroundColor: '#d97706' }
                 }}
               >
-                ⚡ GUARDAR Y CERRAR
+                🏷️ Categorizar y Cerrar
               </Button>
             )}
             
@@ -1800,12 +1797,14 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
               <Button 
                 onClick={handleSave}
                 variant="contained"
+                disabled={!estatusCategoria || !estatusSubcategoria}
                 sx={{ 
                   backgroundColor: '#000',
-                  '&:hover': { backgroundColor: '#333' }
+                  '&:hover': { backgroundColor: '#333' },
+                  '&:disabled': { backgroundColor: '#ccc' }
                 }}
               >
-                Guardar Gestión
+                Finalizar Wizard
               </Button>
             )}
           </Box>
