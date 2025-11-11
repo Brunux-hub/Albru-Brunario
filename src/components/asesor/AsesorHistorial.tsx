@@ -23,24 +23,9 @@ interface ClienteHistorial {
   fecha_cierre_formateada?: string;
 }
 
-// Todas las categorías disponibles
-const CATEGORIAS = [
-  'Seleccionar categoría',
-  'Lista negra',
-  'Preventa completa',
-  'Preventa',
-  'Sin facilidades',
-  'Retirado',
-  'Rechazado',
-  'Agendado',
-  'Seguimiento',
-  'Sin contacto'
-];
-
 const AsesorHistorial: React.FC = () => {
   const [clientes, setClientes] = useState<ClienteHistorial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>('Todos');
 
   const cargarHistorial = useCallback(async () => {
     try {
@@ -78,64 +63,14 @@ const AsesorHistorial: React.FC = () => {
     cargarHistorial();
   }, [cargarHistorial]);
 
-  // Calcular métricas
-  const totalGestiones = clientes.length;
+  // Filtrar solo clientes que van a Validaciones
+  const clientesFiltrados = clientes.filter(c => 
+    c.estatus_comercial_categoria === 'Preventa completa' && 
+    (c.estatus_comercial_subcategoria === 'Venta cerrada' || 
+     c.estatus_comercial_subcategoria === 'Preventa pendiente de score')
+  );
   
-  // Clientes que van a Preventa (categorías: "Preventa" o "Preventa completa")
-  const clientesAPreventa = clientes.filter(c => 
-    c.estatus_comercial_categoria === 'Preventa' || 
-    c.estatus_comercial_categoria === 'Preventa completa'
-  ).length;
-  
-  // Clientes que NO van a preventa
-  const clientesOtros = totalGestiones - clientesAPreventa;
-
-  // Contar por categoría
-  const contarPorCategoria = (categoria: string): number => {
-    return clientes.filter(c => c.estatus_comercial_categoria === categoria).length;
-  };
-
-  // Filtrar clientes según categoría seleccionada
-  const clientesFiltrados = categoriaSeleccionada === 'Todos' 
-    ? clientes 
-    : clientes.filter(c => c.estatus_comercial_categoria === categoriaSeleccionada);
-
-  // Componente de botón de categoría
-  const CategoriaButton: React.FC<{ categoria: string }> = ({ categoria }) => {
-    const count = contarPorCategoria(categoria);
-    const isActive = categoriaSeleccionada === categoria;
-    
-    return (
-      <Paper 
-        sx={{ 
-          p: 2, 
-          textAlign: 'center',
-          cursor: 'pointer',
-          border: isActive ? '2px solid #1976d2' : '1px solid #e0e0e0',
-          bgcolor: isActive ? '#e3f2fd' : 'white',
-          transition: 'all 0.2s',
-          '&:hover': {
-            bgcolor: isActive ? '#e3f2fd' : '#f5f5f5',
-            transform: 'translateY(-2px)',
-            boxShadow: 2
-          }
-        }}
-        onClick={() => setCategoriaSeleccionada(categoria)}
-      >
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-          {categoria}
-        </Typography>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: isActive ? '#1976d2' : 'text.primary' }}>
-          {count}
-        </Typography>
-        {isActive && (
-          <Typography variant="caption" sx={{ color: '#1976d2', fontWeight: 600 }}>
-            ✓ Activo
-          </Typography>
-        )}
-      </Paper>
-    );
-  };
+  const clientesAValidaciones = clientesFiltrados.length;
 
   if (loading) {
     return (
@@ -152,88 +87,21 @@ const AsesorHistorial: React.FC = () => {
         Gestiones del Mes
       </Typography>
 
-      {/* Métricas principales */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-        <Box sx={{ flex: '1 1 300px' }}>
-          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#d1fae5' }}>
-            <Typography variant="body2" color="text.secondary">
-              Gestiones del mes
-            </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 700, color: '#059669' }}>
-              {totalGestiones}
-            </Typography>
-          </Paper>
-        </Box>
-        <Box sx={{ flex: '1 1 300px' }}>
-          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#fed7aa' }}>
-            <Typography variant="body2" color="text.secondary">
-              Otros
-            </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 700, color: '#ea580c' }}>
-              {clientesOtros}
-            </Typography>
-          </Paper>
-        </Box>
-        <Box sx={{ flex: '1 1 300px' }}>
-          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#dbeafe' }}>
-            <Typography variant="body2" color="text.secondary">
-              A Preventa
-            </Typography>
-            <Typography variant="h3" sx={{ fontWeight: 700, color: '#2563eb' }}>
-              {clientesAPreventa}
-            </Typography>
-          </Paper>
-        </Box>
-      </Box>
-
-      {/* Filtros por categoría */}
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        Desglose por Categoría Comercial (Click para filtrar)
-      </Typography>
-
-      <Box sx={{ 
-        display: 'grid', 
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, 
-        gap: 2, 
-        mb: 3 
-      }}>
-        {CATEGORIAS.map((cat) => (
-          <CategoriaButton key={cat} categoria={cat} />
-        ))}
-        {/* Botón "Todos" */}
-        <Paper 
-          sx={{ 
-            p: 2, 
-            textAlign: 'center',
-            cursor: 'pointer',
-            border: categoriaSeleccionada === 'Todos' ? '2px solid #10b981' : '1px solid #e0e0e0',
-            bgcolor: categoriaSeleccionada === 'Todos' ? '#d1fae5' : 'white',
-            transition: 'all 0.2s',
-            '&:hover': {
-              bgcolor: categoriaSeleccionada === 'Todos' ? '#d1fae5' : '#f5f5f5',
-              transform: 'translateY(-2px)',
-              boxShadow: 2
-            }
-          }}
-          onClick={() => setCategoriaSeleccionada('Todos')}
-        >
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-            Todos
+      {/* Métrica principal: Solo A Validaciones */}
+      <Box sx={{ mb: 3 }}>
+        <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#dbeafe' }}>
+          <Typography variant="body2" color="text.secondary">
+            A Validaciones
           </Typography>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: categoriaSeleccionada === 'Todos' ? '#10b981' : 'text.primary' }}>
-            {totalGestiones}
+          <Typography variant="h3" sx={{ fontWeight: 700, color: '#2563eb' }}>
+            {clientesAValidaciones}
           </Typography>
-          {categoriaSeleccionada === 'Todos' && (
-            <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600 }}>
-              ✓ Activo
-            </Typography>
-          )}
         </Paper>
       </Box>
 
-      {/* Tabla de clientes */}
+      {/* Tabla de clientes que van a validaciones */}
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        Clientes Gestionados - {categoriaSeleccionada} ({clientesFiltrados.length})
+        Clientes enviados a Validaciones ({clientesFiltrados.length})
       </Typography>
 
       <TableContainer component={Paper} sx={{ maxHeight: '50vh' }}>
@@ -242,14 +110,15 @@ const AsesorHistorial: React.FC = () => {
             <TableRow>
               <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Fecha de Cierre</TableCell>
               <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Cliente</TableCell>
-              <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Categoría Final</TableCell>
+              <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Categoría</TableCell>
+              <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Subcategoría</TableCell>
               <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Seguimiento</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {clientesFiltrados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
                   <Typography color="text.secondary">
                     No hay clientes gestionados en esta categoría del mes
                   </Typography>
@@ -282,13 +151,20 @@ const AsesorHistorial: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     {cliente.estatus_comercial_categoria ? (
-                      <Chip 
-                        label={cliente.estatus_comercial_categoria} 
-                        color="primary"
-                        size="small"
-                      />
+                      <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1f2937' }}>
+                        {cliente.estatus_comercial_categoria}
+                      </div>
                     ) : (
-                      <span style={{ color: '#9ca3af' }}>Sin estatus</span>
+                      <span style={{ color: '#9ca3af' }}>Sin categoría</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {cliente.estatus_comercial_subcategoria ? (
+                      <div style={{ fontSize: '0.8125rem', color: '#6b7280', fontWeight: 500 }}>
+                        {cliente.estatus_comercial_subcategoria}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#9ca3af' }}>-</span>
                     )}
                   </TableCell>
                   <TableCell>

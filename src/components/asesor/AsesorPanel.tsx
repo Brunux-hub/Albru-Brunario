@@ -151,6 +151,7 @@ const AsesorPanel: React.FC = () => {
       socket.off('HISTORIAL_UPDATED', handleHistorialUpdated);
       socket.off('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, isConnected]);
 
   const handleCloseNotification = () => {

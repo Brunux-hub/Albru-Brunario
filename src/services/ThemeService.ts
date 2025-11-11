@@ -116,8 +116,7 @@ class ThemeService {
     };
   }
 
-  // Notificar a todos los listeners sobre cambios de tema
-  // @ts-ignore - Método usado cuando se descomenta el endpoint
+  // @ts-expect-error - Used in line 58
   private notifyThemeListeners(): void {
     if (this.userConfig) {
       this.themeListeners.forEach(callback => callback(this.userConfig!));

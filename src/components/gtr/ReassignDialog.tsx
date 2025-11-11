@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, FormControl, InputLabel, Select, MenuItem, DialogContentText } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import type { Asesor } from './types';
 
@@ -7,11 +8,16 @@ interface ReassignDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (newAdvisor: string) => void;
-  asesores: Asesor[]; // Lista de asesores dinámicos
+  asesores: Asesor[];
+  cliente?: {
+    id: number;
+    historial_asesores?: string | Array<{ asesor_id: number; fecha: string }>;
+  };
 }
 
-const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfirm, asesores }) => {
+const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfirm, asesores, cliente }) => {
   const [newAdvisor, setNewAdvisor] = useState('');
+  const [showWarning, setShowWarning] = useState(false);
 
   // Filtrar solo asesores activos y memoizar el resultado para evitar recomputes
   const asesoresActivos = useMemo(() => {
@@ -20,10 +26,37 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
     );
   }, [asesores]);
 
+  // Verificar si el asesor ya tuvo al cliente
+  const verificarHistorialAsesor = (asesorId: string): boolean => {
+    if (!cliente || !cliente.historial_asesores) return false;
+    
+    try {
+      const historial = typeof cliente.historial_asesores === 'string' 
+        ? JSON.parse(cliente.historial_asesores)
+        : cliente.historial_asesores;
+      
+      if (!Array.isArray(historial)) return false;
+      
+      return historial.some((h: { asesor_id: number }) => String(h.asesor_id) === asesorId);
+    } catch (error) {
+      console.error('Error parsing historial_asesores:', error);
+      return false;
+    }
+  };
+
+  const handleAsesorChange = (asesorId: string) => {
+    setNewAdvisor(asesorId);
+    
+    // Verificar si el asesor ya tuvo al cliente
+    const yaLoTuvo = verificarHistorialAsesor(asesorId);
+    setShowWarning(yaLoTuvo);
+  };
+
   const handleConfirm = () => {
     if (newAdvisor && newAdvisor.trim() !== '') {
       onConfirm(newAdvisor);
       setNewAdvisor('');
+      setShowWarning(false);
     } else {
       console.error('❌ ReassignDialog: No se ha seleccionado un asesor válido');
       alert('Por favor selecciona un asesor válido');
@@ -32,6 +65,7 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
 
   const handleClose = () => {
     setNewAdvisor('');
+    setShowWarning(false);
     onClose();
   };
 
@@ -46,7 +80,7 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
           <Select
             value={newAdvisor}
             label="Nuevo Asesor"
-            onChange={(e) => setNewAdvisor(e.target.value as string)}
+            onChange={(e) => handleAsesorChange(e.target.value as string)}
             disabled={asesoresActivos.length === 0}
           >
             {asesoresActivos.length === 0 ? (
@@ -66,6 +100,24 @@ const ReassignDialog: React.FC<ReassignDialogProps> = ({ open, onClose, onConfir
             )}
           </Select>
         </FormControl>
+        
+        {showWarning && (
+          <DialogContentText sx={{ 
+            mt: 2, 
+            p: 2, 
+            bgcolor: '#fff3e0', 
+            borderRadius: 1,
+            border: '1px solid #ff9800',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <WarningAmberIcon sx={{ color: '#f57c00' }} />
+            <span style={{ color: '#e65100', fontWeight: 600 }}>
+              ¿Estás seguro de que quieres reasignar este cliente al asesor que ya lo tuvo anteriormente?
+            </span>
+          </DialogContentText>
+        )}
       </DialogContent>
       <DialogActions sx={{ p: 3 }}>
         <Button 

@@ -3,8 +3,8 @@
 
 export const ESTATUS_COMERCIAL = {
   "Lista negra": ["Lista negra"],
-  "Preventa completa": ["Venta cerrada", "Venta cerrada mes siguiente"],
-  "Preventa": ["Preventa", "Pendiente score"],
+  "Preventa completa": ["Venta cerrada", "Preventa pendiente de score"],
+  "Preventa incompleta": ["Preventa incompleta"],
   "Sin facilidades": ["Sin CTO", "Sin cobertura", "Servicio activo", "Edificio sin liberar"],
   "Retirado": ["No desea publicidad"],
   "Rechazado": ["Zona fraude", "Venta cerrada desaprobada", "No desea", "No califica", "Con programación"],
@@ -38,7 +38,7 @@ export function getSubcategorias(categoria: string | null): readonly string[] {
 export const CATEGORIA_COLORS = {
   "Lista negra": { bg: '#1f2937', text: '#ffffff' },
   "Preventa completa": { bg: '#d1fae5', text: '#059669' },
-  "Preventa": { bg: '#dbeafe', text: '#2563eb' },
+  "Preventa incompleta": { bg: '#fef3c7', text: '#d97706' },
   "Sin facilidades": { bg: '#fef3c7', text: '#d97706' },
   "Retirado": { bg: '#fee2e2', text: '#dc2626' },
   "Rechazado": { bg: '#fecaca', text: '#b91c1c' },

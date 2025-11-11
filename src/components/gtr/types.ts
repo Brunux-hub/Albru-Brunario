@@ -63,6 +63,8 @@ export interface Cliente {
   asesor_asignado?: number | null;
   ultima_fecha_gestion?: string | null;
   fecha_ultimo_contacto?: string | null;
+  // Historial de asesores que han gestionado al cliente (JSON array)
+  historial_asesores?: string | Array<{ asesor_id: number; fecha: string }>;
 }
 
 // Tipos compartidos para componentes GTR

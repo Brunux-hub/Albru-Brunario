@@ -1,5 +1,6 @@
 // Controlador Unificado de Autenticación - Monolito de Servicios Separados
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { validationResult } = require('express-validator');
 const pool = require('../config/database');
 
@@ -23,8 +24,18 @@ class AuthService {
 
       const user = users[0];
       
-      // Verificar contraseña
-      const isValidPassword = user.password && password === user.password.toString();
+      // Verificar contraseña con bcrypt
+      let isValidPassword = false;
+      
+      if (user.password) {
+        // Si la contraseña empieza con $2b$, es bcrypt hash
+        if (user.password.startsWith('$2b$') || user.password.startsWith('$2a$') || user.password.startsWith('$2y$')) {
+          isValidPassword = await bcrypt.compare(password, user.password);
+        } else {
+          // Comparación directa para contraseñas legacy (no recomendado en producción)
+          isValidPassword = password === user.password.toString();
+        }
+      }
       
       if (!isValidPassword) {
         return { success: false, message: 'Credenciales inválidas' };

@@ -1,12 +1,28 @@
 import React, { useState, useMemo } from 'react';
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Button, Box, Typography, TextField } from '@mui/material';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow, 
+  Paper, 
+  Chip, 
+  Button, 
+  Box, 
+  Typography, 
+  TextField
+} from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import SearchIcon from '@mui/icons-material/Search';
 
 import ClientHistoryDialog from './ClientHistoryDialog';
 import ReassignDialog from './ReassignDialog';
 import type { ClientHistoryData, Asesor, Cliente } from './types';
 import RealtimeService from '../../services/RealtimeService';
+import { AnimatedCard } from '../common/AnimatedCard';
+import { colors, typography } from '../../theme/designTokens';
 
 
 
@@ -286,31 +302,146 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
       width: '100%',
       flex: 1
     }}>
-      <Box sx={{ p: 2, borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#22223b' }}>
-          Clientes
-        </Typography>
-        <TextField size="small" placeholder="Buscar cliente, asesor o teléfono..." value={query} onChange={(e) => setQuery(e.target.value)} sx={{ minWidth: 240 }} />
-      </Box>
+      <AnimatedCard delay={100} elevation={2} sx={{ overflow: 'hidden' }}>
+        {/* Header profesional con búsqueda */}
+        <Box sx={{ 
+          p: 3, 
+          borderBottom: `1px solid ${colors.neutral[200]}`, 
+          background: `linear-gradient(to right, ${colors.background.paper}, ${colors.neutral[50]})`,
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          gap: 3,
+          flexWrap: 'wrap'
+        }}>
+          <Typography variant="h6" sx={{ 
+            fontWeight: typography.fontWeight.bold, 
+            color: colors.text.primary,
+            fontSize: typography.fontSize.xl
+          }}>
+            Gestión de Clientes
+            <Typography component="span" sx={{ 
+              ml: 2, 
+              fontSize: typography.fontSize.sm, 
+              color: colors.text.secondary,
+              fontWeight: typography.fontWeight.medium
+            }}>
+              {filtered.length} {filtered.length === 1 ? 'cliente' : 'clientes'}
+            </Typography>
+          </Typography>
+          
+          <TextField 
+            size="small" 
+            placeholder="Buscar cliente, asesor o teléfono..." 
+            value={query} 
+            onChange={(e) => setQuery(e.target.value)} 
+            sx={{ 
+              minWidth: 300,
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+                backgroundColor: colors.background.paper,
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: colors.neutral[50],
+                },
+                '&.Mui-focused': {
+                  backgroundColor: colors.background.paper,
+                  boxShadow: `0 0 0 3px ${colors.primary[100]}`,
+                }
+              }
+            }}
+            InputProps={{
+              startAdornment: (
+                <SearchIcon sx={{ mr: 1, color: colors.text.secondary, fontSize: 20 }} />
+              )
+            }}
+          />
+        </Box>
+      
       <TableContainer sx={{ maxHeight: '60vh' }}>
         <Table stickyHeader>
           <TableHead>
             <TableRow>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Fecha Registro</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Lead</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Campaña</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Canal</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Sala</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Compañía</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Estatus Comercial</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Asesor asignado</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Seguimiento</TableCell>
-                <TableCell sx={{ fontWeight: 700, color: '#22223b', background: '#f8fafc' }}>Acciones</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Fecha Registro</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Lead</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Campaña</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Canal</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Sala</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Compañía</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Estatus Comercial</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Asesor asignado</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Seguimiento</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2
+                }}>Acciones</TableCell>
               </TableRow>
           </TableHead>
           <TableBody>
             {filtered.map(client => (
-              <TableRow key={client.id} sx={{ '&:hover': { background: '#f9fafb' } }}>
+              <TableRow key={client.id} sx={{ 
+                '&:hover': { 
+                  backgroundColor: colors.neutral[50],
+                  transition: 'background-color 0.2s ease'
+                } 
+              }}>
                 <TableCell>
                   {client.created_at ? (
                     <div>
@@ -464,6 +595,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
           </TableBody>
         </Table>
       </TableContainer>
+      </AnimatedCard>
       
       <ClientHistoryDialog
         open={historyDialogOpen}
@@ -496,6 +628,10 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         onClose={() => setReassignDialogOpen(false)}
         onConfirm={handleReassignConfirm}
         asesores={asesores}
+        cliente={clientToReassign ? {
+          id: clientToReassign.id,
+          historial_asesores: clientToReassign.historial_asesores
+        } : undefined}
       />
     </Paper>
   );

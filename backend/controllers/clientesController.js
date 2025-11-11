@@ -1259,6 +1259,78 @@ const completeWizard = async (req, res) => {
       });
     }
 
+    // 🔥 NUEVO: Verificar si es "Preventa incompleta" para devolver a GTR
+    const categoria = cliente.estatus_comercial_categoria;
+    const subcategoria = cliente.estatus_comercial_subcategoria;
+    const esPreventaIncompleta = categoria === 'Preventa incompleta';
+
+    if (esPreventaIncompleta) {
+      // Cliente con Preventa incompleta regresa automáticamente a GTR
+      console.log(`🔄 Cliente ${id} con Preventa incompleta - Devolviendo a GTR`);
+      
+      await pool.query(`
+        UPDATE clientes 
+        SET 
+          seguimiento_status = 'sin_gestionar',
+          asesor_asignado = NULL,
+          last_activity = NULL,
+          wizard_completado = 1,
+          fecha_wizard_completado = NOW(),
+          historial_asesores = JSON_ARRAY_APPEND(
+            COALESCE(historial_asesores, '[]'), 
+            '$', 
+            ?
+          ),
+          updated_at = NOW()
+        WHERE id = ?
+      `, [asesorId.toString(), id]);
+
+      // Insertar en historial_estados
+      try {
+        await pool.query(
+          'INSERT INTO historial_estados (cliente_id, usuario_id, tipo, estado_anterior, estado_nuevo, comentarios) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, asesorId, 'preventa_incompleta', 'en_gestion', 'sin_gestionar', `Preventa incompleta - Cliente devuelto a GTR. Categoría: ${categoria}, Subcategoría: ${subcategoria}`]
+        );
+      } catch (e) { 
+        console.warn('No se pudo insertar en historial_estados (preventa incompleta):', e.message); 
+      }
+
+      // Insertar en historial_cliente
+      try {
+        await pool.query(
+          'INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)',
+          [id, asesorId, 'devuelto_a_gtr', `Preventa incompleta - Devuelto a GTR. Categoría: ${categoria}, Subcategoría: ${subcategoria}`, 'sin_gestionar']
+        );
+      } catch (e) { 
+        console.warn('No se pudo insertar en historial_cliente (preventa incompleta):', e.message); 
+      }
+
+      // Notificar por WebSocket que volvió a GTR
+      try {
+        const [updatedRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+        const clienteActualizado = updatedRows[0];
+        
+        webSocketService.notifyAll('CLIENT_RETURNED_TO_GTR', { 
+          clienteId: id, 
+          asesorId,
+          razon: 'Preventa incompleta',
+          cliente: clienteActualizado,
+          timestamp: new Date().toISOString() 
+        });
+        
+        console.log(`📢 [WebSocket] CLIENT_RETURNED_TO_GTR enviado - Preventa incompleta`);
+      } catch (e) { 
+        console.warn('WS notify CLIENT_RETURNED_TO_GTR failed', e.message); 
+      }
+
+      const [finalRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
+      return res.json({ 
+        success: true, 
+        cliente: finalRows[0],
+        message: 'Cliente con Preventa incompleta devuelto a GTR exitosamente'
+      });
+    }
+
     // Actualizar a estado "gestionado" (para que GTR lo vea)
     // Y agregar el asesor al historial_asesores JSON array
     await pool.query(`
@@ -1296,6 +1368,28 @@ const completeWizard = async (req, res) => {
       );
     } catch (e) { 
       console.warn('No se pudo insertar en historial_cliente (completeWizard):', e.message); 
+    }
+
+    // 🔥 NUEVO: Registrar si el cliente va a validaciones
+    const vaAValidaciones = categoria === 'Preventa completa' && 
+                           (subcategoria === 'Venta cerrada' || subcategoria === 'Preventa pendiente de score');
+    
+    if (vaAValidaciones) {
+      try {
+        await pool.query(
+          'INSERT INTO historial_estados (cliente_id, usuario_id, tipo, estado_anterior, estado_nuevo, comentarios) VALUES (?, ?, ?, ?, ?, ?)',
+          [id, asesorId, 'envio_validaciones', 'gestionado', 'en_validaciones', `Cliente enviado a validaciones. Categoría: ${categoria}, Subcategoría: ${subcategoria}`]
+        );
+        
+        await pool.query(
+          'INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)',
+          [id, asesorId, 'enviado_a_validaciones', `Cliente enviado a validaciones. Categoría: ${categoria}, Subcategoría: ${subcategoria}`, 'en_validaciones']
+        );
+        
+        console.log(`📊 Cliente ${id} registrado en historial como enviado a validaciones`);
+      } catch (e) { 
+        console.warn('No se pudo insertar en historial (envío a validaciones):', e.message); 
+      }
     }
 
     // Notificar por WebSocket - Enviar datos completos del cliente para actualización en tiempo real
@@ -1600,7 +1694,8 @@ const getClientesPreventaCerrada = async (req, res) => {
         u.nombre AS asesor_nombre
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id
-      WHERE c.estatus_comercial_categoria IN ('Preventa completa', 'Preventa')
+      WHERE c.estatus_comercial_categoria = 'Preventa completa'
+        AND c.estatus_comercial_subcategoria IN ('Venta cerrada', 'Preventa pendiente de score')
         AND c.wizard_completado = 1
       ORDER BY c.fecha_wizard_completado DESC, c.id DESC
       LIMIT ?
@@ -1608,7 +1703,7 @@ const getClientesPreventaCerrada = async (req, res) => {
     
     const [clientes] = await pool.query(query, [limit]);
     
-    console.log(`📊 Clientes con Preventa (completa o normal) y wizard completado: ${clientes.length}`);
+    console.log(`📊 Clientes con Preventa completa (Venta cerrada o Preventa pendiente de score) y wizard completado: ${clientes.length}`);
     
     return res.json({
       success: true,
