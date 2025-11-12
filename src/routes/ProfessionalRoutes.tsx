@@ -77,6 +77,9 @@ const HomeRedirect: React.FC = () => {
     case 'asesor':
       if (isDev) console.debug('🎯 HomeRedirect - Redirigiendo a asesor dashboard');
       return <Navigate to="/dashboard/asesor" replace />;
+    case 'validador':
+      if (isDev) console.debug('✅ HomeRedirect - Redirigiendo a validador dashboard');
+      return <Navigate to="/dashboard/validaciones" replace />;
     default:
       console.warn('⚠️ Tipo de usuario no reconocido:', user.tipo);
       return (

@@ -30,3 +30,19 @@ backend/node_modules
 *.njsproj
 *.sln
 *.sw?
+
+# Data files (NO subir al repo)
+*.csv
+import-csv-*.js
+import-clientes-*.js
+backup_*.sql
+backup_*.txt
+clientes_*.txt
+*_columns.txt
+*_csv_header.txt
+tables_after_*.txt
+migration_output.txt
+verify_output.txt
+backup_list_*.txt
+estructura_*.txt
+create_table_*.txt

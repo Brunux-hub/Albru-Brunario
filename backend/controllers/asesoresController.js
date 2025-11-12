@@ -24,11 +24,38 @@ const getAsesores = async (req, res) => {
       LEFT JOIN usuarios g ON gt.usuario_id = g.id
       WHERE u.estado = 'activo' AND u.tipo = 'asesor'
     `);
-    console.log('👥 Obteniendo lista de asesores (solo tipo asesor) desde la nueva estructura');
+
+    // Obtener estadísticas del día actual para cada asesor (hora Perú UTC-5)
+    const [stats] = await pool.query(`
+      SELECT 
+        asesor_id,
+        clientes_atendidos,
+        clientes_reasignados
+      FROM asesor_stats_daily
+      WHERE fecha = DATE(CONVERT_TZ(NOW(), '+00:00', '-05:00'))
+    `);
+
+    // Mapear estadísticas por asesor_id
+    const statsMap = {};
+    stats.forEach(stat => {
+      statsMap[stat.asesor_id] = {
+        atendidos: stat.clientes_atendidos || 0,
+        reasignados: stat.clientes_reasignados || 0
+      };
+    });
+
+    // Agregar estadísticas a cada asesor
+    const asesoresWithStats = rows.map(asesor => ({
+      ...asesor,
+      clientes_atendidos_hoy: statsMap[asesor.asesor_id]?.atendidos || 0,
+      clientes_reasignados_hoy: statsMap[asesor.asesor_id]?.reasignados || 0
+    }));
+
+    console.log('👥 Obteniendo lista de asesores con estadísticas del día');
     res.status(200).json({ 
       success: true,
-      asesores: rows,
-      total: rows.length
+      asesores: asesoresWithStats,
+      total: asesoresWithStats.length
     });
   } catch (error) {
     console.error('Error al obtener datos de los asesores:', error);

@@ -27,6 +27,8 @@ interface AsesorAPI {
   meta_mensual: string;
   ventas_realizadas: string;
   comision_porcentaje: string;
+  clientes_atendidos_hoy?: number; // Estadística del día
+  clientes_reasignados_hoy?: number; // Estadística del día
 }
 
 interface ClienteAPI {
@@ -1009,7 +1011,8 @@ const GtrDashboard: React.FC = () => {
               telefono: asesor.telefono || '',
               estado: (asesor.estado || 'Offline') as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
               clientesAsignados: asesor.clientes_asignados || 0,
-              clientesAtendidos: 0,
+              clientesAtendidos: asesor.clientes_atendidos_hoy || 0,
+              clientesReasignados: asesor.clientes_reasignados_hoy || 0,
               ventasHoy: 0,
               ventasMes: parseInt(asesor.ventas_realizadas) || 0,
               metaMensual: parseInt(asesor.meta_mensual) || 100,

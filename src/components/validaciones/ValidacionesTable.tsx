@@ -24,7 +24,6 @@ import {
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Phone as PhoneIcon,
   Email as EmailIcon,
   CheckCircle as CheckCircleIcon,
@@ -110,6 +109,7 @@ interface ClienteApi {
   distrito?: string | null;
   plan_seleccionado?: string | null;
   fecha_cita?: string | null;
+  fecha_asignacion_validador?: string | null;
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
   // Campos del wizard - Paso 1
@@ -150,6 +150,15 @@ const ValidacionesTable: React.FC = () => {
   const [query, setQuery] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const [actionDialog, setActionDialog] = useState<{ open: boolean; cliente: Cliente | null; action: 'aprobar' | 'rechazar' | null }>({
+    open: false,
+    cliente: null,
+    action: null
+  });
+  const [comentarios, setComentarios] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   const handleViewDetails = (cliente: Cliente) => {
     setSelectedCliente(cliente);
@@ -161,16 +170,116 @@ const ValidacionesTable: React.FC = () => {
     setSelectedCliente(null);
   };
 
+  const handleOpenActionDialog = (cliente: Cliente, action: 'aprobar' | 'rechazar') => {
+    setActionDialog({ open: true, cliente, action });
+    setComentarios('');
+  };
+
+  const handleCloseActionDialog = () => {
+    setActionDialog({ open: false, cliente: null, action: null });
+    setComentarios('');
+  };
+
+  const handleConfirmAction = async () => {
+    if (!actionDialog.cliente || !actionDialog.action) return;
+
+    const nuevoEstado = actionDialog.action === 'aprobar' ? 'VENTAS' : 'RECHAZADO';
+
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${API_URL}/api/validadores/cliente/${actionDialog.cliente.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            nuevoEstado,
+            comentarios
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Recargar clientes
+        const base = API_BASE || 'http://localhost:3001';
+        const clientesResponse = await fetch(`${base}/api/validadores/mis-clientes`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        const clientesData = await clientesResponse.json();
+        
+        if (clientesData.success && clientesData.clientes) {
+          const clientesFormateados = clientesData.clientes.map((cliente: ClienteApi) => ({
+            id: String(cliente.id),
+            nombre: cliente.nombre || 'Sin nombre',
+            tipoCliente: 'Preventa Completa',
+            asesorActual: cliente.asesor_nombre || 'Sin asignar',
+            montoCartera: cliente.precio_plan ? Number(cliente.precio_plan) : 0,
+            estado: 'PREVENTA COMPLETA',
+            fechaIngreso: cliente.created_at || new Date().toISOString(),
+            fechaUltimaValidacion: cliente.fecha_asignacion_validador 
+              ? new Date(cliente.fecha_asignacion_validador).toLocaleDateString() 
+              : 'Sin validar',
+            comentario: 'Pendiente de validación',
+            telefono: cliente.telefono || 'Sin teléfono',
+            email: cliente.correo_electronico || 'Sin email',
+            direccion: cliente.direccion || 'Sin dirección',
+            ciudad: cliente.distrito || 'Sin ciudad',
+            codigoPostal: '00000',
+            tipoInstalacion: 'Residencial',
+            planSeleccionado: cliente.tipo_plan || 'Sin plan',
+            precioFinal: cliente.precio_plan ? Number(cliente.precio_plan) : 0,
+            metodoPago: 'Por definir',
+            observacionesAsesor: '',
+            documentosRequeridos: ['INE', 'Comprobante de domicilio'],
+            fechaCita: '',
+            horaCita: '',
+            estatusCategoria: cliente.estatus_comercial_categoria || 'PREVENTA',
+            estatusSubcategoria: cliente.estatus_comercial_subcategoria || 'PREVENTA COMPLETA',
+            wizardData: {} // Simplificado por ahora
+          }));
+          
+          setClientes(clientesFormateados);
+        }
+        
+        handleCloseActionDialog();
+      } else {
+        setError('Error al actualizar el cliente');
+      }
+    } catch (error) {
+      console.error('Error al actualizar cliente:', error);
+      setError('Error de conexión al actualizar cliente');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Cargar clientes reales desde la API
   useEffect(() => {
     const fetchClientes = async () => {
       try {
         setLoading(true);
-        const base = API_BASE || '';
-        // Cambiar endpoint para obtener solo clientes con "Preventa cerrada"
-        const url = `${base}/api/clientes/preventa-cerrada`;
+        const base = API_BASE || 'http://localhost:3001';
+        const token = localStorage.getItem('token');
+        
+        // Usar endpoint de validadores autenticado
+        const url = `${base}/api/validadores/mis-clientes`;
         console.log('🔍 Validaciones: Fetching from:', url);
-        const response = await fetch(url);
+        
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
         const data = await response.json();
         
         console.log('📊 Validaciones: Response:', {
@@ -182,44 +291,37 @@ const ValidacionesTable: React.FC = () => {
         if (data.success && data.clientes) {
           // DEBUG: Ver datos raw del primer cliente
           if (data.clientes.length > 0) {
-            console.log('🔍 DEBUG - Primer cliente raw de la BD:', data.clientes[0]);
-            console.log('📋 Campos wizard disponibles:', {
-              tipo_cliente_wizard: data.clientes[0].tipo_cliente_wizard,
-              lead_score: data.clientes[0].lead_score,
-              coordenadas: data.clientes[0].coordenadas,
-              tipo_documento: data.clientes[0].tipo_documento,
-              dni: data.clientes[0].dni,
-              fecha_nacimiento: data.clientes[0].fecha_nacimiento,
-              telefono_registro: data.clientes[0].telefono_registro
-            });
+            console.log('🔍 DEBUG - Primer cliente desde validadores:', data.clientes[0]);
           }
           
           // Mapear datos de BD a formato del componente
           const clientesFormateados = data.clientes.map((cliente: ClienteApi) => ({
             id: String(cliente.id),
             nombre: cliente.nombre || 'Sin nombre',
-            tipoCliente: 'Regular', // Campo para determinar después
+            tipoCliente: 'Preventa Completa',
             asesorActual: cliente.asesor_nombre || 'Sin asignar',
-            montoCartera: cliente.precio_final ?? 0,
-            estado: cliente.estado_cliente || 'nuevo',
+            montoCartera: cliente.precio_plan ? Number(cliente.precio_plan) : 0,
+            estado: 'PREVENTA COMPLETA',
             fechaIngreso: cliente.created_at || new Date().toISOString(),
-            fechaUltimaValidacion: cliente.updated_at ? new Date(cliente.updated_at).toLocaleDateString() : 'Sin validar',
-            comentario: cliente.observaciones_asesor || 'Sin comentarios',
+            fechaUltimaValidacion: cliente.fecha_asignacion_validador 
+              ? new Date(cliente.fecha_asignacion_validador).toLocaleDateString() 
+              : 'Sin validar',
+            comentario: 'Pendiente de validación',
             telefono: cliente.telefono || 'Sin teléfono',
             email: cliente.correo_electronico || 'Sin email',
             direccion: cliente.direccion || 'Sin dirección',
             ciudad: cliente.distrito || 'Sin ciudad',
             codigoPostal: '00000',
             tipoInstalacion: 'Residencial',
-            planSeleccionado: cliente.plan_seleccionado || 'Sin plan',
-            precioFinal: cliente.precio_final ?? 0,
+            planSeleccionado: cliente.tipo_plan || 'Sin plan',
+            precioFinal: cliente.precio_plan ? Number(cliente.precio_plan) : 0,
             metodoPago: 'Por definir',
-            observacionesAsesor: cliente.observaciones_asesor || '',
+            observacionesAsesor: '',
             documentosRequeridos: ['INE', 'Comprobante de domicilio'],
-            fechaCita: cliente.fecha_cita ? new Date(cliente.fecha_cita).toISOString().split('T')[0] : '',
-            horaCita: cliente.fecha_cita ? new Date(cliente.fecha_cita).toLocaleTimeString() : '',
-            estatusCategoria: cliente.estatus_comercial_categoria || '',
-            estatusSubcategoria: cliente.estatus_comercial_subcategoria || '',
+            fechaCita: '',
+            horaCita: '',
+            estatusCategoria: cliente.estatus_comercial_categoria || 'PREVENTA',
+            estatusSubcategoria: cliente.estatus_comercial_subcategoria || 'PREVENTA COMPLETA',
             // Datos completos del wizard
             wizardData: {
               // Paso 1: Información del Cliente
@@ -446,14 +548,22 @@ const ValidacionesTable: React.FC = () => {
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Editar">
-                        <IconButton size="small" sx={{ color: '#f39c12' }}>
-                          <EditIcon fontSize="small" />
+                      <Tooltip title="Aprobar">
+                        <IconButton 
+                          size="small" 
+                          sx={{ color: '#10b981' }}
+                          onClick={() => handleOpenActionDialog(cliente, 'aprobar')}
+                        >
+                          <CheckCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Eliminar">
-                        <IconButton size="small" sx={{ color: '#e74c3c' }}>
-                          <DeleteIcon fontSize="small" />
+                      <Tooltip title="Rechazar">
+                        <IconButton 
+                          size="small" 
+                          sx={{ color: '#ef4444' }}
+                          onClick={() => handleOpenActionDialog(cliente, 'rechazar')}
+                        >
+                          <CancelIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                     </Box>
@@ -1257,6 +1367,76 @@ const ValidacionesTable: React.FC = () => {
             }}
           >
             Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog de confirmación de acción */}
+      <Dialog
+        open={actionDialog.open}
+        onClose={handleCloseActionDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ 
+          bgcolor: actionDialog.action === 'aprobar' ? '#10b981' : '#ef4444',
+          color: 'white',
+          fontWeight: 600
+        }}>
+          {actionDialog.action === 'aprobar' ? '✅ Aprobar Cliente' : '❌ Rechazar Cliente'}
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          {actionDialog.cliente && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Cliente:</strong> {actionDialog.cliente.nombre}
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                <strong>Plan:</strong> {actionDialog.cliente.planSeleccionado}
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                <strong>Monto:</strong> {formatCurrency(actionDialog.cliente.precioFinal)}
+              </Typography>
+            </Box>
+          )}
+
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+              Comentarios (opcional):
+            </Typography>
+            <textarea
+              value={comentarios}
+              onChange={(e) => setComentarios(e.target.value)}
+              placeholder="Agrega comentarios sobre la validación..."
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '10px',
+                borderRadius: '4px',
+                border: '1px solid #e5e7eb',
+                fontFamily: 'inherit',
+                fontSize: '14px',
+                resize: 'vertical'
+              }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button onClick={handleCloseActionDialog} variant="outlined">
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleConfirmAction}
+            variant="contained"
+            disabled={actionLoading}
+            sx={{
+              bgcolor: actionDialog.action === 'aprobar' ? '#10b981' : '#ef4444',
+              '&:hover': {
+                bgcolor: actionDialog.action === 'aprobar' ? '#059669' : '#dc2626'
+              }
+            }}
+          >
+            {actionLoading ? <CircularProgress size={24} /> : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>

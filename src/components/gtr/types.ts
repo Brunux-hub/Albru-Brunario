@@ -9,6 +9,9 @@ export interface Asesor {
   meta_mensual: string;
   ventas_realizadas: string;
   comision_porcentaje: string;
+  // Estadísticas del día (agregadas desde backend)
+  clientes_atendidos_hoy?: number;
+  clientes_reasignados_hoy?: number;
 }
 
 export interface Historial {

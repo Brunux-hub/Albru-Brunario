@@ -38,6 +38,7 @@ interface Asesor {
   estado: 'Activo' | 'Ocupado' | 'Descanso' | 'Offline';
   clientesAsignados: number;
   clientesAtendidos: number;
+  clientesReasignados: number; // Nuevo: contador de reasignaciones del día
   ventasHoy: number;
   ventasMes: number;
   metaMensual: number;
@@ -102,19 +103,6 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
     if (eficiencia >= 70) return 'warning';
     return 'error';
   };
-
-  const isSameDay = (isoDate?: string) => {
-    if (!isoDate) return false;
-    try {
-      const d = new Date(isoDate);
-      const today = new Date();
-      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
-    } catch {
-      return false;
-    }
-  };
-
-
 
   const [query, setQuery] = useState('');
 
@@ -207,7 +195,8 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Asesor</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Estado</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Sala</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Clientes</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Atendidos/Asignados</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Reasignados Hoy</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Ventas Hoy</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Meta Mensual</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Eficiencia</TableCell>
@@ -301,32 +290,39 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
                     <TableCell>
                       <Box sx={{ textAlign: 'center' }}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
-                          {isSameDay(asesor.ultimaActividad) ? asesor.clientesAtendidos : 0}/{asesor.clientesAsignados}
+                          {asesor.clientesAtendidos}/{asesor.clientesAsignados}
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#6b7280' }}>
                           Atendidos/Asignados
                         </Typography>
                       </Box>
                     </TableCell>
+
+                    <TableCell>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Chip
+                          label={asesor.clientesReasignados}
+                          size="small"
+                          sx={{
+                            backgroundColor: asesor.clientesReasignados > 0 ? '#3b82f6' : '#e5e7eb',
+                            color: asesor.clientesReasignados > 0 ? 'white' : '#6b7280',
+                            fontWeight: 'bold',
+                            minWidth: 40
+                          }}
+                        />
+                      </Box>
+                    </TableCell>
                     
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {/* Mostrar ventas sólo si la última actividad es hoy, de lo contrario 0 */}
-                        {(() => {
-                          const displayVentas = isSameDay(asesor.ultimaActividad) ? asesor.ventasHoy : 0;
-                          return (
-                            <>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
-                                {displayVentas}
-                              </Typography>
-                              {displayVentas >= 3 ? (
-                                <TrendingUp sx={{ fontSize: 16, color: '#22c55e' }} />
-                              ) : (
-                                <TrendingDown sx={{ fontSize: 16, color: '#ef4444' }} />
-                              )}
-                            </>
-                          );
-                        })()}
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
+                          {asesor.ventasHoy}
+                        </Typography>
+                        {asesor.ventasHoy >= 3 ? (
+                          <TrendingUp sx={{ fontSize: 16, color: '#22c55e' }} />
+                        ) : (
+                          <TrendingDown sx={{ fontSize: 16, color: '#ef4444' }} />
+                        )}
                       </Box>
                     </TableCell>
                     

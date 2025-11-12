@@ -32,6 +32,10 @@ app.use('/api/usuarios', usuariosRoutes);
 const userRoutes = require('./routes/user');
 app.use('/api/user', userRoutes);
 
+// Mount validadores routes
+const validadoresRoutes = require('./routes/validadores');
+app.use('/api/validadores', validadoresRoutes);
+
 // Simple endpoints
 app.get('/api/asesores', async (req, res) => {
   try {
@@ -698,51 +702,60 @@ if (require.main === module) {
   server.listen(port, () => {
     console.log(`Backend listening on port ${port} (env=${process.env.NODE_ENV || 'development'})`);
     console.log(`WebSocket server initialized on port ${port}`);
+    
+    // Inicializar servicio de estadísticas diarias (nuevo sistema) - DENTRO del callback
+    try {
+      const dailyStatsResetService = require('./services/dailyStatsResetService');
+      dailyStatsResetService.start();
+      console.log('✅ [DAILY STATS] Servicio de estadísticas diarias iniciado');
+    } catch (e) {
+      console.error('❌ Error al iniciar servicio de estadísticas diarias:', e.message || e);
+    }
   });
+
+  // Programar reinicio diario de contadores de asesores y notificación por WebSocket (sistema legacy)
+  try {
+    const cron = require('node-cron');
+
+    // Job diario a las 00:05 (server time) para evitar colisiones con tareas de medianoche
+    cron.schedule('5 0 * * *', async () => {
+      console.log('🕛 Ejecutando tarea diaria: reset de contadores de asesores (legacy)');
+      try {
+        // Intentar resetear columnas si existen (mode defensivo)
+        const dbName = process.env.DB_NAME || 'albru';
+        const [cols] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'asesores' AND COLUMN_NAME IN ('clientes_atendidos','ventas_hoy')", [dbName]);
+        const names = (cols || []).map(c => c.COLUMN_NAME);
+
+        if (names.includes('clientes_atendidos')) {
+          await pool.query('UPDATE asesores SET clientes_atendidos = 0');
+          console.log('✅ Column clientes_atendidos reseteada a 0');
+        }
+        if (names.includes('ventas_hoy')) {
+          await pool.query('UPDATE asesores SET ventas_hoy = 0');
+          console.log('✅ Column ventas_hoy reseteada a 0');
+        }
+
+        // Notificar a todos los clientes conectados para que refresquen contadores en UI
+        try {
+          webSocketService.notifyAll('DAILY_COUNTERS_RESET', { timestamp: new Date().toISOString() });
+          console.log('🔔 Notificación DAILY_COUNTERS_RESET enviada por WebSocket');
+        } catch (wsErr) {
+          console.warn('No se pudo notificar por WebSocket DAILY_COUNTERS_RESET:', wsErr.message || wsErr);
+        }
+      } catch (e) {
+        console.error('Error en tarea diaria de reinicio de contadores:', e.message || e);
+      }
+    }, {
+      scheduled: true,
+      timezone: process.env.SERVER_TIMEZONE || 'America/Lima'
+    });
+  } catch (e) {
+    console.warn('node-cron no disponible, omitiendo tarea diaria de reinicio de contadores');
+  }
 } else {
   // When required as a module (e.g. tests), export server as a property so tests
   // can decide how/when to listen (for dynamic ports) if needed.
   module.exports.server = server;
-}
-
-// Programar reinicio diario de contadores de asesores y notificación por WebSocket
-try {
-  const cron = require('node-cron');
-
-  // Job diario a las 00:05 (server time) para evitar colisiones con tareas de medianoche
-  cron.schedule('5 0 * * *', async () => {
-    console.log('🕛 Ejecutando tarea diaria: reset de contadores de asesores');
-    try {
-      // Intentar resetear columnas si existen (mode defensivo)
-      const dbName = process.env.DB_NAME || 'albru';
-      const [cols] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'asesores' AND COLUMN_NAME IN ('clientes_atendidos','ventas_hoy')", [dbName]);
-      const names = (cols || []).map(c => c.COLUMN_NAME);
-
-      if (names.includes('clientes_atendidos')) {
-        await pool.query('UPDATE asesores SET clientes_atendidos = 0');
-        console.log('✅ Column clientes_atendidos reseteada a 0');
-      }
-      if (names.includes('ventas_hoy')) {
-        await pool.query('UPDATE asesores SET ventas_hoy = 0');
-        console.log('✅ Column ventas_hoy reseteada a 0');
-      }
-
-      // Notificar a todos los clientes conectados para que refresquen contadores en UI
-      try {
-        webSocketService.notifyAll('DAILY_COUNTERS_RESET', { timestamp: new Date().toISOString() });
-        console.log('🔔 Notificación DAILY_COUNTERS_RESET enviada por WebSocket');
-      } catch (wsErr) {
-        console.warn('No se pudo notificar por WebSocket DAILY_COUNTERS_RESET:', wsErr.message || wsErr);
-      }
-    } catch (e) {
-      console.error('Error en tarea diaria de reinicio de contadores:', e.message || e);
-    }
-  }, {
-    scheduled: true,
-    timezone: process.env.SERVER_TIMEZONE || 'America/Lima'
-  });
-} catch (e) {
-  console.warn('node-cron no disponible, omitiendo tarea diaria de reinicio de contadores');
 }
 
 module.exports = app;

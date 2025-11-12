@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
   Card,
-  CardContent
+  CardContent,
+  CircularProgress
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
@@ -11,16 +12,56 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import axios from 'axios';
 
 const ValidacionesSummary: React.FC = () => {
-  const [stats] = useState({
-    totalClientes: 8,
-    sinValidar: 2,
-    validados: 3,
-    pendientes: 5,
-    eficiencia: 62.5,
-    completados: 3
+  const [stats, setStats] = useState({
+    clientes_asignados: 0,
+    clientes_validados: 0,
+    pendientes: 0,
+    clientes_aprobados: 0,
+    clientes_rechazados: 0
   });
+  const [loading, setLoading] = useState(true);
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(
+          `${API_URL}/api/validadores/mis-estadisticas`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (response.data.success) {
+          setStats(response.data.estadisticas);
+        }
+      } catch (error) {
+        console.error('Error al cargar estadísticas:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+    // Refrescar cada 30 segundos
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, [API_URL]);
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  const eficiencia = stats.clientes_asignados > 0 
+    ? ((stats.clientes_validados / stats.clientes_asignados) * 100).toFixed(1)
+    : 0;
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -54,7 +95,7 @@ const ValidacionesSummary: React.FC = () => {
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#1f2937' }}>
-                  {stats.totalClientes}
+                  {stats.clientes_asignados + stats.pendientes}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 11 }}>
                   Total Clientes
@@ -85,10 +126,10 @@ const ValidacionesSummary: React.FC = () => {
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#dc2626' }}>
-                  {stats.sinValidar}
+                  {stats.clientes_rechazados}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 11 }}>
-                  Sin Validar
+                  Rechazados
                 </Typography>
               </Box>
             </Box>
@@ -116,10 +157,10 @@ const ValidacionesSummary: React.FC = () => {
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#059669' }}>
-                  {stats.validados}
+                  {stats.clientes_aprobados}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 11 }}>
-                  Validados
+                  Aprobados
                 </Typography>
               </Box>
             </Box>
@@ -178,7 +219,7 @@ const ValidacionesSummary: React.FC = () => {
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#6366f1' }}>
-                  {stats.eficiencia}%
+                  {eficiencia}%
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 11 }}>
                   Eficiencia
@@ -209,10 +250,10 @@ const ValidacionesSummary: React.FC = () => {
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#8b5cf6' }}>
-                  {stats.completados}
+                  {stats.clientes_asignados}
                 </Typography>
                 <Typography variant="caption" sx={{ color: '#6b7280', fontSize: 11 }}>
-                  Completados
+                  Asignados Hoy
                 </Typography>
               </Box>
             </Box>
