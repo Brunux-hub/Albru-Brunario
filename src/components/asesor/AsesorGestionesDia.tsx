@@ -23,6 +23,8 @@ interface ClienteGestion {
   estatus_comercial_subcategoria: string | null;
   fecha_wizard_completado: string | null;
   wizard_completado: number;
+  // Campos para sistema de duplicados
+  cantidad_duplicados?: number;
 }
 
 // Todas las categorías disponibles
@@ -82,6 +84,11 @@ const AsesorGestionesDia: React.FC = () => {
 
   // Calcular métricas
   const totalGestiones = clientes.length;
+  
+  // Calcular gestiones totales considerando duplicados
+  const gestionesTotales = clientes.reduce((acc, cliente) => {
+    return acc + (cliente.cantidad_duplicados || 1);
+  }, 0);
   
   // Clientes que van a Preventa (categorías: "Preventa" o "Preventa completa")
   const clientesAPreventa = clientes.filter(c => 
@@ -155,8 +162,18 @@ const AsesorGestionesDia: React.FC = () => {
       {/* 3 Cards superiores */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
         <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-          <Typography variant="subtitle2" color="text.secondary">Gestiones hoy</Typography>
+          <Typography variant="subtitle2" color="text.secondary">Clientes únicos hoy</Typography>
           <Typography variant="h3" sx={{ fontWeight: 700, color: '#2e7d32' }}>{totalGestiones}</Typography>
+        </Paper>
+
+        <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e1f5fe' }}>
+          <Typography variant="subtitle2" color="text.secondary">Gestiones totales</Typography>
+          <Typography variant="h3" sx={{ fontWeight: 700, color: '#0277bd' }}>{gestionesTotales}</Typography>
+          {gestionesTotales > totalGestiones && (
+            <Typography variant="caption" sx={{ color: '#0277bd', fontWeight: 600 }}>
+              (incluye duplicados ×{Math.round(gestionesTotales / totalGestiones * 10) / 10})
+            </Typography>
+          )}
         </Paper>
 
         <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>

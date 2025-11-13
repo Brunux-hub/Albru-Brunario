@@ -15,6 +15,8 @@ services:
     # The DB does not need to publish a host port for normal operation inside docker-compose.
     # Removing the host port mapping avoids host port bind conflicts on Windows.
     # If you need to access MySQL from the host, use 'docker-compose exec db mysql ...' or re-add this mapping.
+    ports:
+      - "3308:3306"  # Temporal para importación
     volumes:
       - db_data:/var/lib/mysql
       # Import SQL on first run: map nueva estructura SQL file to container's init directory

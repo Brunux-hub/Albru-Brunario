@@ -458,16 +458,27 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                 </TableCell>
                 <TableCell>
                   {client.leads_original_telefono || client.telefono || client.cliente || client.lead ? (
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#1976d2' }}>
-                        {(() => {
-                          const t = client.leads_original_telefono || client.telefono || client.cliente || client.lead || '';
-                          const digits = String(t).replace(/\D/g, '').slice(-9);
-                          if (!digits) return t;
-                          return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`;
-                        })()}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#1976d2' }}>
+                          {(() => {
+                            const t = client.leads_original_telefono || client.telefono || client.cliente || client.lead || '';
+                            const digits = String(t).replace(/\D/g, '').slice(-9);
+                            if (!digits) return t;
+                            return `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`;
+                          })()}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{client.telefono ? `(${client.telefono})` : ''}</div>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{client.telefono ? `(${client.telefono})` : ''}</div>
+                      {client.cantidad_duplicados && client.cantidad_duplicados > 1 ? (
+                        <Chip 
+                          label={`×${client.cantidad_duplicados}`}
+                          size="small"
+                          color="warning"
+                          sx={{ fontWeight: 700, fontSize: '0.75rem', height: '22px' }}
+                          title={`Este número aparece ${client.cantidad_duplicados} veces en la base de datos`}
+                        />
+                      ) : null}
                     </div>
                   ) : (
                     <span style={{ color: '#1976d2', fontStyle: 'normal', fontWeight:700 }}>Sin teléfono</span>

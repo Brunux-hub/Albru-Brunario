@@ -68,6 +68,10 @@ export interface Cliente {
   fecha_ultimo_contacto?: string | null;
   // Historial de asesores que han gestionado al cliente (JSON array)
   historial_asesores?: string | Array<{ asesor_id: number; fecha: string }>;
+  // Campos para sistema de duplicados
+  es_duplicado?: boolean;
+  cantidad_duplicados?: number;
+  telefono_principal_id?: number | null;
 }
 
 // Tipos compartidos para componentes GTR

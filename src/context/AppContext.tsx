@@ -48,6 +48,10 @@ export interface Cliente {
   // Categoría y subcategoría del estatus comercial (del wizard)
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  // Campos para sistema de duplicados
+  es_duplicado?: boolean;
+  cantidad_duplicados?: number;
+  telefono_principal_id?: number | null;
 }
 
 interface AppContextType {

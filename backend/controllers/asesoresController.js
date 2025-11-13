@@ -35,6 +35,19 @@ const getAsesores = async (req, res) => {
       WHERE fecha = DATE(CONVERT_TZ(NOW(), '+00:00', '-05:00'))
     `);
 
+    // Obtener gestiones totales del día (contando duplicados)
+    const [gestionesTotales] = await pool.query(`
+      SELECT 
+        c.asesor_asignado as asesor_id,
+        COUNT(DISTINCT c.id) as clientes_unicos,
+        COALESCE(SUM(c.cantidad_duplicados), COUNT(c.id)) as gestiones_totales
+      FROM clientes c
+      WHERE c.asesor_asignado IS NOT NULL
+        AND DATE(c.updated_at) = DATE(CONVERT_TZ(NOW(), '+00:00', '-05:00'))
+        AND (c.es_duplicado = FALSE OR c.es_duplicado IS NULL)
+      GROUP BY c.asesor_asignado
+    `);
+
     // Mapear estadísticas por asesor_id
     const statsMap = {};
     stats.forEach(stat => {
@@ -44,11 +57,22 @@ const getAsesores = async (req, res) => {
       };
     });
 
+    // Mapear gestiones totales
+    const gestionesMap = {};
+    gestionesTotales.forEach(g => {
+      gestionesMap[g.asesor_id] = {
+        clientes_unicos: g.clientes_unicos || 0,
+        gestiones_totales: g.gestiones_totales || 0
+      };
+    });
+
     // Agregar estadísticas a cada asesor
     const asesoresWithStats = rows.map(asesor => ({
       ...asesor,
       clientes_atendidos_hoy: statsMap[asesor.asesor_id]?.atendidos || 0,
-      clientes_reasignados_hoy: statsMap[asesor.asesor_id]?.reasignados || 0
+      clientes_reasignados_hoy: statsMap[asesor.asesor_id]?.reasignados || 0,
+      clientes_unicos_hoy: gestionesMap[asesor.asesor_id]?.clientes_unicos || 0,
+      gestiones_totales_hoy: gestionesMap[asesor.asesor_id]?.gestiones_totales || 0
     }));
 
     console.log('👥 Obteniendo lista de asesores con estadísticas del día');
@@ -154,7 +178,13 @@ const obtenerDatosClientes = async (req, res) => {
       { col: 'estado', as: 'estado' },
       { col: 'observaciones_asesor', as: 'gestion' },
       { col: 'fecha_primer_contacto', as: 'fecha' },
-      { col: 'fecha_ultimo_contacto', as: 'seguimiento' }
+      { col: 'fecha_ultimo_contacto', as: 'seguimiento' },
+      { col: 'es_duplicado', as: 'es_duplicado' },
+      { col: 'cantidad_duplicados', as: 'cantidad_duplicados' },
+      { col: 'telefono_principal_id', as: 'telefono_principal_id' },
+      { col: 'estatus_comercial_categoria', as: 'categoria' },
+      { col: 'estatus_comercial_subcategoria', as: 'subcategoria' },
+      { col: 'campana', as: 'campana' }
     ];
 
     const dbName = process.env.DB_NAME || 'albru';
@@ -164,7 +194,8 @@ const obtenerDatosClientes = async (req, res) => {
     const existingSet = new Set((existingCols || []).map(r => r.COLUMN_NAME));
 
     const selectParts = desired.map(d => existingSet.has(d.col) ? `${d.col} as ${d.as}` : `NULL as ${d.as}`);
-    const selectSql = `SELECT ${selectParts.join(', ')} FROM clientes WHERE asesor_asignado = ? ORDER BY created_at DESC`;
+    // SOLO mostrar registros principales (no duplicados)
+    const selectSql = `SELECT ${selectParts.join(', ')} FROM clientes WHERE asesor_asignado = ? AND (es_duplicado = FALSE OR es_duplicado IS NULL) ORDER BY created_at DESC`;
 
     let [rows] = await pool.query(selectSql, [asesorId]);
 
@@ -265,10 +296,73 @@ const buscarAsesor = async (req, res) => {
   }
 };
 
+const obtenerDuplicados = async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    console.log(`📋 Obteniendo duplicados para cliente ID: ${id}`);
+    
+    // Primero obtener el cliente principal
+    const [clientePrincipal] = await pool.query(`
+      SELECT telefono, es_duplicado, telefono_principal_id
+      FROM clientes
+      WHERE id = ?
+    `, [id]);
+    
+    if (clientePrincipal.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Cliente no encontrado' 
+      });
+    }
+    
+    const cliente = clientePrincipal[0];
+    const telefonoBase = cliente.telefono;
+    
+    // Si es un duplicado, usar el teléfono del principal
+    let idPrincipal = id;
+    if (cliente.es_duplicado && cliente.telefono_principal_id) {
+      idPrincipal = cliente.telefono_principal_id;
+    }
+    
+    // Obtener todos los registros con el mismo teléfono
+    const [duplicados] = await pool.query(`
+      SELECT 
+        c.*,
+        u.nombre as asesor_nombre,
+        CASE 
+          WHEN c.id = ? THEN TRUE
+          ELSE FALSE
+        END as es_principal
+      FROM clientes c
+      LEFT JOIN usuarios u ON c.asesor_asignado = u.id
+      WHERE c.telefono = ?
+      ORDER BY c.created_at ASC, c.id ASC
+    `, [idPrincipal, telefonoBase]);
+    
+    console.log(`✅ Encontrados ${duplicados.length} registros con teléfono: ${telefonoBase}`);
+    
+    res.json({ 
+      success: true, 
+      duplicados,
+      total: duplicados.length,
+      telefono: telefonoBase
+    });
+    
+  } catch (error) {
+    console.error('❌ Error al obtener duplicados:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener duplicados' 
+    });
+  }
+};
+
 module.exports = {
   getAsesores,
   actualizarDatosCliente,
   obtenerDatosClientes,
   updateEstadoAsesor,
-  buscarAsesor
+  buscarAsesor,
+  obtenerDuplicados
 };
