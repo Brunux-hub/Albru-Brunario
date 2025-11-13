@@ -236,6 +236,343 @@ const DayManagementPanel: React.FC = () => {
             </Grow>
           </Box>
 
+          {/* LEADS DEL DÍA x ASESOR */}
+          <AnimatedCard delay={300} sx={{ mb: 4 }}>
+            <Box sx={{ 
+              p: 3, 
+              borderBottom: `1px solid ${colors.neutral[200]}`,
+              background: `linear-gradient(to right, ${colors.primary[500]}, ${colors.primary[600]})`
+            }}>
+              <Typography variant="h6" sx={{ 
+                fontWeight: typography.fontWeight.bold,
+                color: 'white'
+              }}>
+                LEADS DEL DÍA x ASESOR
+              </Typography>
+            </Box>
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: colors.primary[50] }}>
+                    <TableCell sx={{ 
+                      fontWeight: typography.fontWeight.bold, 
+                      color: colors.primary[700],
+                      borderBottom: `2px solid ${colors.primary[200]}`,
+                      py: 2,
+                      fontSize: typography.fontSize.base
+                    }}>
+                      ASESOR
+                    </TableCell>
+                    <TableCell align="center" sx={{ 
+                      fontWeight: typography.fontWeight.bold, 
+                      color: colors.primary[700],
+                      borderBottom: `2px solid ${colors.primary[200]}`,
+                      py: 2,
+                      fontSize: typography.fontSize.base
+                    }}>
+                      TOTAL
+                    </TableCell>
+                    <TableCell align="center" sx={{ 
+                      fontWeight: typography.fontWeight.bold, 
+                      color: colors.primary[700],
+                      borderBottom: `2px solid ${colors.primary[200]}`,
+                      py: 2,
+                      fontSize: typography.fontSize.base
+                    }}>
+                      PREVENTAS
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {(() => {
+                    // Agrupar por asesor
+                    const asesorStats = clientesGestionadosHoy.reduce((acc, cliente) => {
+                      const asesorNombre = cliente.asesor_nombre || 'Sin asignar';
+                      if (!acc[asesorNombre]) {
+                        acc[asesorNombre] = { total: 0, preventas: 0 };
+                      }
+                      acc[asesorNombre].total += 1;
+                      
+                      // Contar preventas
+                      if (cliente.estatus_comercial_categoria === 'Preventa' || 
+                          cliente.estatus_comercial_categoria === 'Preventa completa') {
+                        acc[asesorNombre].preventas += 1;
+                      }
+                      
+                      return acc;
+                    }, {} as Record<string, { total: number; preventas: number }>);
+
+                    // Convertir a array y ordenar por total descendente
+                    const asesorArray = Object.entries(asesorStats)
+                      .map(([nombre, stats]) => ({ nombre, ...stats }))
+                      .sort((a, b) => b.total - a.total);
+
+                    if (asesorArray.length === 0) {
+                      return (
+                        <TableRow>
+                          <TableCell colSpan={3} align="center" sx={{ py: 4, color: colors.text.secondary }}>
+                            No hay gestiones registradas hoy
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    return asesorArray.map((asesor, index) => (
+                      <TableRow 
+                        key={asesor.nombre}
+                        sx={{
+                          '&:hover': { 
+                            backgroundColor: colors.primary[50],
+                            transition: 'background-color 0.2s ease'
+                          },
+                          backgroundColor: index % 2 === 0 ? 'white' : colors.neutral[50]
+                        }}
+                      >
+                        <TableCell sx={{ 
+                          py: 2.5,
+                          fontWeight: typography.fontWeight.semibold,
+                          color: colors.text.primary,
+                          fontSize: typography.fontSize.sm
+                        }}>
+                          {asesor.nombre}
+                        </TableCell>
+                        <TableCell align="center" sx={{ 
+                          py: 2.5,
+                          fontWeight: typography.fontWeight.bold,
+                          color: colors.secondary[600],
+                          fontSize: typography.fontSize.lg
+                        }}>
+                          {asesor.total}
+                        </TableCell>
+                        <TableCell align="center" sx={{ 
+                          py: 2.5,
+                          fontWeight: typography.fontWeight.bold,
+                          color: asesor.preventas > 0 ? colors.primary[600] : colors.text.disabled,
+                          fontSize: typography.fontSize.lg
+                        }}>
+                          {asesor.preventas}
+                        </TableCell>
+                      </TableRow>
+                    ));
+                  })()}
+                </TableBody>
+              </Table>
+            </Box>
+          </AnimatedCard>
+
+          {/* GESTIÓN x CAMPAÑA */}
+          <AnimatedCard delay={350} sx={{ mb: 4 }}>
+            <Box sx={{ 
+              p: 3, 
+              borderBottom: `1px solid ${colors.neutral[200]}`,
+              background: `linear-gradient(to right, ${colors.secondary[600]}, ${colors.secondary[700]})`
+            }}>
+              <Typography variant="h6" sx={{ 
+                fontWeight: typography.fontWeight.bold,
+                color: 'white'
+              }}>
+                GESTIÓN x CAMPAÑA
+              </Typography>
+            </Box>
+            <Box sx={{ overflowX: 'auto' }}>
+              {(() => {
+                console.log('🔍 GESTIÓN x CAMPAÑA - Clientes:', clientesGestionadosHoy.length);
+                // Obtener todas las campañas únicas
+                const campanas = Array.from(new Set(clientesGestionadosHoy.map(c => c.campana || 'Sin campaña')));
+                console.log('🔍 Campañas encontradas:', campanas);
+                const totalPorCampana = campanas.reduce((acc, camp) => {
+                  acc[camp] = clientesGestionadosHoy.filter(c => (c.campana || 'Sin campaña') === camp).length;
+                  return acc;
+                }, {} as Record<string, number>);
+
+                // Obtener todas las categorías con al menos 1 cliente
+                const categoriasConDatos = Array.from(new Set(
+                  clientesGestionadosHoy.map(c => c.estatus_comercial_categoria || 'Sin categoría')
+                )).sort();
+
+                // Calcular datos por categoría y campaña
+                const datosPorCategoria = categoriasConDatos.map(categoria => {
+                  const totalCategoria = clientesGestionadosHoy.filter(
+                    c => (c.estatus_comercial_categoria || 'Sin categoría') === categoria
+                  ).length;
+
+                  const porCampana = campanas.reduce((acc, campana) => {
+                    const count = clientesGestionadosHoy.filter(
+                      c => (c.estatus_comercial_categoria || 'Sin categoría') === categoria && 
+                           (c.campana || 'Sin campaña') === campana
+                    ).length;
+                    const porcentaje = totalPorCampana[campana] > 0 
+                      ? (count / totalPorCampana[campana] * 100).toFixed(2)
+                      : '0.00';
+                    acc[campana] = { count, porcentaje };
+                    return acc;
+                  }, {} as Record<string, { count: number; porcentaje: string }>);
+
+                  return { categoria, totalCategoria, porCampana };
+                });
+
+                // Determinar color de la categoría
+                const getCategoriaColor = (cat: string) => {
+                  if (cat.toLowerCase().includes('preventa') || cat.toLowerCase().includes('venta')) {
+                    return colors.success[50];
+                  }
+                  return 'transparent';
+                };
+
+                const getCategoriaTextColor = (cat: string) => {
+                  if (cat.toLowerCase().includes('preventa') || cat.toLowerCase().includes('venta')) {
+                    return colors.success[800];
+                  }
+                  return colors.text.primary;
+                };
+
+                return (
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ backgroundColor: colors.secondary[50] }}>
+                        <TableCell sx={{ 
+                          fontWeight: typography.fontWeight.bold,
+                          color: colors.secondary[800],
+                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          py: 2,
+                          minWidth: 200
+                        }}>
+                          TIPIFICACIÓN
+                        </TableCell>
+                        <TableCell align="center" sx={{ 
+                          fontWeight: typography.fontWeight.bold,
+                          color: colors.secondary[800],
+                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          py: 2
+                        }}>
+                          TOTAL
+                        </TableCell>
+                        {campanas.map(campana => (
+                          <TableCell 
+                            key={campana}
+                            colSpan={2}
+                            align="center"
+                            sx={{ 
+                              fontWeight: typography.fontWeight.bold,
+                              color: colors.secondary[800],
+                              borderBottom: `2px solid ${colors.secondary[200]}`,
+                              py: 2,
+                              borderLeft: `1px solid ${colors.neutral[300]}`
+                            }}
+                          >
+                            {campana.toUpperCase()}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                      <TableRow sx={{ backgroundColor: colors.secondary[100] }}>
+                        <TableCell sx={{ 
+                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          py: 1
+                        }}></TableCell>
+                        <TableCell sx={{ 
+                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          py: 1
+                        }}></TableCell>
+                        {campanas.map(campana => (
+                          <>
+                            <TableCell 
+                              key={`${campana}-count`}
+                              align="center"
+                              sx={{ 
+                                fontWeight: typography.fontWeight.semibold,
+                                fontSize: typography.fontSize.xs,
+                                color: colors.secondary[700],
+                                borderBottom: `2px solid ${colors.secondary[200]}`,
+                                borderLeft: `1px solid ${colors.neutral[300]}`,
+                                py: 1
+                              }}
+                            >
+                              #{totalPorCampana[campana]}
+                            </TableCell>
+                            <TableCell 
+                              key={`${campana}-pct`}
+                              align="center"
+                              sx={{ 
+                                fontWeight: typography.fontWeight.semibold,
+                                fontSize: typography.fontSize.xs,
+                                color: colors.secondary[700],
+                                borderBottom: `2px solid ${colors.secondary[200]}`,
+                                py: 1
+                              }}
+                            >
+                              %
+                            </TableCell>
+                          </>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {datosPorCategoria.map((dato, index) => (
+                        <TableRow 
+                          key={dato.categoria}
+                          sx={{
+                            backgroundColor: index % 2 === 0 ? 'white' : colors.neutral[50],
+                            '&:hover': { backgroundColor: colors.neutral[100] }
+                          }}
+                        >
+                          <TableCell sx={{ 
+                            py: 2,
+                            fontWeight: typography.fontWeight.semibold,
+                            fontSize: typography.fontSize.sm,
+                            backgroundColor: getCategoriaColor(dato.categoria),
+                            color: getCategoriaTextColor(dato.categoria)
+                          }}>
+                            {dato.categoria}
+                          </TableCell>
+                          <TableCell align="center" sx={{ 
+                            py: 2,
+                            fontWeight: typography.fontWeight.bold,
+                            fontSize: typography.fontSize.base,
+                            color: colors.text.primary
+                          }}>
+                            {dato.totalCategoria}
+                          </TableCell>
+                          {campanas.map(campana => {
+                            const data = dato.porCampana[campana];
+                            return (
+                              <>
+                                <TableCell 
+                                  key={`${campana}-count`}
+                                  align="center"
+                                  sx={{ 
+                                    py: 2,
+                                    fontWeight: typography.fontWeight.semibold,
+                                    fontSize: typography.fontSize.sm,
+                                    borderLeft: `1px solid ${colors.neutral[300]}`,
+                                    color: data.count > 0 ? colors.text.primary : colors.text.disabled
+                                  }}
+                                >
+                                  {data.count}
+                                </TableCell>
+                                <TableCell 
+                                  key={`${campana}-pct`}
+                                  align="center"
+                                  sx={{ 
+                                    py: 2,
+                                    fontWeight: typography.fontWeight.bold,
+                                    fontSize: typography.fontSize.sm,
+                                    color: parseFloat(data.porcentaje) > 0 ? colors.primary[600] : colors.text.disabled
+                                  }}
+                                >
+                                  {data.porcentaje}%
+                                </TableCell>
+                              </>
+                            );
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
+            </Box>
+          </AnimatedCard>
+
           {/* Desglose por Categoría Comercial */}
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
