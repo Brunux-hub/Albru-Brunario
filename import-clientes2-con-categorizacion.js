@@ -19,40 +19,48 @@ const dbConfig = {
   database: 'albru'
 };
 
-// MAPEO DE TIPIFICACIONES A CATEGORÍAS
+// MAPEO DE TIPIFICACIONES A CATEGORÍAS (según wizard estatusComercial.ts)
 const MAPEO_TIPIFICACIONES = {
-  '0 - NO CONTESTA': { cat: 'PROSPECCIÓN', subcat: 'NO CONTACTADO' },
-  '0 - CORTA LLAMADA': { cat: 'PROSPECCIÓN', subcat: 'NO CONTACTADO' },
-  '0 - BUZON': { cat: 'PROSPECCIÓN', subcat: 'NO CONTACTADO' },
-  '0 - FUERA DE SERVICIO': { cat: 'PROSPECCIÓN', subcat: 'TELÉFONO NO DISPONIBLE' },
-  '0 - N° EQUIVOCADO': { cat: 'RECHAZADO', subcat: 'NÚMERO EQUIVOCADO' },
+  // SIN CONTACTO
+  '0 - NO CONTESTA': { cat: 'Sin contacto', subcat: 'No contesta' },
+  '0 - CORTA LLAMADA': { cat: 'Sin contacto', subcat: 'Corta llamada' },
+  '0 - BUZON': { cat: 'Sin contacto', subcat: 'Buzón' },
+  '0 - FUERA DE SERVICIO': { cat: 'Sin contacto', subcat: 'Fuera de servicio' },
+  '0 - N° EQUIVOCADO': { cat: 'Sin contacto', subcat: 'Número equivocado' },
   
-  '1 - SOLO INFO': { cat: 'SEGUIMIENTO', subcat: 'INFORMACIÓN' },
-  '1 - GESTION x CHAT': { cat: 'SEGUIMIENTO', subcat: 'CONTACTO WHATSAPP' },
-  '1 - SEGUIMIENTO': { cat: 'SEGUIMIENTO', subcat: 'SEGUIMIENTO GENERAL' },
+  // SEGUIMIENTO
+  '1 - SOLO INFO': { cat: 'Seguimiento', subcat: 'Solo info' },
+  '1 - GESTION x CHAT': { cat: 'Seguimiento', subcat: 'Gestión o chat' },
+  '1 - SEGUIMIENTO': { cat: 'Seguimiento', subcat: 'Seguimiento' },
+  '4 - DOBLE CLICK': { cat: 'Seguimiento', subcat: 'Seguimiento' },
   
-  '2 - AGENDADO': { cat: 'PREVENTA', subcat: 'AGENDADO' },
-  '2 - CONSULTARA CON FAMILIAR': { cat: 'SEGUIMIENTO', subcat: 'CONSULTA FAMILIAR' },
-  '2 - FIN DE MES': { cat: 'SEGUIMIENTO', subcat: 'FIN DE MES' },
+  // AGENDADO
+  '2 - AGENDADO': { cat: 'Agendado', subcat: 'Agendado' },
+  '2 - CONSULTARA CON FAMILIAR': { cat: 'Agendado', subcat: 'Consultaría con familiar' },
+  '2 - FIN DE MES': { cat: 'Agendado', subcat: 'Fin de mes' },
   
-  '3 - NO DESEA': { cat: 'RECHAZADO', subcat: 'NO DESEA' },
-  '3 - CON PROGRAMACIÓN': { cat: 'VENTA', subcat: 'VENTA PROGRAMADA' },
-  '3 - NO CALIFICA': { cat: 'RECHAZADO', subcat: 'NO CALIFICA' },
-  '3 - VC DESAPROBADA': { cat: 'RECHAZADO', subcat: 'VENTA DESAPROBADA' },
-  '3 - ZONA F': { cat: 'RECHAZADO', subcat: 'ZONA NO FACTIBLE' },
+  // RECHAZADO
+  '3 - NO DESEA': { cat: 'Rechazado', subcat: 'No desea' },
+  '3 - CON PROGRAMACIÓN': { cat: 'Rechazado', subcat: 'Con programación' },
+  '3 - NO CALIFICA': { cat: 'Rechazado', subcat: 'No califica' },
+  '3 - VC DESAPROBADA': { cat: 'Rechazado', subcat: 'Venta cerrada desaprobada' },
+  '3 - ZONA F': { cat: 'Rechazado', subcat: 'Zona fraude' },
   
-  '4 - DOBLE CLICK': { cat: 'SEGUIMIENTO', subcat: 'DOBLE CLICK' },
-  '4 - ND PUBLICIDAD': { cat: 'RECHAZADO', subcat: 'NO DESEA PUBLICIDAD' },
+  // RETIRADO
+  '4 - ND PUBLICIDAD': { cat: 'Retirado', subcat: 'No desea publicidad' },
   
-  '5 - SIN COBERTURA': { cat: 'RECHAZADO', subcat: 'SIN COBERTURA' },
-  '5 - SERVICIO ACTIVO': { cat: 'RECHAZADO', subcat: 'YA TIENE SERVICIO' },
-  '5 - EDIFICIO SIN LIBERAR': { cat: 'SEGUIMIENTO', subcat: 'EDIFICIO PENDIENTE' },
-  '5 - SIN CTO': { cat: 'RECHAZADO', subcat: 'SIN CTO DISPONIBLE' },
+  // SIN FACILIDADES
+  '5 - SIN COBERTURA': { cat: 'Sin facilidades', subcat: 'Sin cobertura' },
+  '5 - SERVICIO ACTIVO': { cat: 'Sin facilidades', subcat: 'Servicio activo' },
+  '5 - EDIFICIO SIN LIBERAR': { cat: 'Sin facilidades', subcat: 'Edificio sin liberar' },
+  '5 - SIN CTO': { cat: 'Sin facilidades', subcat: 'Sin CTO' },
   
-  '6 - PDTE SCORE': { cat: 'VALIDACIÓN', subcat: 'PENDIENTE SCORE' },
-  '6 - PREVENTA': { cat: 'PREVENTA', subcat: 'PREVENTA COMPLETA' },
+  // PREVENTA COMPLETA
+  '6 - PDTE SCORE': { cat: 'Preventa completa', subcat: 'Preventa pendiente de score' },
+  '6 - PREVENTA': { cat: 'Preventa completa', subcat: 'Preventa pendiente de score' },
   
-  '8 - LISTA NEGRA': { cat: 'RECHAZADO', subcat: 'LISTA NEGRA' }
+  // LISTA NEGRA
+  '8 - LISTA NEGRA': { cat: 'Lista negra', subcat: 'Lista negra' }
 };
 
 // Función para convertir fecha DD/MM/YYYY a YYYY-MM-DD HH:MM:SS
