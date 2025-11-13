@@ -414,14 +414,14 @@ const DayManagementPanel: React.FC = () => {
                 // Determinar color de la categoría
                 const getCategoriaColor = (cat: string) => {
                   if (cat.toLowerCase().includes('preventa') || cat.toLowerCase().includes('venta')) {
-                    return colors.success[50];
+                    return '#e8f5e9'; // Verde claro
                   }
                   return 'transparent';
                 };
 
                 const getCategoriaTextColor = (cat: string) => {
                   if (cat.toLowerCase().includes('preventa') || cat.toLowerCase().includes('venta')) {
-                    return colors.success[800];
+                    return '#2e7d32'; // Verde oscuro
                   }
                   return colors.text.primary;
                 };
