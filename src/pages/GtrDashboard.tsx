@@ -74,6 +74,10 @@ interface ClienteAPI {
   // Campos de estatus comercial (del wizard)
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  // Campos del sistema de duplicados
+  es_duplicado?: boolean;
+  cantidad_duplicados?: number;
+  telefono_principal_id?: number | null;
 }
 
 const GtrDashboard: React.FC = () => {
@@ -330,7 +334,11 @@ const GtrDashboard: React.FC = () => {
             seguimiento_status: cliente.seguimiento_status || null,
             // ✨ NUEVO: Mapear estatus comercial (categoría y subcategoría)
             estatus_comercial_categoria: cliente.estatus_comercial_categoria || null,
-            estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null
+            estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null,
+            // ✅ DUPLICADOS: Mapear campos del sistema de duplicados
+            es_duplicado: cliente.es_duplicado || false,
+            cantidad_duplicados: cliente.cantidad_duplicados || 1,
+            telefono_principal_id: cliente.telefono_principal_id || null
           }));
           
           if (append) {
