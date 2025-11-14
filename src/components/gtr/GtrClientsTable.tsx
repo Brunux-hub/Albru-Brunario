@@ -92,26 +92,52 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     ));
   }
   
-  const handleViewHistory = (client: Cliente) => {
-    console.log('📋 GTR Frontend: Cliente seleccionado:', client.id);
-    console.log('📋 GTR Frontend: Historial recibido:', client.historial);
-    console.log('📋 GTR Frontend: Longitud historial:', client.historial?.length || 0);
-    
-    const clientHistoryData: ClientHistoryData = {
-      id: client.id,
-      nombre: client.nombre || '',
-      cliente: String(client.id),
-      dni: client.dni || '',
-      email: client.email || '',
-  campana: client.campana ?? 'Sin campaña',
-      canal: 'Sin canal',
-      estado: client.estado || '',
-  fechaCreacion: client.fechaCreacion,
-      historial: client.historial || []
-    };
-    console.log('📋 GTR Frontend: ClientHistoryData preparado:', clientHistoryData);
-    setSelectedClient(clientHistoryData);
-    setHistoryDialogOpen(true);
+  const handleViewHistory = async (client: Cliente) => {
+    try {
+      console.log('📋 GTR Frontend: Solicitando historial actualizado para cliente:', client.id);
+      const resp = await fetch(`/api/clientes/${client.id}`);
+      if (!resp.ok) {
+        console.warn('⚠️ GTR: No se pudo obtener cliente desde backend, usando datos locales');
+      }
+      const data = await resp.json().catch(() => null);
+      const servidorCliente = data && data.cliente ? data.cliente : null;
+
+      const historial = servidorCliente?.historial || client.historial || [];
+
+      const clientHistoryData: ClientHistoryData = {
+        id: client.id,
+        nombre: servidorCliente?.nombre || client.nombre || '',
+        cliente: String(client.id),
+        dni: servidorCliente?.dni || client.dni || '',
+        email: servidorCliente?.email || client.email || '',
+        campana: servidorCliente?.campana ?? client.campana ?? 'Sin campaña',
+        canal: servidorCliente?.canal || client.canal || 'Sin canal',
+        estado: servidorCliente?.estado || client.estado || '',
+        fechaCreacion: servidorCliente?.fechaCreacion || client.fechaCreacion,
+        historial: historial
+      };
+
+      console.log('📋 GTR Frontend: ClientHistoryData preparado (servidor):', clientHistoryData);
+      setSelectedClient(clientHistoryData);
+      setHistoryDialogOpen(true);
+    } catch (e) {
+      console.error('❌ GTR: Error al obtener historial del cliente:', e);
+      // Fallback a datos locales
+      const clientHistoryData: ClientHistoryData = {
+        id: client.id,
+        nombre: client.nombre || '',
+        cliente: String(client.id),
+        dni: client.dni || '',
+        email: client.email || '',
+        campana: client.campana ?? 'Sin campaña',
+        canal: 'Sin canal',
+        estado: client.estado || '',
+        fechaCreacion: client.fechaCreacion,
+        historial: client.historial || []
+      };
+      setSelectedClient(clientHistoryData);
+      setHistoryDialogOpen(true);
+    }
   };
   
   const handleReassign = (client: Cliente) => {

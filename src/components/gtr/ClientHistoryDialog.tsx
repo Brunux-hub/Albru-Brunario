@@ -350,6 +350,27 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                 </Box>
               )}
 
+              {/* Mostrar categoría / subcategoría y seguimiento si están presentes */}
+              {(evento.categoria || evento.subcategoria || evento.seguimiento_status) && (
+                <Box sx={{ mt: 1, mb: 1 }}>
+                  {evento.categoria && (
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: 13 }}>
+                      Categoría: {evento.categoria}
+                    </Typography>
+                  )}
+                  {evento.subcategoria && (
+                    <Typography variant="body2" sx={{ color: '#475569', fontSize: 13 }}>
+                      Subcategoría: {evento.subcategoria}
+                    </Typography>
+                  )}
+                  {evento.seguimiento_status && (
+                    <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                      Último seguimiento: {evento.seguimiento_status}
+                    </Typography>
+                  )}
+                </Box>
+              )}
+
               {/* Descripción */}
               <Typography 
                 variant="body2" 

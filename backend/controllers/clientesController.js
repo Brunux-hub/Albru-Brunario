@@ -253,6 +253,46 @@ const getClienteById = async (req, res) => {
       console.warn('⚠️ No se pudo cargar historial_estados:', histErr.message);
       cliente.historial = [];
     }
+
+    // Cargar historial de reasignaciones (snapshot por asesor) y mezclar con historial existente
+    try {
+      const [reasignRows] = await pool.query(`
+        SELECT
+          id,
+          created_at as fecha,
+          asesor_usuario_id,
+          asesor_nombre,
+          categoria,
+          subcategoria,
+          seguimiento_status,
+          comentario
+        FROM historial_reasignaciones
+        WHERE cliente_id = ?
+        ORDER BY created_at DESC
+      `, [id]);
+
+      const reasignMap = reasignRows.map(r => ({
+        fecha: new Date(r.fecha).toLocaleString('es-PE', {
+          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        }),
+        asesor: r.asesor_nombre || 'Asesor',
+        accion: 'Reasignación',
+        estadoAnterior: null,
+        estadoNuevo: r.asesor_nombre || null,
+        comentarios: r.comentario || '',
+        categoria: r.categoria || null,
+        subcategoria: r.subcategoria || null,
+        seguimiento_status: r.seguimiento_status || null
+      }));
+
+      // Mezclar y ordenar por fecha (desc)
+      cliente.historial = [...(cliente.historial || []), ...reasignMap]
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
+      console.log(`📋 Historial (incluyendo reasignaciones) cargado para cliente ${id}: total ${cliente.historial.length}`);
+    } catch (rErr) {
+      console.warn('⚠️ No se pudo cargar historial_reasignaciones:', rErr.message);
+    }
     
     return res.json({ success:true, cliente });
   } catch (err) {
@@ -1607,6 +1647,28 @@ const reasignarCliente = async (req, res) => {
       );
     } catch (e) {
       console.warn('No se pudo insertar en historial_cliente:', e.message);
+    }
+
+    // Registrar snapshot detallado de reasignación por asesor (categoria, subcategoria, seguimiento)
+    try {
+      const nuevoAsesorCompleto = (typeof nuevoAsesorCompleto !== 'undefined') ? nuevoAsesorCompleto : (await connection.query('SELECT a.id, u.nombre, u.id as usuario_id FROM asesores a JOIN usuarios u ON a.usuario_id = u.id WHERE a.id = ?', [nuevoAsesorId]))[0][0] || { nombre: null };
+      await connection.query(
+        `INSERT INTO historial_reasignaciones
+          (cliente_id, asesor_usuario_id, asesor_nombre, categoria, subcategoria, seguimiento_status, comentario, evento)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          clienteId,
+          nuevoUsuarioId,
+          nuevoAsesorCompleto.nombre || null,
+          cliente.estatus_comercial_categoria || null,
+          cliente.estatus_comercial_subcategoria || null,
+          cliente.seguimiento_status || null,
+          comentario || null,
+          'reasignacion'
+        ]
+      );
+    } catch (e) {
+      console.warn('No se pudo insertar en historial_reasignaciones:', e.message);
     }
 
     // Actualizar contadores

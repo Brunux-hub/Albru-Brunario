@@ -21,6 +21,10 @@ export interface Historial {
   estadoAnterior?: string;
   estadoNuevo?: string;
   comentarios: string;
+  // Opcionales para entradas de reasignación / snapshot por asesor
+  categoria?: string | null;
+  subcategoria?: string | null;
+  seguimiento_status?: string | null;
 }
 
 export interface Cliente {
