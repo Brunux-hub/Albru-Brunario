@@ -161,35 +161,49 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const storedToken = localStorage.getItem('albru_token');
         
         if (storedToken) {
-          // Verificar si el token no está expirado
-          const payload = JSON.parse(atob(storedToken.split('.')[1]));
-          const isExpired = payload.exp * 1000 < Date.now();
-          
-          if (!isExpired) {
-            console.log('✅ Token válido encontrado, restaurando sesión');
+          // Validar formato JWT (debe tener 3 partes separadas por punto)
+          const parts = storedToken.split('.');
+          if (parts.length !== 3) {
+            console.warn('⚠️ Token con formato inválido (no es JWT), limpiando datos');
+            clearAuth();
+            setAuthLoading(false);
+            return;
+          }
+
+          try {
+            // Verificar si el token no está expirado
+            const payload = JSON.parse(atob(parts[1]));
+            const isExpired = payload.exp * 1000 < Date.now();
             
-            const userData: User = {
-              id: payload.userId,
-              nombre: payload.nombre,
-              email: payload.email,
-              tipo: payload.tipo,
-              tenant_id: payload.tenant_id || payload.tenantId
-            };
-            
-            setToken(storedToken);
-            setUser(userData);
-            
-            // Guardar también en formato legacy para compatibilidad
-            localStorage.setItem('token', storedToken);
-            localStorage.setItem('albru_user', JSON.stringify(userData));
-            localStorage.setItem('userData', JSON.stringify(userData));
-          } else {
-            console.log('❌ Token expirado, limpiando datos');
+            if (!isExpired) {
+              console.log('✅ Token válido encontrado, restaurando sesión');
+              
+              const userData: User = {
+                id: payload.userId,
+                nombre: payload.nombre,
+                email: payload.email,
+                tipo: payload.tipo,
+                tenant_id: payload.tenant_id || payload.tenantId
+              };
+              
+              setToken(storedToken);
+              setUser(userData);
+              
+              // Guardar también en formato legacy para compatibilidad
+              localStorage.setItem('token', storedToken);
+              localStorage.setItem('albru_user', JSON.stringify(userData));
+              localStorage.setItem('userData', JSON.stringify(userData));
+            } else {
+              console.log('❌ Token expirado, limpiando datos');
+              clearAuth();
+            }
+          } catch (decodeError) {
+            console.error('❌ Error decodificando token (corrupto o inválido):', decodeError);
             clearAuth();
           }
         }
       } catch (error) {
-        console.error('Error inicializando autenticación:', error);
+        console.error('❌ Error inicializando autenticación:', error);
         clearAuth();
       } finally {
         setAuthLoading(false);
