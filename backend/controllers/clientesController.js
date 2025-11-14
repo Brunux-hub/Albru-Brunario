@@ -1799,6 +1799,7 @@ const notifyClienteOcupado = async (req, res) => {
     getHistorialByAsesor,
     getGestionesDiaByAsesor,
     getClientesGestionadosHoy,
+    getCampanaStatsHoy,
     getClientesGestionadosMes,
     getClientesPreventaCerrada,
     openWizard,

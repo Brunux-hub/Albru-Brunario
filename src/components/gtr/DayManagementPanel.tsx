@@ -45,7 +45,6 @@ const CATEGORIAS = [
 const DayManagementPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [clientesGestionadosHoy, setClientesGestionadosHoy] = useState<ClienteGestionado[]>([]);
-  const [campanaStatsMap, setCampanaStatsMap] = useState<Record<string, { total_ingresados_hoy: number; total_validaciones_hoy: number; porcentaje?: number }>>({});
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>('Todos');
 
   useEffect(() => {
@@ -60,24 +59,6 @@ const DayManagementPanel: React.FC = () => {
         const jClientes = await respClientes.json();
         if (jClientes && jClientes.success && Array.isArray(jClientes.clientes)) {
           setClientesGestionadosHoy(jClientes.clientes as ClienteGestionado[]);
-        }
-        // Cargar estadísticas por campaña (ingresados hoy vs validaciones)
-        try {
-          const respStats = await fetch(`${backendUrl}/api/clientes/campana-stats-hoy`);
-          const jStats = await respStats.json();
-          if (jStats && jStats.success && Array.isArray(jStats.stats)) {
-            const map: Record<string, any> = {};
-            jStats.stats.forEach((s: any) => {
-              map[s.campana] = {
-                total_ingresados_hoy: s.total_ingresados_hoy,
-                total_validaciones_hoy: s.total_validaciones_hoy,
-                porcentaje: s.porcentaje
-              };
-            });
-            setCampanaStatsMap(map);
-          }
-        } catch (e) {
-          console.warn('Error cargando campana-stats-hoy', e);
         }
       } catch (e) {
         console.warn('Error cargando datos para Gestión del día', e);
@@ -399,12 +380,9 @@ const DayManagementPanel: React.FC = () => {
                 // Obtener todas las campañas únicas
                 const campanas = Array.from(new Set(clientesGestionadosHoy.map(c => c.campana || 'Sin campaña')));
                 console.log('🔍 Campañas encontradas:', campanas);
+                // Usar clientes GESTIONADOS HOY como base (no ingresados hoy)
                 const totalPorCampana = campanas.reduce((acc, camp) => {
-                  // Preferir el total de ingresados hoy proveniente del backend (created_at)
-                  const backendTotal = campanaStatsMap[camp]?.total_ingresados_hoy;
-                  acc[camp] = typeof backendTotal === 'number' && backendTotal >= 0
-                    ? backendTotal
-                    : clientesGestionadosHoy.filter(c => (c.campana || 'Sin campaña') === camp).length;
+                  acc[camp] = clientesGestionadosHoy.filter(c => (c.campana || 'Sin campaña') === camp).length;
                   return acc;
                 }, {} as Record<string, number>);
 
