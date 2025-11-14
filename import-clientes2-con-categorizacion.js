@@ -14,8 +14,8 @@ const __dirname = path.dirname(__filename);
 const dbConfig = {
   host: 'localhost',
   port: 3308,
-  user: 'albru',
-  password: 'albru12345',
+  user: 'root',
+  password: 'root_password_here',
   database: 'albru'
 };
 
