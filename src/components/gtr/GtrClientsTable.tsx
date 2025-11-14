@@ -115,6 +115,9 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   };
   
   const handleReassign = (client: Cliente) => {
+    console.log('🔄 GTR: Iniciando reasignación para cliente:', client);
+    console.log('🔄 GTR: Categoría del cliente:', client.estatus_comercial_categoria);
+    console.log('🔄 GTR: Estado seguimiento:', client.seguimiento_status);
     setClientToReassign(client);
     setReassignDialogOpen(true);
   };
@@ -605,6 +608,11 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                       const categoriasNoReasignables = ['Preventa', 'Preventa completa'];
                       const esPreventaCliente = Boolean(client.estatus_comercial_categoria && 
                                                 categoriasNoReasignables.includes(client.estatus_comercial_categoria));
+                      
+                      // Debug: Log para verificar estado del botón
+                      if (client.id % 50 === 0) { // Log cada 50 clientes para no saturar consola
+                        console.log(`🔍 Cliente ID ${client.id}: Categoría="${client.estatus_comercial_categoria}", Deshabilitado=${esPreventaCliente}`);
+                      }
                       
                       return (
                         <Button 
