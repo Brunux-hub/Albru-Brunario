@@ -1447,6 +1447,43 @@ const reasignarCliente = async (req, res) => {
     });
   }
 
+  /**
+   * 🎯 FUNCIÓN PROFESIONAL: Determina si un cliente está en categoría PREVENTA FINAL (no reasignable)
+   * 
+   * LÓGICA DE NEGOCIO:
+   * - Solo clientes con PREVENTA + VENTA CERRADA quedan bloqueados
+   * - Todas las demás categorías/subcategorías pueden reasignarse infinitamente
+   * - Permite ciclo de gestión hasta que el cliente finalmente acepte
+   */
+  const esCategoriaPreventaFinal = (categoria, subcategoria) => {
+    if (!categoria) return false; // Sin categoría = puede reasignarse
+    
+    // Categorías que representan PREVENTA
+    const categoriasPreventa = ['Preventa', 'Preventa completa'];
+    
+    // Subcategorías que indican VENTA CERRADA (no reasignables)
+    const subcategoriasVentaCerrada = [
+      'Venta cerrada',
+      'Contrato firmado',
+      'Pago realizado',
+      'Instalación programada',
+      'Servicio activado'
+    ];
+    
+    // Si NO es categoría PREVENTA → puede reasignarse
+    if (!categoriasPreventa.includes(categoria)) {
+      return false;
+    }
+    
+    // Si es PREVENTA pero subcategoría no indica venta cerrada → puede reasignarse
+    if (!subcategoria || !subcategoriasVentaCerrada.includes(subcategoria)) {
+      return false;
+    }
+    
+    // PREVENTA + VENTA CERRADA = NO reasignable
+    return true;
+  };
+
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -1472,23 +1509,34 @@ const reasignarCliente = async (req, res) => {
 
     const cliente = clienteRows[0];
     
-    // 🔒 VALIDACIÓN DE CATEGORÍA: Solo clientes de PREVENTA no pueden ser reasignados
-    const categoriasNoReasignables = ['Preventa', 'Preventa completa'];
+    // 🔒 VALIDACIÓN PROFESIONAL: Solo PREVENTA con VENTA CERRADA no puede ser reasignada
     const categoriaCliente = cliente.estatus_comercial_categoria;
+    const subcategoriaCliente = cliente.estatus_comercial_subcategoria;
     
-    if (categoriaCliente && categoriasNoReasignables.includes(categoriaCliente)) {
-      console.warn(`⚠️ Backend: Intento de reasignar cliente en categoría PREVENTA bloqueado`);
-      console.warn(`   Cliente ID: ${clienteId}, Categoría: ${categoriaCliente}`);
+    console.log(`🔍 Backend: Validando categoría para reasignación`);
+    console.log(`   Cliente ID: ${clienteId}`);
+    console.log(`   Categoría: ${categoriaCliente || 'Sin categoría'}`);
+    console.log(`   Subcategoría: ${subcategoriaCliente || 'Sin subcategoría'}`);
+    
+    if (esCategoriaPreventaFinal(categoriaCliente, subcategoriaCliente)) {
+      console.warn(`⚠️ Backend: Reasignación BLOQUEADA - Cliente con VENTA CERRADA`);
+      console.warn(`   Cliente ID: ${clienteId}`);
+      console.warn(`   Categoría: ${categoriaCliente}`);
+      console.warn(`   Subcategoría: ${subcategoriaCliente}`);
       await connection.rollback();
       return res.status(403).json({ 
         success: false, 
-        message: `No se puede reasignar clientes en categoría "${categoriaCliente}". Solo se pueden reasignar clientes de otras categorías (Lista negra, Sin facilidades, Retirado, Rechazado, Agendado, Seguimiento, Sin contacto).`,
+        message: `❌ NO SE PUEDE REASIGNAR\n\nEste cliente tiene una VENTA CERRADA y no puede ser reasignado.\n\nCategoría: ${categoriaCliente}\nSubcategoría: ${subcategoriaCliente}\n\n✅ Clientes que SÍ pueden reasignarse:\n• Lista negra\n• Sin facilidades\n• Retirado\n• Rechazado\n• Agendado\n• Seguimiento\n• Sin contacto\n• Preventa incompleta\n• Preventa (sin venta cerrada)`,
         categoria: categoriaCliente,
-        clienteId: clienteId
+        subcategoria: subcategoriaCliente,
+        clienteId: clienteId,
+        motivo: 'VENTA_CERRADA'
       });
     }
 
-    console.log(`✅ Backend: Cliente puede ser reasignado. Categoría: ${categoriaCliente || 'Sin categoría'}`);
+    console.log(`✅ Backend: Cliente PUEDE ser reasignado`);
+    console.log(`   ✓ Categoría permite reasignación: ${categoriaCliente || 'Sin categoría'}`);
+    console.log(`   ✓ Subcategoría permite reasignación: ${subcategoriaCliente || 'Sin subcategoría'}`);
     
     const antiguoAsesorId = cliente.asesor_asignado;
 
