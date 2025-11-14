@@ -1505,11 +1505,24 @@ const reasignarCliente = async (req, res) => {
     
     const nuevoUsuarioId = nuevoAsesorData[0].usuario_id;
 
-    // Actualizar cliente
+    // 🔄 REINICIAR SEGUIMIENTO: Actualizar cliente y resetear estado de seguimiento para nuevo ciclo de gestión
+    // - seguimiento_status: NULL (disponible para nueva gestión)
+    // - opened_at: NULL (resetear apertura)
+    // - derivado_at: NOW() (marcar momento de reasignación)
+    console.log(`🔄 Backend: Reseteando seguimiento para cliente ${clienteId} - nuevo asesor: ${nuevoUsuarioId}`);
+    
     await connection.query(
-      'UPDATE clientes SET asesor_asignado = ?, seguimiento_status = ?, derivado_at = NOW(), updated_at = NOW() WHERE id = ?', 
-      [nuevoUsuarioId, 'derivado', clienteId]
+      `UPDATE clientes 
+       SET asesor_asignado = ?, 
+           seguimiento_status = NULL, 
+           opened_at = NULL, 
+           derivado_at = NOW(), 
+           updated_at = NOW() 
+       WHERE id = ?`, 
+      [nuevoUsuarioId, clienteId]
     );
+
+    console.log(`✅ Backend: Cliente ${clienteId} reasignado y disponible para nueva gestión`);
 
     // Registrar en historial
     try {
@@ -1566,7 +1579,8 @@ const reasignarCliente = async (req, res) => {
           nombre: cliente.nombre,
           telefono: cliente.telefono,
           estado: cliente.estado || null,
-          seguimiento_status: 'derivado'
+          seguimiento_status: null, // ✅ NULL para resetear y permitir nueva gestión
+          asesor_asignado: nuevoUsuarioId
         },
         nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
         antiguoAsesor: { id: antiguoAsesorId },

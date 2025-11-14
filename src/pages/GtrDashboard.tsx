@@ -408,17 +408,23 @@ const GtrDashboard: React.FC = () => {
         // Obtener el nombre del nuevo asesor
         const asesorNombre = nuevoAsesorData ? String(nuevoAsesorData['nombre'] || '') : '';
         console.log('🔄 [GTR FRONTEND] Nombre nuevo asesor:', asesorNombre);
+        
+        // Obtener seguimiento_status del payload (debería ser null para resetear)
+        const nuevoSeguimientoStatus = clienteData['seguimiento_status'] as string | null;
+        console.log('🔄 [GTR FRONTEND] Nuevo seguimiento_status:', nuevoSeguimientoStatus);
 
-        // Actualizar el cliente con seguimiento_status = 'derivado' y el nuevo asesor
+        // 🔄 Actualizar el cliente con seguimiento_status reseteado (null) y el nuevo asesor
         console.log('🔄 [GTR FRONTEND] Actualizando lista de clientes...');
         setClients(prev => {
           const updated = prev.map(c => {
             if (c.id === clienteId) {
               console.log('✅ [GTR FRONTEND] Cliente encontrado en lista, actualizando:', c.id);
+              console.log('   Reseteo: seguimiento_status = null (disponible para nueva gestión)');
               return { 
                 ...c, 
-                seguimiento_status: 'derivado',
-                asesor: asesorNombre || c.asesor // Actualizar asesor con el nuevo nombre
+                seguimiento_status: nuevoSeguimientoStatus || null, // ✅ Resetear a null
+                asesor: asesorNombre || c.asesor, // Actualizar asesor con el nuevo nombre
+                asesor_asignado: clienteData['asesor_asignado'] ? Number(clienteData['asesor_asignado']) : c.asesor_asignado
               } as Cliente;
             }
             return c;
