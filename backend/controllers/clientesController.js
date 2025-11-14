@@ -965,14 +965,23 @@ const getClientesByAsesor = async (req, res) => {
         AND (c.wizard_completado IS NULL OR c.wizard_completado = 0)
       ORDER BY c.created_at DESC`;
     
-    console.log(`🔍 [GET_CLIENTES_ASESOR] Ejecutando query con asesorId: ${asesorId}`);
-    console.log(`📋 [GET_CLIENTES_ASESOR] SQL: ${sql}`);
+    console.log(`🔍 [GET_CLIENTES_ASESOR] ==== INICIO QUERY ====`);
+    console.log(`🔍 [GET_CLIENTES_ASESOR] asesorId recibido: ${asesorId} (tipo: ${typeof asesorId})`);
+    console.log(`� [GET_CLIENTES_ASESOR] Asesor nombre: ${asesorNombre}`);
     
     const [clientes] = await pool.query(sql, [asesorId]);
 
-    console.log(`✅ [GET_CLIENTES_ASESOR] Encontrados ${clientes.length} clientes para asesor ${asesorId}`);
+    console.log(`📊 [GET_CLIENTES_ASESOR] ==== RESULTADO ====`);
+    console.log(`📊 [GET_CLIENTES_ASESOR] Total clientes encontrados: ${clientes.length}`);
+    
     if (clientes.length > 0) {
-      console.log(`📝 [GET_CLIENTES_ASESOR] Primer cliente:`, JSON.stringify(clientes[0], null, 2));
+      console.log(`📝 [GET_CLIENTES_ASESOR] Primeros 3 clientes:`);
+      clientes.slice(0, 3).forEach((c, idx) => {
+        console.log(`   ${idx + 1}. ID:${c.id} | Nombre:${c.nombre} | asesor_asignado:${c.asesor_asignado} | wizard:${c.wizard_completado} | status:${c.seguimiento_status}`);
+      });
+    } else {
+      console.log(`⚠️  [GET_CLIENTES_ASESOR] NO se encontraron clientes para asesor ${asesorId}`);
+      console.log(`⚠️  [GET_CLIENTES_ASESOR] Verificar que asesor_asignado en BD coincida con usuario_id ${asesorId}`);
     }
 
     return res.json({
@@ -1559,9 +1568,12 @@ const reasignarCliente = async (req, res) => {
     // - wizard_completado: 0 (resetear wizard para permitir nueva gestión)
     // - fecha_wizard_completado: NULL (limpiar fecha de completado)
     // - derivado_at: NOW() (marcar momento de reasignación)
-    console.log(`🔄 Backend: Reseteando seguimiento COMPLETO para cliente ${clienteId} - nuevo asesor: ${nuevoUsuarioId}`);
+    console.log(`🔄 Backend: Reseteando seguimiento COMPLETO para cliente ${clienteId}`);
+    console.log(`   - nuevo asesor usuario_id: ${nuevoUsuarioId}`);
+    console.log(`   - nuevo asesor asesor_id: ${nuevoAsesorId}`);
+    console.log(`   - antiguo asesor: ${antiguoAsesorId}`);
     
-    await connection.query(
+    const [updateResult] = await connection.query(
       `UPDATE clientes 
        SET asesor_asignado = ?, 
            seguimiento_status = NULL, 
@@ -1574,7 +1586,16 @@ const reasignarCliente = async (req, res) => {
       [nuevoUsuarioId, clienteId]
     );
 
-    console.log(`✅ Backend: Cliente ${clienteId} COMPLETAMENTE reseteado - listo para nueva gestión desde cero`);
+    console.log(`✅ Backend: Cliente ${clienteId} COMPLETAMENTE reseteado`);
+    console.log(`   - Filas afectadas: ${updateResult.affectedRows}`);
+    console.log(`   - asesor_asignado ahora es: ${nuevoUsuarioId} (usuario_id)`);
+    
+    // Verificar que el UPDATE funcionó correctamente
+    const [clienteVerif] = await connection.query(
+      'SELECT id, nombre, asesor_asignado, wizard_completado, seguimiento_status FROM clientes WHERE id = ?',
+      [clienteId]
+    );
+    console.log(`🔍 [VERIFICACION] Cliente después del UPDATE:`, JSON.stringify(clienteVerif[0], null, 2));
 
     // Registrar en historial
     try {
