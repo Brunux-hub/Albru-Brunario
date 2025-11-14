@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor, getHistorialByAsesor, getGestionesDiaByAsesor, getClientesGestionadosHoy, getClientesGestionadosMes, getClientesPreventaCerrada, openWizard, completeWizard, reasignarCliente, notifyClienteOcupado } = require('../controllers/clientesController');
+const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor, getHistorialByAsesor, getGestionesDiaByAsesor, getClientesGestionadosHoy, getClientesGestionadosMes, getClientesPreventaCerrada, openWizard, completeWizard, reasignarCliente, notifyClienteOcupado, getCampanaStatsHoy } = require('../controllers/clientesController');
 const { lockCliente, unlockCliente, heartbeatCliente, getLockStatus } = require('../controllers/clientesController');
 const { updateEstatus } = require('../controllers/estatusController');
 const { activityTracker } = require('../middleware/activityTracker');
@@ -22,6 +22,7 @@ router.get('/asesor/:asesorId/gestiones-dia', getGestionesDiaByAsesor);
 router.get('/gestionados-hoy', getClientesGestionadosHoy);
 router.get('/gestionados-mes', getClientesGestionadosMes);
 router.get('/preventa-cerrada', getClientesPreventaCerrada);
+router.get('/campana-stats-hoy', getCampanaStatsHoy);
 router.get('/search', searchClientes);
 
 // Lock endpoints (durable locks) - con tracking de actividad

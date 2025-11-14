@@ -1627,6 +1627,38 @@ const getClientesGestionadosHoy = async (req, res) => {
   }
 };
 
+// GET /api/clientes/campana-stats-hoy - Estadísticas por campaña (ingresados hoy vs validaciones/preventa)
+const getCampanaStatsHoy = async (req, res) => {
+  try {
+    const sql = `
+      SELECT
+        IFNULL(c.campana, 'Sin campaña') as campana,
+        SUM(CASE WHEN DATE(c.created_at) = CURDATE() THEN 1 ELSE 0 END) as total_ingresados_hoy,
+        SUM(CASE WHEN DATE(c.created_at) = CURDATE() AND (
+          c.estatus_comercial_categoria IN ('Preventa', 'Preventa completa')
+        ) THEN 1 ELSE 0 END) as total_validaciones_hoy
+      FROM clientes c
+      GROUP BY campana
+      ORDER BY total_ingresados_hoy DESC;
+    `;
+
+    const [rows] = await pool.query(sql);
+
+    // Añadir porcentaje calculado
+    const result = rows.map(r => ({
+      campana: r.campana,
+      total_ingresados_hoy: Number(r.total_ingresados_hoy) || 0,
+      total_validaciones_hoy: Number(r.total_validaciones_hoy) || 0,
+      porcentaje: r.total_ingresados_hoy ? Number(((r.total_validaciones_hoy / r.total_ingresados_hoy) * 100).toFixed(2)) : 0
+    }));
+
+    return res.json({ success: true, stats: result });
+  } catch (err) {
+    console.error('Error getCampanaStatsHoy', err);
+    return res.status(500).json({ success: false, message: 'Error interno' });
+  }
+};
+
 // GET /api/clientes/gestionados-mes - Obtener clientes gestionados del MES ACTUAL con categoría y subcategoría
 const getClientesGestionadosMes = async (req, res) => {
   try {
