@@ -1508,6 +1508,7 @@ const reasignarCliente = async (req, res) => {
     // 🔄 REINICIAR SEGUIMIENTO: Actualizar cliente y resetear estado de seguimiento para nuevo ciclo de gestión
     // - seguimiento_status: NULL (disponible para nueva gestión)
     // - opened_at: NULL (resetear apertura)
+    // - wizard_completado: 0 (resetear wizard para permitir nueva gestión)
     // - derivado_at: NOW() (marcar momento de reasignación)
     console.log(`🔄 Backend: Reseteando seguimiento para cliente ${clienteId} - nuevo asesor: ${nuevoUsuarioId}`);
     
@@ -1516,13 +1517,14 @@ const reasignarCliente = async (req, res) => {
        SET asesor_asignado = ?, 
            seguimiento_status = NULL, 
            opened_at = NULL, 
+           wizard_completado = 0,
            derivado_at = NOW(), 
            updated_at = NOW() 
        WHERE id = ?`, 
       [nuevoUsuarioId, clienteId]
     );
 
-    console.log(`✅ Backend: Cliente ${clienteId} reasignado y disponible para nueva gestión`);
+    console.log(`✅ Backend: Cliente ${clienteId} reasignado y disponible para nueva gestión (wizard_completado = 0)`);
 
     // Registrar en historial
     try {
@@ -1573,6 +1575,9 @@ const reasignarCliente = async (req, res) => {
 
     // Notificar por WebSocket
     try {
+      // Construir payload con información completa del nuevo asesor
+      const nuevoAsesorCompleto = asesorRows[0] || { id: nuevoAsesorId };
+      
       const payload = {
         cliente: {
           id: cliente.id,
@@ -1580,10 +1585,18 @@ const reasignarCliente = async (req, res) => {
           telefono: cliente.telefono,
           estado: cliente.estado || null,
           seguimiento_status: null, // ✅ NULL para resetear y permitir nueva gestión
-          asesor_asignado: nuevoUsuarioId
+          asesor_asignado: nuevoUsuarioId,
+          wizard_completado: 0 // ✅ Reseteado para nueva gestión
         },
-        nuevoAsesor: asesorRows[0] || { id: nuevoAsesorId },
-        antiguoAsesor: { id: antiguoAsesorId },
+        nuevoAsesor: {
+          id: nuevoAsesorCompleto.id || nuevoAsesorId, // asesor_id (tabla asesores)
+          usuario_id: nuevoUsuarioId, // ✅ usuario_id para matching correcto
+          nombre: nuevoAsesorCompleto.nombre || 'Asesor'
+        },
+        antiguoAsesor: { 
+          id: antiguoAsesorId,
+          usuario_id: antiguoAsesorId 
+        },
         fecha_reasignacion: new Date(),
         clienteId: clienteId,
         nuevoAsesorId: nuevoAsesorId
