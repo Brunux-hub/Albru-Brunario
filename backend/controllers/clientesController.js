@@ -1428,7 +1428,7 @@ const reasignarCliente = async (req, res) => {
 
   console.log('🎯 Backend: Reasignación solicitada. Payload recibido:', JSON.stringify(req.body, null, 2));
 
-  // Validaciones
+  // Validaciones básicas
   if (!clienteId) {
     console.error('❌ Backend: clienteId faltante');
     return res.status(400).json({ 
@@ -1458,8 +1458,8 @@ const reasignarCliente = async (req, res) => {
       [dbName]
     );
 
-    // Construir SELECT dinámico
-    let selectCols = ['id', 'nombre', 'telefono', 'asesor_asignado'];
+    // Construir SELECT dinámico incluyendo estatus_comercial_categoria
+    let selectCols = ['id', 'nombre', 'telefono', 'asesor_asignado', 'estatus_comercial_categoria', 'estatus_comercial_subcategoria'];
     if (colEstado && colEstado.length > 0) selectCols.push('estado');
 
     const selectSql = `SELECT ${selectCols.join(', ')} FROM clientes WHERE id = ?`;
@@ -1471,6 +1471,25 @@ const reasignarCliente = async (req, res) => {
     }
 
     const cliente = clienteRows[0];
+    
+    // 🔒 VALIDACIÓN DE CATEGORÍA: Solo clientes de PREVENTA no pueden ser reasignados
+    const categoriasNoReasignables = ['Preventa', 'Preventa completa'];
+    const categoriaCliente = cliente.estatus_comercial_categoria;
+    
+    if (categoriaCliente && categoriasNoReasignables.includes(categoriaCliente)) {
+      console.warn(`⚠️ Backend: Intento de reasignar cliente en categoría PREVENTA bloqueado`);
+      console.warn(`   Cliente ID: ${clienteId}, Categoría: ${categoriaCliente}`);
+      await connection.rollback();
+      return res.status(403).json({ 
+        success: false, 
+        message: `No se puede reasignar clientes en categoría "${categoriaCliente}". Solo se pueden reasignar clientes de otras categorías (Lista negra, Sin facilidades, Retirado, Rechazado, Agendado, Seguimiento, Sin contacto).`,
+        categoria: categoriaCliente,
+        clienteId: clienteId
+      });
+    }
+
+    console.log(`✅ Backend: Cliente puede ser reasignado. Categoría: ${categoriaCliente || 'Sin categoría'}`);
+    
     const antiguoAsesorId = cliente.asesor_asignado;
 
     // Obtener usuario_id del nuevo asesor

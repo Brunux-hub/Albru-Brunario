@@ -181,6 +181,14 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
         if (!reasignacionResponse.ok) {
             const errorData = await reasignacionResponse.json();
             console.error('❌ GTR: Error del servidor:', errorData);
+            
+            // Manejo específico para categorías no reasignables (403 Forbidden)
+            if (reasignacionResponse.status === 403) {
+                alert(`❌ REASIGNACIÓN NO PERMITIDA\n\n${errorData.message}\n\nCategoría actual: ${errorData.categoria || 'No especificada'}\n\n📌 Solo se pueden reasignar clientes de las siguientes categorías:\n• Lista negra\n• Sin facilidades\n• Retirado\n• Rechazado\n• Agendado\n• Seguimiento\n• Sin contacto`);
+            } else {
+                alert(`Error al reasignar cliente: ${errorData.message || 'Error desconocido'}`);
+            }
+            
             throw new Error(errorData.message || 'Error al reasignar en el servidor');
         }
 
@@ -593,22 +601,40 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                     >
                       VER
                     </Button>
-                    <Button 
-                      size="small" 
-                      startIcon={<SwapHorizIcon />}
-                      onClick={() => handleReassign(client)}
-                      sx={{ 
-                        textTransform: 'none',
-                        color: '#fff',
-                        backgroundColor: '#111827',
-                        fontWeight: 700,
-                        borderRadius: 1,
-                        px: 2,
-                        '&:hover': { backgroundColor: '#374151' }
-                      }}
-                    >
-                      REASIGNAR
-                    </Button>
+                    {(() => {
+                      const categoriasNoReasignables = ['Preventa', 'Preventa completa'];
+                      const esPreventaCliente = Boolean(client.estatus_comercial_categoria && 
+                                                categoriasNoReasignables.includes(client.estatus_comercial_categoria));
+                      
+                      return (
+                        <Button 
+                          size="small" 
+                          startIcon={<SwapHorizIcon />}
+                          onClick={() => handleReassign(client)}
+                          disabled={esPreventaCliente}
+                          sx={{ 
+                            textTransform: 'none',
+                            color: esPreventaCliente ? '#9ca3af' : '#fff',
+                            backgroundColor: esPreventaCliente ? '#e5e7eb' : '#111827',
+                            fontWeight: 700,
+                            borderRadius: 1,
+                            px: 2,
+                            cursor: esPreventaCliente ? 'not-allowed' : 'pointer',
+                            '&:hover': { 
+                              backgroundColor: esPreventaCliente ? '#e5e7eb' : '#374151' 
+                            },
+                            '&.Mui-disabled': {
+                              color: '#9ca3af',
+                              backgroundColor: '#e5e7eb',
+                              opacity: 0.7
+                            }
+                          }}
+                          title={esPreventaCliente ? `No se puede reasignar clientes en categoría ${client.estatus_comercial_categoria}` : 'Reasignar cliente a otro asesor'}
+                        >
+                          REASIGNAR
+                        </Button>
+                      );
+                    })()}
                   </Box>
                 </TableCell>
               </TableRow>
