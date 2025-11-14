@@ -1509,8 +1509,9 @@ const reasignarCliente = async (req, res) => {
     // - seguimiento_status: NULL (disponible para nueva gestión)
     // - opened_at: NULL (resetear apertura)
     // - wizard_completado: 0 (resetear wizard para permitir nueva gestión)
+    // - fecha_wizard_completado: NULL (limpiar fecha de completado)
     // - derivado_at: NOW() (marcar momento de reasignación)
-    console.log(`🔄 Backend: Reseteando seguimiento para cliente ${clienteId} - nuevo asesor: ${nuevoUsuarioId}`);
+    console.log(`🔄 Backend: Reseteando seguimiento COMPLETO para cliente ${clienteId} - nuevo asesor: ${nuevoUsuarioId}`);
     
     await connection.query(
       `UPDATE clientes 
@@ -1518,13 +1519,14 @@ const reasignarCliente = async (req, res) => {
            seguimiento_status = NULL, 
            opened_at = NULL, 
            wizard_completado = 0,
+           fecha_wizard_completado = NULL,
            derivado_at = NOW(), 
            updated_at = NOW() 
        WHERE id = ?`, 
       [nuevoUsuarioId, clienteId]
     );
 
-    console.log(`✅ Backend: Cliente ${clienteId} reasignado y disponible para nueva gestión (wizard_completado = 0)`);
+    console.log(`✅ Backend: Cliente ${clienteId} COMPLETAMENTE reseteado - listo para nueva gestión desde cero`);
 
     // Registrar en historial
     try {
