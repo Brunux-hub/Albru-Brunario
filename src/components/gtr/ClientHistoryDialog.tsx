@@ -26,6 +26,21 @@ interface ClientHistoryDialogProps {
   onSave?: (updatedClient: Partial<Cliente> & { leads_original_telefono?: string }) => void;
 }
 
+interface HistorialGestion {
+  id: number;
+  paso: number;
+  asesor_nombre: string;
+  asesor_nombre_completo?: string;
+  categoria: string | null;
+  subcategoria: string | null;
+  tipo_contacto: string | null;
+  resultado: string | null;
+  observaciones: string | null;
+  comentario: string | null;
+  fecha_gestion: string | null;
+  created_at: string;
+}
+
 const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose, clientData, onSave }) => {
   const { user } = useApp();
   const isGtr = user?.tipo === 'gtr';
@@ -44,6 +59,8 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
   });
   const [originalForm, setOriginalForm] = useState<typeof form | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [historialGestiones, setHistorialGestiones] = useState<HistorialGestion[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
 
   useEffect(() => {
     if (clientData) {
@@ -73,6 +90,24 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
         estado: clientData.estado || ''
       });
       setIsEditing(false);
+
+      // 🆕 Cargar historial de gestiones
+      if (clientData.id) {
+        setLoadingHistorial(true);
+        fetch(`/api/clientes/${clientData.id}/historial-gestiones`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.gestiones) {
+              setHistorialGestiones(data.gestiones);
+            }
+          })
+          .catch(err => {
+            console.error('Error cargando historial de gestiones:', err);
+          })
+          .finally(() => {
+            setLoadingHistorial(false);
+          });
+      }
     }
   }, [clientData]);
 
@@ -241,7 +276,296 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Historial de Gestión */}
+        {/* Proceso de Conversión (Nuevo Diseño) */}
+        {historialGestiones.length > 0 && (
+          <>
+            <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: '#1e293b' }}>
+              Proceso de Conversión
+            </Typography>
+            
+            {loadingHistorial ? (
+              <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#f8fafc' }}>
+                <Typography color="text.secondary">Cargando historial...</Typography>
+              </Paper>
+            ) : (
+              <>
+                {/* Stepper horizontal */}
+                <Box sx={{ 
+                  mb: 4, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  position: 'relative',
+                  px: 2
+                }}>
+                  {/* Línea de conexión */}
+                  <Box sx={{
+                    position: 'absolute',
+                    top: '20px',
+                    left: '10%',
+                    right: '10%',
+                    height: '3px',
+                    backgroundColor: '#22c55e',
+                    zIndex: 0
+                  }} />
+                  
+                  {historialGestiones.map((gestion, index) => (
+                    <Box 
+                      key={gestion.id}
+                      sx={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center',
+                        flex: 1,
+                        position: 'relative',
+                        zIndex: 1
+                      }}
+                    >
+                      {/* Círculo con check */}
+                      <Box sx={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: '50%',
+                        backgroundColor: '#22c55e',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mb: 1,
+                        boxShadow: '0 2px 8px rgba(34, 197, 94, 0.3)'
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path d="M16.6667 5L7.50004 14.1667L3.33337 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </Box>
+                      
+                      {/* Título */}
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          fontWeight: 600,
+                          color: index === historialGestiones.length - 1 ? '#3b82f6' : '#1e293b',
+                          fontSize: '13px',
+                          textAlign: 'center',
+                          mb: 0.5
+                        }}
+                      >
+                        {gestion.categoria || `Paso ${gestion.paso}`}
+                      </Typography>
+                      
+                      {/* Fecha */}
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: '#64748b',
+                          fontSize: '11px',
+                          textAlign: 'center'
+                        }}
+                      >
+                        {gestion.fecha_gestion ? new Date(gestion.fecha_gestion).toLocaleDateString('es-PE', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        }) : new Date(gestion.created_at).toLocaleDateString('es-PE', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: '#64748b',
+                          fontSize: '11px'
+                        }}
+                      >
+                        {gestion.fecha_gestion ? new Date(gestion.fecha_gestion).toLocaleTimeString('es-PE', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : new Date(gestion.created_at).toLocaleTimeString('es-PE', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                {/* Cards de pasos */}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+                  {historialGestiones.map((gestion) => (
+                    <Paper
+                      key={gestion.id}
+                      sx={{
+                        p: 3,
+                        backgroundColor: 'white',
+                        borderRadius: 3,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                        border: '1px solid #e5e7eb',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          transform: 'translateY(-2px)'
+                        }
+                      }}
+                    >
+                      {/* Header del card */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                        {/* Badge de paso */}
+                        <Box sx={{
+                          minWidth: 80,
+                          height: 32,
+                          borderRadius: 2,
+                          backgroundColor: '#22c55e',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 0.5
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+                            <path d="M16.6667 5L7.50004 14.1667L3.33337 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <Typography sx={{ color: 'white', fontSize: '13px', fontWeight: 700 }}>
+                            Paso {gestion.paso}
+                          </Typography>
+                        </Box>
+                        
+                        {/* Título */}
+                        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '16px', color: '#1e293b', flex: 1 }}>
+                          {gestion.categoria || gestion.subcategoria || `Gestión ${gestion.paso}`}
+                        </Typography>
+                        
+                        {/* Checkmark verde */}
+                        <Box sx={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          backgroundColor: '#22c55e',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+                            <path d="M16.6667 5L7.50004 14.1667L3.33337 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </Box>
+                      </Box>
+
+                      {/* Fecha y hora */}
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          color: '#64748b',
+                          fontSize: '13px',
+                          mb: 2,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                        </svg>
+                        {gestion.fecha_gestion ? new Date(gestion.fecha_gestion).toLocaleDateString('es-PE', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        }) : new Date(gestion.created_at).toLocaleDateString('es-PE', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                        {' - '}
+                        {gestion.fecha_gestion ? new Date(gestion.fecha_gestion).toLocaleTimeString('es-PE', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : new Date(gestion.created_at).toLocaleTimeString('es-PE', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Typography>
+
+                      {/* Asesor */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+                        <Avatar sx={{ 
+                          width: 32, 
+                          height: 32, 
+                          backgroundColor: '#3b82f6',
+                          fontSize: '14px',
+                          fontWeight: 600
+                        }}>
+                          {(gestion.asesor_nombre_completo || gestion.asesor_nombre || 'SA').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>
+                            {gestion.asesor_nombre_completo || gestion.asesor_nombre || 'Sin asesor'}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: '#64748b', fontSize: '12px' }}>
+                            Asesor
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Acciones */}
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5, color: '#1e293b' }}>
+                        Acciones:
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {gestion.subcategoria && (
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                              {gestion.subcategoria}
+                            </Typography>
+                          </Box>
+                        )}
+                        
+                        {gestion.tipo_contacto && (
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                              Contacto {gestion.tipo_contacto}
+                            </Typography>
+                          </Box>
+                        )}
+                        
+                        {gestion.resultado && (
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                              {gestion.resultado.charAt(0).toUpperCase() + gestion.resultado.slice(1).replace('_', ' ')}
+                            </Typography>
+                          </Box>
+                        )}
+                        
+                        {(gestion.observaciones || gestion.comentario) && (
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5, fontStyle: 'italic' }}>
+                              {gestion.observaciones || gestion.comentario}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </Paper>
+                  ))}
+                </Box>
+              </>
+            )}
+
+            <Divider sx={{ my: 3 }} />
+          </>
+        )}
+
+        {/* Historial de Gestión (Antiguo) */}
         <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
           Historial de Gestión
         </Typography>

@@ -64,8 +64,11 @@ const DayManagementPanel: React.FC = () => {
         
         // Cargar estadísticas por campaña (ingresados hoy vs validaciones)
         try {
+          console.log('🔍 Fetching campana-stats-hoy from:', `${backendUrl}/api/clientes/campana-stats-hoy`);
           const respStats = await fetch(`${backendUrl}/api/clientes/campana-stats-hoy`);
+          console.log('📊 Response status:', respStats.status);
           const jStats = await respStats.json();
+          console.log('📊 Response data:', jStats);
           if (jStats && jStats.success && Array.isArray(jStats.stats)) {
             const map: Record<string, { total_ingresados_hoy: number; total_validaciones_hoy: number; porcentaje?: number }> = {};
             jStats.stats.forEach((s: { campana: string; total_ingresados_hoy: number; total_validaciones_hoy: number; porcentaje?: number }) => {
@@ -75,10 +78,11 @@ const DayManagementPanel: React.FC = () => {
                 porcentaje: s.porcentaje
               };
             });
+            console.log('📊 CampanaStatsMap:', map);
             setCampanaStatsMap(map);
           }
         } catch (e) {
-          console.warn('Error cargando campana-stats-hoy', e);
+          console.error('❌ Error cargando campana-stats-hoy', e);
         }
       } catch (e) {
         console.warn('Error cargando datos para Gestión del día', e);
@@ -400,14 +404,18 @@ const DayManagementPanel: React.FC = () => {
                 // Obtener todas las campañas únicas
                 const campanas = Array.from(new Set(clientesGestionadosHoy.map(c => c.campana || 'Sin campaña')));
                 console.log('🔍 Campañas encontradas:', campanas);
+                console.log('🔍 CampanaStatsMap:', campanaStatsMap);
+                
                 // Usar clientes INGRESADOS HOY como base del porcentaje (del backend)
                 const totalPorCampana = campanas.reduce((acc, camp) => {
                   const backendTotal = campanaStatsMap[camp]?.total_ingresados_hoy;
+                  console.log(`🔍 Campaña "${camp}": backend total =`, backendTotal);
                   acc[camp] = typeof backendTotal === 'number' && backendTotal > 0
                     ? backendTotal
                     : 0; // Si no hay datos del backend, mostrar 0
                   return acc;
                 }, {} as Record<string, number>);
+                console.log('🔍 Total por campaña:', totalPorCampana);
 
                 // Obtener todas las categorías con al menos 1 cliente
                 const categoriasConDatos = Array.from(new Set(
@@ -426,14 +434,11 @@ const DayManagementPanel: React.FC = () => {
                            (c.campana || 'Sin campaña') === campana
                     ).length;
                     
-                    // Solo calcular porcentaje para Preventa y Preventa completa
-                    const esPreventa = categoria.toLowerCase().includes('preventa');
-                    let porcentaje = '-';
-                    
-                    if (esPreventa && totalPorCampana[campana] > 0) {
-                      // Porcentaje = (clientes de Preventa en esta campaña / total ingresados hoy en esta campaña) × 100
-                      porcentaje = ((count / totalPorCampana[campana]) * 100).toFixed(2);
-                    }
+                    // Calcular porcentaje para TODAS las categorías
+                    // Porcentaje = (clientes de esta categoría en esta campaña / total ingresados hoy en esta campaña) × 100
+                    const porcentaje = totalPorCampana[campana] > 0
+                      ? ((count / totalPorCampana[campana]) * 100).toFixed(2)
+                      : '0.00';
                     
                     acc[campana] = { count, porcentaje };
                     return acc;
@@ -587,10 +592,10 @@ const DayManagementPanel: React.FC = () => {
                                     py: 2,
                                     fontWeight: typography.fontWeight.bold,
                                     fontSize: typography.fontSize.sm,
-                                    color: data.porcentaje !== '-' && parseFloat(data.porcentaje) > 0 ? colors.primary[600] : colors.text.disabled
+                                    color: parseFloat(data.porcentaje) > 0 ? colors.primary[600] : colors.text.disabled
                                   }}
                                 >
-                                  {data.porcentaje === '-' ? '-' : `${data.porcentaje}%`}
+                                  {data.porcentaje}%
                                 </TableCell>
                               </>
                             );

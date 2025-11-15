@@ -697,6 +697,7 @@ const updateCliente = async (req, res) => {
               ? `${categoriaNueva}${subcategoriaNueva ? ' → ' + subcategoriaNueva : ''}`
               : 'Sin estatus';
 
+            // Registrar en historial_cliente (tabla antigua)
             await pool.query(
               'INSERT INTO historial_cliente (cliente_id, usuario_id, accion, descripcion, estado_nuevo) VALUES (?, ?, ?, ?, ?)',
               [
@@ -707,7 +708,31 @@ const updateCliente = async (req, res) => {
                 categoriaNueva || null
               ]
             );
-            console.log('✅ Historial: Cambio de estatus comercial registrado para cliente', id);
+
+            // 🆕 Registrar en historial_gestiones (tabla nueva para stepper)
+            // Obtener el último paso del cliente para incrementar
+            const [ultimoPaso] = await pool.query(
+              'SELECT COALESCE(MAX(paso), 0) as ultimo_paso FROM historial_gestiones WHERE cliente_id = ?',
+              [id]
+            );
+            const nuevoPaso = (ultimoPaso[0]?.ultimo_paso || 0) + 1;
+
+            await pool.query(
+              `INSERT INTO historial_gestiones 
+               (cliente_id, telefono, paso, asesor_nombre, asesor_id, categoria, subcategoria, fecha_gestion) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+              [
+                id,
+                clienteActual.telefono || null,
+                nuevoPaso,
+                asesorNombre || null,
+                asesorId,
+                categoriaNueva || null,
+                subcategoriaNueva || null
+              ]
+            );
+
+            console.log(`✅ Historial: Cambio de estatus registrado en historial_cliente e historial_gestiones (paso ${nuevoPaso}) para cliente ${id}`);
           } catch (histErr) {
             console.warn('⚠️ Error registrando cambio de estatus en historial:', histErr.message);
           }
@@ -1962,6 +1987,60 @@ const notifyClienteOcupado = async (req, res) => {
   }
 };
 
+// GET /api/clientes/:id/historial-gestiones - Obtener historial completo de gestiones de un cliente
+const getHistorialGestiones = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'ID de cliente es obligatorio' 
+    });
+  }
+
+  try {
+    const [gestiones] = await pool.query(
+      `SELECT 
+        hg.id,
+        hg.cliente_id,
+        hg.telefono,
+        hg.paso,
+        hg.asesor_nombre,
+        hg.asesor_id,
+        hg.categoria,
+        hg.subcategoria,
+        hg.tipo_contacto,
+        hg.resultado,
+        hg.observaciones,
+        hg.comentario,
+        hg.fecha_gestion,
+        hg.created_at,
+        hg.updated_at,
+        u.nombre as asesor_nombre_completo
+      FROM historial_gestiones hg
+      LEFT JOIN usuarios u ON hg.asesor_id = u.id
+      WHERE hg.cliente_id = ?
+      ORDER BY hg.paso ASC, hg.fecha_gestion ASC`,
+      [id]
+    );
+
+    console.log(`📜 Historial de gestiones para cliente ${id}: ${gestiones.length} pasos`);
+
+    return res.json({
+      success: true,
+      gestiones,
+      total: gestiones.length
+    });
+  } catch (err) {
+    console.error('Error getHistorialGestiones', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor',
+      error: err.message
+    });
+  }
+};
+
   module.exports = {
     getClienteByTelefono,
     getClienteByDni,
@@ -1984,5 +2063,6 @@ const notifyClienteOcupado = async (req, res) => {
     openWizard,
     completeWizard,
     reasignarCliente,
-    notifyClienteOcupado
+    notifyClienteOcupado,
+    getHistorialGestiones
   };

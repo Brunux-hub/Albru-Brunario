@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor, getHistorialByAsesor, getGestionesDiaByAsesor, getClientesGestionadosHoy, getClientesGestionadosMes, getClientesPreventaCerrada, openWizard, completeWizard, reasignarCliente, notifyClienteOcupado, getCampanaStatsHoy } = require('../controllers/clientesController');
+const { getClienteByTelefono, getClienteByDni, searchClientes, getAllClientes, getClienteById, createCliente, updateCliente, getClientesByAsesor, getHistorialByAsesor, getGestionesDiaByAsesor, getClientesGestionadosHoy, getClientesGestionadosMes, getClientesPreventaCerrada, openWizard, completeWizard, reasignarCliente, notifyClienteOcupado, getCampanaStatsHoy, getHistorialGestiones } = require('../controllers/clientesController');
 const { lockCliente, unlockCliente, heartbeatCliente, getLockStatus } = require('../controllers/clientesController');
 const { updateEstatus } = require('../controllers/estatusController');
 const { activityTracker } = require('../middleware/activityTracker');
@@ -39,6 +39,9 @@ router.post('/:id/complete-wizard', activityTracker, completeWizard);
 
 // Endpoint PATCH para actualizar estatus (GTR / Asesor) - con tracking
 router.patch('/:id/estatus', activityTracker, updateEstatus);
+
+// Ruta para obtener historial de gestiones (stepper) - ANTES de /:id genérico
+router.get('/:id/historial-gestiones', getHistorialGestiones);
 
 // Ruta general (debe ir después de las específicas)
 router.get('/', getAllClientes);
