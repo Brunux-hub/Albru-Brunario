@@ -1,5 +1,0 @@
-ParserError: C:\Users\DARIO\Albru-Brunario\backend\scripts\verify_migrations.ps1:27:60
-Line |
-  27 |  .  $remoteCmd = "docker exec $DockerContainerName sh -c \"mysql -N -s - .
-     |                                                            ~~~~~
-     | Unexpected token 'mysql' in expression or statement.

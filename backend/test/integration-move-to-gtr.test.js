@@ -5,7 +5,7 @@ const { expect } = require('chai');
 // para que la suite de pruebas unitarias pueda ejecutarse en entornos sin DB.
 if (process.env.RUN_INTEGRATION !== '1') {
   console.log('Skipping integration-move-to-gtr tests (set RUN_INTEGRATION=1 to enable)');
-} else {
+} else {2
 
   // This test assumes the backend server is configured and the DB is reachable via env vars.
   // It will create a new client, call PUT to move it to GTR and then verify the historial contains an entry 'moved_to_gtr'.

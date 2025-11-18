@@ -10,7 +10,8 @@ import {
   Paper,
   Divider,
   Avatar,
-  TextField
+  TextField,
+  Chip
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 
@@ -312,16 +313,27 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                   alignItems: 'center', 
                   justifyContent: 'space-between',
                   position: 'relative',
-                  px: 2
+                  px: 2,
+                  overflowX: 'auto',
+                  '&::-webkit-scrollbar': {
+                    height: '6px'
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    backgroundColor: '#f1f5f9'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#cbd5e1',
+                    borderRadius: '3px'
+                  }
                 }}>
                   {/* Línea de conexión */}
                   <Box sx={{
                     position: 'absolute',
-                    top: '20px',
-                    left: '10%',
-                    right: '10%',
+                    top: '25px',
+                    left: '5%',
+                    right: '5%',
                     height: '3px',
-                    backgroundColor: '#22c55e',
+                    background: 'linear-gradient(90deg, #e5e7eb 0%, #cbd5e1 50%, #e5e7eb 100%)',
                     zIndex: 0
                   }} />
                   
@@ -330,7 +342,25 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                     const isGestion = 'paso' in item;
                     const paso = isGestion ? item.paso : index + 1;
                     const categoria = isGestion ? item.categoria : (item.categoria || item.accion);
+                    const subcategoria = isGestion ? item.subcategoria : '';
                     const fecha = isGestion ? (item.fecha_gestion || item.created_at) : item.fecha;
+                    
+                    // Colores según categoría (igual que las tarjetas)
+                    const getCategoryColor = (cat: string | null) => {
+                      const catLower = (cat || '').toLowerCase();
+                      if (catLower.includes('lista negra')) return { bg: '#1e293b', light: '#334155' };
+                      if (catLower.includes('preventa completa') || catLower.includes('venta cerrada')) return { bg: '#22c55e', light: '#4ade80' };
+                      if (catLower.includes('preventa')) return { bg: '#f59e0b', light: '#fbbf24' };
+                      if (catLower.includes('agendado')) return { bg: '#3b82f6', light: '#60a5fa' };
+                      if (catLower.includes('seguimiento')) return { bg: '#8b5cf6', light: '#a78bfa' };
+                      if (catLower.includes('rechazado')) return { bg: '#ef4444', light: '#f87171' };
+                      if (catLower.includes('retirado')) return { bg: '#64748b', light: '#94a3b8' };
+                      if (catLower.includes('sin facilidades')) return { bg: '#f97316', light: '#fb923c' };
+                      if (catLower.includes('sin contacto')) return { bg: '#94a3b8', light: '#cbd5e1' };
+                      return { bg: '#22c55e', light: '#4ade80' };
+                    };
+                    
+                    const colors = getCategoryColor(categoria);
                     
                     return (
                       <Box 
@@ -339,79 +369,125 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                           display: 'flex', 
                           flexDirection: 'column', 
                           alignItems: 'center',
-                          flex: 1,
+                          minWidth: '160px',
+                          flex: '0 0 auto',
                           position: 'relative',
-                          zIndex: 1
+                          zIndex: 1,
+                          px: 1.5
                         }}
                       >
-                        {/* Círculo con check */}
+                        {/* Círculo con número de paso */}
                         <Box sx={{
-                          width: 42,
-                          height: 42,
+                          width: 56,
+                          height: 56,
                           borderRadius: '50%',
-                          backgroundColor: '#22c55e',
+                          background: `linear-gradient(135deg, ${colors.bg} 0%, ${colors.light} 100%)`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          mb: 1,
-                          boxShadow: '0 2px 8px rgba(34, 197, 94, 0.3)'
+                          mb: 1.5,
+                          boxShadow: `0 4px 14px ${colors.bg}50, 0 2px 8px ${colors.bg}30`,
+                          border: '4px solid white',
+                          transition: 'all 0.3s ease',
+                          position: 'relative',
+                          '&:hover': {
+                            transform: 'scale(1.15) translateY(-3px)',
+                            boxShadow: `0 8px 20px ${colors.bg}60, 0 4px 12px ${colors.bg}40`
+                          },
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            inset: -2,
+                            borderRadius: '50%',
+                            padding: '2px',
+                            background: `linear-gradient(135deg, ${colors.light}, ${colors.bg})`,
+                            WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+                            WebkitMaskComposite: 'xor',
+                            maskComposite: 'exclude',
+                            opacity: 0.6
+                          }
                         }}>
-                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                            <path d="M16.6667 5L7.50004 14.1667L3.33337 10" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
+                          <Typography sx={{ 
+                            color: 'white', 
+                            fontSize: '18px', 
+                            fontWeight: 800,
+                            textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }}>
+                            {paso}
+                          </Typography>
                         </Box>
                         
-                        {/* Título */}
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
-                            fontWeight: 600,
-                            color: index === (historialGestiones.length || historialFiltrado.length || 0) - 1 ? '#3b82f6' : '#1e293b',
-                            fontSize: '13px',
-                            textAlign: 'center',
-                            mb: 0.5,
-                            maxWidth: '120px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          {categoria || `Paso ${paso}`}
-                        </Typography>
+                        {/* Título con badge */}
+                        <Box sx={{ 
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 0.5,
+                          mb: 0.5
+                        }}>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontWeight: 700,
+                              color: colors.bg,
+                              fontSize: '13px',
+                              textAlign: 'center',
+                              maxWidth: '140px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              lineHeight: 1.3
+                            }}
+                          >
+                            {subcategoria || categoria || `Paso ${paso}`}
+                          </Typography>
+                        </Box>
                         
-                        {/* Fecha */}
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
-                            color: '#64748b',
-                            fontSize: '11px',
-                            textAlign: 'center'
-                          }}
-                        >
-                          {fecha ? (typeof fecha === 'string' && fecha.includes('/') 
-                            ? fecha.split(',')[0] 
-                            : new Date(fecha).toLocaleDateString('es-PE', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric'
-                              })
-                          ) : 'Sin fecha'}
-                        </Typography>
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
-                            color: '#64748b',
-                            fontSize: '11px'
-                          }}
-                        >
-                          {fecha ? (typeof fecha === 'string' && fecha.includes(',')
-                            ? fecha.split(',')[1]?.trim()
-                            : new Date(fecha).toLocaleTimeString('es-PE', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                          ) : ''}
-                        </Typography>
+                        {/* Categoría (si hay subcategoría) - Chip estilizado */}
+                        {subcategoria && (
+                          <Chip
+                            label={categoria}
+                            size="small"
+                            sx={{
+                              backgroundColor: `${colors.bg}15`,
+                              color: colors.bg,
+                              fontSize: '10px',
+                              height: '20px',
+                              fontWeight: 600,
+                              mb: 0.5,
+                              maxWidth: '140px',
+                              border: `1px solid ${colors.bg}30`,
+                              '& .MuiChip-label': {
+                                px: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis'
+                              }
+                            }}
+                          />
+                        )}
+                        
+                        {/* Fecha con icono */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              color: '#64748b',
+                              fontSize: '11px',
+                              textAlign: 'center',
+                              fontWeight: 600
+                            }}
+                          >
+                            {fecha ? (typeof fecha === 'string' && fecha.includes('/') 
+                              ? fecha.split(',')[0] 
+                              : new Date(fecha).toLocaleDateString('es-PE', {
+                                  day: '2-digit',
+                                  month: 'short'
+                                })
+                            ) : 'Sin fecha'}
+                          </Typography>
+                        </Box>
                       </Box>
                     );
                   })}
