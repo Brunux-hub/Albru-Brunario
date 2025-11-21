@@ -69,7 +69,8 @@ const ValidacionesDashboard: React.FC = () => {
       
       <Box sx={{ 
         flexGrow: 1, 
-        marginLeft: '220px'
+        marginLeft: '220px',
+        zoom: 0.85
       }}>
         {renderContent()}
       </Box>

@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Alert, Button, Fab, IconButton, Tooltip } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Button, Fab, Pagination } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddIcon from '@mui/icons-material/Add';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import GtrSidebar from '../components/gtr/GtrSidebar';
 import { useSocket } from '../hooks/useSocket';
 
@@ -74,6 +72,8 @@ interface ClienteAPI {
   // Campos de estatus comercial (del wizard)
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  // Campo de estado calculado por el backend
+  estado?: string | null;
   // Campos del sistema de duplicados
   es_duplicado?: boolean;
   cantidad_duplicados?: number;
@@ -111,28 +111,38 @@ const GtrDashboard: React.FC = () => {
   const [section, setSection] = useState('Clientes');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newClient, setNewClient] = useState<Cliente | null>(null);
-  const [clients, setClients] = useState<Cliente[]>([]);
+  const [clients, setClients] = useState<Cliente[]>(() => {
+    try {
+      const saved = localStorage.getItem('gtr_clients');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [asesores, setAsesores] = useState<Asesor[]>([]);
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // 📄 Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1);
-  const [clientsPerPage] = useState(500); // Clientes por página
-  const [totalClientsInDB, setTotalClientsInDB] = useState(0);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc'); // Orden por fecha
+  // Estados para paginación local (de clientes filtrados)
+  const [localPage, setLocalPage] = useState(1);
+  const [localRowsPerPage] = useState(50); // Mostrar 50 por página
   
   // Estados para el Drawer de Filtros
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<FilterState>({
-    categorias: [],
-    dateRangeType: 'thisMonth',
-    startDate: '',
-    endDate: '',
-    campanas: [],
-    salas: [],
-    companias: []
+  
+  // Inicializar con las fechas del mes actual
+  const [activeFilters, setActiveFilters] = useState<FilterState>(() => {
+    // Sin filtro de fechas por defecto - mostrar todos los clientes
+    return {
+      categorias: [],
+      dateRangeType: 'custom',
+      startDate: '',
+      endDate: '',
+      campanas: [],
+      salas: [],
+      companias: []
+    };
   });
 
   // Extraer valores únicos para filtros
@@ -162,10 +172,21 @@ const GtrDashboard: React.FC = () => {
 
       // Filtrar por rango de fechas
       if (activeFilters.startDate && activeFilters.endDate) {
-        const clientDate = new Date(client.fechaCreacion || client.created_at || '');
-        const startDate = new Date(activeFilters.startDate);
-        const endDate = new Date(activeFilters.endDate);
-        endDate.setHours(23, 59, 59, 999); // Incluir todo el día final
+        const fechaCliente = client.fechaCreacion || client.created_at || '';
+        
+        // Validar que la fecha del cliente sea válida
+        if (!fechaCliente) return false;
+        
+        // Extraer solo la fecha (YYYY-MM-DD) sin hora para comparación consistente
+        const clientDateStr = fechaCliente.split('T')[0].split(' ')[0];
+        const clientDate = new Date(clientDateStr + 'T00:00:00');
+        const startDate = new Date(activeFilters.startDate + 'T00:00:00');
+        const endDate = new Date(activeFilters.endDate + 'T23:59:59');
+        
+        // Validar que las fechas sean válidas
+        if (isNaN(clientDate.getTime()) || isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return false;
+        }
         
         if (clientDate < startDate || clientDate > endDate) {
           return false;
@@ -200,10 +221,21 @@ const GtrDashboard: React.FC = () => {
     });
   }, [clients, activeFilters]);
 
+  // Clientes paginados localmente
+  const paginatedClients = useMemo(() => {
+    const startIndex = (localPage - 1) * localRowsPerPage;
+    const endIndex = startIndex + localRowsPerPage;
+    return filteredClients.slice(startIndex, endIndex);
+  }, [filteredClients, localPage, localRowsPerPage]);
+
+  // Total de páginas
+  const totalPages = Math.ceil(filteredClients.length / localRowsPerPage);
+
   // Callback para aplicar filtros
   const handleApplyFilters = (filters: FilterState) => {
     setActiveFilters(filters);
     setFiltersDrawerOpen(false);
+    setLocalPage(1); // Resetear a página 1 cuando se aplican filtros
   };
 
   // Obtener datos del GTR desde localStorage ANTES de useSocket
@@ -283,11 +315,10 @@ const GtrDashboard: React.FC = () => {
 
   // Cargar clientes desde la API
   useEffect(() => {
-    const fetchClientes = async (page: number = 1, append: boolean = false) => {
+    const fetchClientes = async () => {
       try {
-        const limit = clientsPerPage;
-        const offset = (page - 1) * limit;
-        const url = `/api/clientes?limit=${limit}&offset=${offset}&orderBy=${sortOrder}`;
+        // Cargar TODOS los clientes de una vez (límite alto)
+        const url = `/api/clientes?limit=50000&offset=0&orderBy=desc`;
 
         const response = await fetch(url, {
           headers: {
@@ -298,11 +329,10 @@ const GtrDashboard: React.FC = () => {
         const data = await response.json();
 
         if (data.success && data.clientes) {
-          setTotalClientsInDB(data.total || data.clientes.length);
           
           const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
             id: cliente.id,
-            fecha: new Date(cliente.created_at || cliente.fecha_asignacion || Date.now()).toLocaleDateString('es-ES'),
+            fecha: new Date(cliente.fecha_asignacion || cliente.created_at || Date.now()).toLocaleDateString('es-ES'),
             // ✅ MAPEAR created_at para que se muestre en la tabla
             created_at: cliente.created_at || null,
             // Priorizar leads_original_telefono si está disponible
@@ -313,7 +343,7 @@ const GtrDashboard: React.FC = () => {
             ciudad: cliente.distrito || 'Sin ciudad',
             plan: cliente.plan_seleccionado || 'Sin plan',
             precio: cliente.precio_final || 0,
-            estado: cliente.estado_cliente || 'nuevo',
+            estado: cliente.estado || 'nuevo',
             asesor: cliente.asesor_nombre || 'Disponible',
             canal: cliente.canal_adquisicion || 'Web',
             distrito: cliente.distrito || 'Sin distrito',
@@ -341,19 +371,17 @@ const GtrDashboard: React.FC = () => {
             telefono_principal_id: cliente.telefono_principal_id || null
           }));
           
-          if (append) {
-            setClients(prev => [...prev, ...clientesFormateados]);
-          } else {
-            setClients(clientesFormateados);
-          }
+          setClients(clientesFormateados);
+          // Guardar en localStorage para persistencia entre sesiones
+          localStorage.setItem('gtr_clients', JSON.stringify(clientesFormateados));
         }
       } catch (error) {
         console.error('Error cargando clientes:', error);
       }
     };
 
-    fetchClientes(currentPage);
-  }, [currentPage, clientsPerPage, sortOrder]);
+    fetchClientes();
+  }, []);
 
   // Manejar nuevo cliente agregado
   useEffect(() => {
@@ -772,7 +800,8 @@ const GtrDashboard: React.FC = () => {
         p: { xs: 2, sm: 3 }, 
         marginLeft: { xs: 0, md: '220px' }, // Responsivo para móviles
         minHeight: '100vh',
-        width: { xs: '100%', md: 'calc(100% - 220px)' }
+        width: { xs: '100%', md: 'calc(100% - 220px)' },
+        boxSizing: 'border-box'
       }}>
         {/* Header móvil */}
         <Box sx={{ 
@@ -896,7 +925,7 @@ const GtrDashboard: React.FC = () => {
         
         {section === 'Clientes' && (
           <>
-            {/* 📊 Indicador de paginación */}
+            {/* 📊 Indicador simplificado */}
             <Box sx={{ 
               mb: 2, 
               display: 'flex', 
@@ -906,106 +935,49 @@ const GtrDashboard: React.FC = () => {
               bgcolor: '#f8fafc',
               borderRadius: 2
             }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body1" sx={{ fontWeight: 600, color: '#64748b' }}>
-                  Mostrando {clients.length} de {totalClientsInDB} clientes totales
-                </Typography>
-                <Tooltip title={sortOrder === 'desc' ? 'Más recientes primero' : 'Más antiguos primero'}>
-                  <IconButton 
-                    onClick={() => {
-                      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
-                      setCurrentPage(1);
-                      setClients([]); // Limpiar para forzar recarga
-                    }}
-                    sx={{ 
-                      bgcolor: 'white', 
-                      boxShadow: 1,
-                      '&:hover': { bgcolor: '#f1f5f9' }
-                    }}
-                  >
-                    {sortOrder === 'desc' ? <ArrowDownwardIcon /> : <ArrowUpwardIcon />}
-                  </IconButton>
-                </Tooltip>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                {clients.length < totalClientsInDB && (
-                  <>
-                    <Button 
-                      variant="outlined" 
-                      onClick={() => setCurrentPage(prev => prev + 1)}
-                      sx={{ textTransform: 'none' }}
-                    >
-                      Cargar 500 más
-                    </Button>
-                    <Button 
-                      variant="contained" 
-                      onClick={async () => {
-                        // Cargar todos los clientes
-                        try {
-                          const response = await fetch(`/api/clientes?limit=50000&orderBy=${sortOrder}`, {
-                            headers: {
-                              'Cache-Control': 'no-cache, no-store, must-revalidate',
-                              'Pragma': 'no-cache'
-                            }
-                          });
-                          const data = await response.json();
-                          if (data.success && data.clientes) {
-                            const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
-                              id: cliente.id,
-                              fecha: new Date(cliente.created_at || cliente.fecha_asignacion || Date.now()).toLocaleDateString('es-ES'),
-                              created_at: cliente.created_at || null,
-                              cliente: cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono',
-                              nombre: cliente.nombre || 'Sin nombre',
-                              lead_id: cliente.lead_id,
-                              lead: cliente.lead_id?.toString() || cliente.id.toString(),
-                              ciudad: cliente.distrito || 'Sin ciudad',
-                              plan: cliente.plan_seleccionado || 'Sin plan',
-                              precio: cliente.precio_final || 0,
-                              estado: cliente.estado_cliente || 'nuevo',
-                              asesor: cliente.asesor_nombre || 'Disponible',
-                              canal: cliente.canal_adquisicion || 'Web',
-                              distrito: cliente.distrito || 'Sin distrito',
-                              leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || '',
-                              campana: cliente.campana || cliente.campania || null,
-                              compania: cliente.compania || cliente.compania || null,
-                              sala_asignada: cliente.sala_asignada || cliente.sala || null,
-                              clienteNuevo: true,
-                              observaciones: cliente.observaciones_asesor || '',
-                              telefono: cliente.telefono || '',
-                              email: cliente.correo_electronico || '',
-                              direccion: cliente.direccion || '',
-                              historial: [],
-                              ultima_fecha_gestion: cliente.ultima_fecha_gestion || null,
-                              fecha_ultimo_contacto: cliente.fecha_ultimo_contacto || null,
-                              seguimiento_status: cliente.seguimiento_status || null,
-                              estatus_comercial_categoria: cliente.estatus_comercial_categoria || null,
-                              estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null
-                            }));
-                            setClients(clientesFormateados);
-                          }
-                        } catch (error) {
-                          console.error('Error cargando todos los clientes:', error);
-                        }
-                      }}
-                      sx={{ textTransform: 'none' }}
-                    >
-                      Ver todos ({totalClientsInDB})
-                    </Button>
-                  </>
-                )}
-                {clients.length >= totalClientsInDB && (
-                  <Typography variant="body2" sx={{ color: '#10b981', fontWeight: 600 }}>
-                    ✓ Todos los clientes cargados
-                  </Typography>
-                )}
-              </Box>
+              <Typography variant="body1" sx={{ fontWeight: 600, color: '#64748b' }}>
+                {filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Mostrando {paginatedClients.length} de {filteredClients.length}
+              </Typography>
             </Box>
 
             <GtrClientsTable 
-              clients={filteredClients}
+              clients={paginatedClients}
               asesores={asesores}
               setClients={setClients}
             />
+
+            {/* Paginación estilo MUI */}
+            <Box sx={{ 
+              mt: 3, 
+              mb: 2, 
+              display: 'flex', 
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexDirection: 'column',
+              gap: 2,
+              p: 2,
+              bgcolor: '#ffffff',
+              borderRadius: 2,
+              boxShadow: 1
+            }}>
+              <Pagination 
+                count={totalPages}
+                page={localPage}
+                onChange={(_event, page) => setLocalPage(page)}
+                color="primary"
+                size="large"
+                showFirstButton
+                showLastButton
+                siblingCount={2}
+                boundaryCount={2}
+              />
+              <Typography variant="body2" color="text.secondary">
+                Página {localPage} de {totalPages}
+              </Typography>
+            </Box>
           </>
         )}
         {section === 'Gestión del día' && (

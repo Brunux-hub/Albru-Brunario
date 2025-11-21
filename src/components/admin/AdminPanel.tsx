@@ -45,7 +45,8 @@ const AdminPanel: React.FC = () => {
         flex: 1, 
         display: 'flex', 
         flexDirection: 'column',
-        marginLeft: '280px' // Compensar el ancho del sidebar fijo
+        marginLeft: '280px', // Compensar el ancho del sidebar fijo
+        zoom: 0.85
       }}>
         {/* Header */}
         <Box sx={{ p: 4, pb: 2 }}>

@@ -57,7 +57,7 @@ export interface FilterState {
   companias: string[];
 }
 
-const FiltersDrawer: React.FC<FiltersDrawerProps> = ({
+export const FiltersDrawer: React.FC<FiltersDrawerProps> = ({
   open,
   onClose,
   onApplyFilters,
@@ -65,11 +65,21 @@ const FiltersDrawer: React.FC<FiltersDrawerProps> = ({
   availableSalas,
   availableCompanias
 }) => {
+  // Inicializar con las fechas del mes actual
+  const getInitialDates = () => {
+    const today = new Date();
+    const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+    const endDate = today.toISOString().split('T')[0];
+    return { startDate, endDate };
+  };
+
+  const initialDates = getInitialDates();
+
   const [filters, setFilters] = useState<FilterState>({
     categorias: [],
     dateRangeType: 'thisMonth',
-    startDate: '',
-    endDate: '',
+    startDate: initialDates.startDate,
+    endDate: initialDates.endDate,
     campanas: [],
     salas: [],
     companias: []

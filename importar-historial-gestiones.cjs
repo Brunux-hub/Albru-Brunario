@@ -302,11 +302,10 @@ async function importarHistorial() {
         try {
           await connection.query(`
             INSERT INTO historial_gestiones 
-            (cliente_id, telefono, paso, asesor_nombre, categoria, subcategoria, tipo_contacto, fecha_gestion, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'telefónico', NOW(), NOW())
+            (cliente_id, paso, asesor_nombre, categoria, subcategoria, tipo_contacto, fecha_gestion, created_at)
+            VALUES (?, ?, ?, ?, ?, 'telefónico', NOW(), NOW())
           `, [
             cliente.id,
-            telefonoOriginal,
             paso,
             asesorNombre,
             mapeado.categoria,

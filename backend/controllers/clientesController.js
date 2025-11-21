@@ -118,6 +118,23 @@ const getAllClientes = async (req, res) => {
     
     console.log(`📋 Obteniendo ${rows.length} clientes (${offset + 1}-${offset + rows.length} de ${total})`);
     
+    // Calcular estado basado en campos de BD para cada cliente
+    console.log(`🔄 Iniciando cálculo de estado para ${rows.length} clientes`);
+    rows.forEach(cliente => {
+      // Lógica de estado basada en campos de BD
+      if (cliente.wizard_completado === 1) {
+        cliente.estado = 'gestionado';
+      } else if (cliente.seguimiento_status === 'en_gestion') {
+        cliente.estado = 'en_gestion';
+      } else if (cliente.seguimiento_status === 'gestionado') {
+        cliente.estado = 'gestionado';
+      } else {
+        cliente.estado = 'nuevo';
+      }
+      console.log(`Cliente ${cliente.id}: wizard_completado=${cliente.wizard_completado}, seguimiento_status=${cliente.seguimiento_status}, estado=${cliente.estado}`);
+    });
+    console.log(`✅ Cálculo de estado completado para ${rows.length} clientes`);
+    
     // Cargar historial para cada cliente (optimizado con una sola query)
     if (rows.length > 0) {
       const clienteIds = rows.map(r => r.id);
@@ -1470,22 +1487,41 @@ const completeWizard = async (req, res) => {
     try {
       const [updatedRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
       const clienteActualizado = updatedRows[0];
-      
-      webSocketService.notifyAll('CLIENT_COMPLETED', { 
-        clienteId: id, 
+
+      const payload = {
+        clienteId: id,
         asesorId,
-        cliente: clienteActualizado, // 🔥 Enviar datos completos para actualizar UI
-        timestamp: new Date().toISOString() 
-      });
-      
+        cliente: clienteActualizado,
+        timestamp: new Date().toISOString()
+      };
+
+      // Emisión global (legacy helper)
+      webSocketService.notifyAll('CLIENT_COMPLETED', payload);
+
+      // Emitir explícitamente a la sala de asesores y al asesor específico para asegurar entrega
+      try {
+        if (webSocketService && webSocketService.io) {
+          // Asegurar que todos los asesores reciben el evento
+          webSocketService.io.to('asesor-room').emit('CLIENT_COMPLETED', payload);
+
+          // Emitir al asesor específico si tenemos su id
+          if (asesorId) {
+            webSocketService.io.to(`asesor-${asesorId}`).emit('CLIENT_COMPLETED', payload);
+            console.log(`📢 [WebSocket] CLIENT_COMPLETED también emitido a sala asesor-${asesorId}`);
+          }
+        }
+      } catch (innerErr) {
+        console.warn('WS direct emit to asesor-room/asesor-<id> failed', innerErr && innerErr.message ? innerErr.message : innerErr);
+      }
+
       console.log('📢 [WebSocket] CLIENT_COMPLETED enviado con datos actualizados:', {
         id: clienteActualizado.id,
         categoria: clienteActualizado.estatus_comercial_categoria,
         subcategoria: clienteActualizado.estatus_comercial_subcategoria,
         seguimiento_status: clienteActualizado.seguimiento_status
       });
-    } catch (e) { 
-      console.warn('WS notify CLIENT_COMPLETED failed', e.message); 
+    } catch (e) {
+      console.warn('WS notify CLIENT_COMPLETED failed', e.message);
     }
 
     const [finalRows] = await pool.query('SELECT * FROM clientes WHERE id = ? LIMIT 1', [id]);
@@ -2003,7 +2039,6 @@ const getHistorialGestiones = async (req, res) => {
       `SELECT 
         hg.id,
         hg.cliente_id,
-        hg.telefono,
         hg.paso,
         hg.asesor_nombre,
         hg.asesor_id,

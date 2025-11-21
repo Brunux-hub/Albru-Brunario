@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { 
   Dialog, 
   DialogContent, 
+  DialogTitle,
+  DialogActions,
   Button, 
   TextField, 
   Box,
@@ -17,9 +19,12 @@ import {
   Step,
   StepLabel,
   Checkbox,
-  FormGroup
+  FormGroup,
+  IconButton
 } from '@mui/material';
 import { getBackendUrl } from '../../utils/getBackendUrl';
+import CommentIcon from '@mui/icons-material/Comment';
+import SaveIcon from '@mui/icons-material/Save';
 
 // Datos del wizard paso 1
 interface Step1Data {
@@ -85,6 +90,10 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
   const clienteIdRef = React.useRef<number | undefined>(undefined);
   const [activeStep, setActiveStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Comentarios rápidos al abrir el wizard
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [commentDraft, setCommentDraft] = useState<string>('');
+  const [savingComment, setSavingComment] = useState(false);
   
   // Estados para UBIGEO
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
@@ -151,6 +160,8 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
 
   useEffect(() => {
     if (cliente) {
+      // precargar observaciones si existen
+      setCommentDraft(((cliente as any).observaciones_asesor) || '');
       // Cargar datos existentes del cliente si los hay
       clienteIdRef.current = cliente.id;
       
@@ -861,10 +872,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             <MenuItem disabled value="">
               Elige
             </MenuItem>
-            <MenuItem value="200 Mbps">200 Mbps</MenuItem>
-            <MenuItem value="300 Mbps">300 Mbps</MenuItem>
-            <MenuItem value="400 Mbps">400 Mbps</MenuItem>
-            <MenuItem value="600 Mbps">600 Mbps</MenuItem>
+            <MenuItem value="350 Mbps">350 Mbps</MenuItem>
+            <MenuItem value="500 Mbps">500 Mbps</MenuItem>
+            <MenuItem value="550 Mbps">550 Mbps</MenuItem>
+            <MenuItem value="750 Mbps">750 Mbps</MenuItem>
+            <MenuItem value="850 Mbps">850 Mbps</MenuItem>
             <MenuItem value="1000 Mbps">1000 Mbps</MenuItem>
           </Select>
         </FormControl>
@@ -1696,6 +1708,16 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
               </Select>
             </FormControl>
 
+            {/* Botón comentarios (pequeño) */}
+            <IconButton
+              aria-label="Comentarios"
+              size="small"
+              onClick={() => setCommentModalOpen(true)}
+              sx={{ color: '#374151', mt: 1 }}
+            >
+              <CommentIcon />
+            </IconButton>
+
             {/* Botón cerrar */}
             <Button onClick={onClose} sx={{ minWidth: 'auto', p: 1, mt: 2 }}>
               ×
@@ -1746,6 +1768,65 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
           {activeStep === 2 && renderStep3()}
           {activeStep === 3 && renderStep4()}
         </DialogContent>
+
+        {/* Modal pequeño para comentarios */}
+        <Dialog open={commentModalOpen} onClose={() => setCommentModalOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Comentarios al abrir el wizard</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Escribe una nota rápida relacionada con la gestión. Se guardará en las observaciones del asesor.
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              maxRows={6}
+              placeholder="Comentario rápido..."
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+              variant="outlined"
+              size="small"
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCommentModalOpen(false)}>Cerrar</Button>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              disabled={savingComment}
+              onClick={async () => {
+                try {
+                  setSavingComment(true);
+                  // Guardar localmente y en backend (si cliente existe)
+                  if (cliente && cliente.id) {
+                    const payload = { observaciones_asesor: commentDraft };
+                    const resp = await fetch(`${getBackendUrl()}/api/clientes/${cliente.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload)
+                    });
+                    if (!resp.ok) {
+                      console.warn('No se pudo guardar comentario en backend');
+                    } else {
+                      const updated = await resp.json().catch(() => null);
+                      // notificar al parent para actualizar lista si existe onSave
+                      if (updated && onSave) {
+                        try { onSave({ ...cliente, observaciones_asesor: commentDraft } as any); } catch {}
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error guardando comentario:', e);
+                } finally {
+                  setSavingComment(false);
+                  setCommentModalOpen(false);
+                }
+              }}
+            >
+              Guardar
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Botones de navegación */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderTop: '1px solid #e0e0e0' }}>

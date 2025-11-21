@@ -103,7 +103,24 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
       if (result.success && result.clientes) {
         // Reemplazar la lista actual en el contexto
         recargarClientes();
-        (result.clientes as ClienteApi[]).forEach((cliente) => {
+        // Filtrar por asesor asignado: asegurar que sólo carguemos clientes
+        // que pertenezcan al asesor autenticado (defensa frente a respuestas
+        // inconsistentes del backend).
+        const clientesApi = result.clientes as ClienteApi[];
+        const clientesAsignados = clientesApi.filter(c => {
+          try {
+            return Number(c.asesor_asignado) === Number(asesorId);
+          } catch (e) {
+            return false;
+          }
+        });
+
+        // Evitar duplicados por id al agregar al contexto
+        const seenIds = new Set<number>();
+
+        clientesAsignados.forEach((cliente) => {
+          if (cliente.id && seenIds.has(Number(cliente.id))) return;
+          if (cliente.id) seenIds.add(Number(cliente.id));
           const clienteFormateado: Cliente = {
             id: cliente.id,
             fecha: cliente.fecha ? new Date(cliente.fecha).toLocaleDateString('es-PE') : new Date().toLocaleDateString('es-PE'),

@@ -45,7 +45,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ./backend:/app:ro
+      - ./backend:/app
 
   frontend:
     build:

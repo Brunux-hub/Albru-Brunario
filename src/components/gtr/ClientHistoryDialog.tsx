@@ -607,13 +607,24 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                           {isGestion ? (
                             <>
+                              {item.categoria && (
+                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                                    <strong>Categoría:</strong> {item.categoria}
+                                  </Typography>
+                                </Box>
+                              )}
+                              
                               {item.subcategoria && (
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                                   <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    {item.subcategoria}
+                                    <strong>Subcategoría:</strong> {item.subcategoria}
                                   </Typography>
                                 </Box>
                               )}
@@ -624,7 +635,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    Contacto {item.tipo_contacto}
+                                    <strong>Tipo de contacto:</strong> {item.tipo_contacto}
                                   </Typography>
                                 </Box>
                               )}
@@ -635,7 +646,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    {item.resultado.charAt(0).toUpperCase() + item.resultado.slice(1).replace('_', ' ')}
+                                    <strong>Resultado:</strong> {item.resultado.charAt(0).toUpperCase() + item.resultado.slice(1).replace('_', ' ')}
                                   </Typography>
                                 </Box>
                               )}
@@ -646,7 +657,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                   <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5, fontStyle: 'italic' }}>
-                                    {item.observaciones || item.comentario}
+                                    <strong>Observación:</strong> {item.observaciones || item.comentario}
                                   </Typography>
                                 </Box>
                               )}

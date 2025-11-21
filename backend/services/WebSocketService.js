@@ -69,6 +69,21 @@ class WebSocketService {
     }
   }
 
+  // Notificar a una sala/room específica (ej: 'gtr-room' o 'asesor-<id>')
+  notifyRoom(room, eventType, data) {
+    console.log(`📡 [WebSocketService→SocketService] Enviando evento '${eventType}' a la sala '${room}'`);
+    if (this.socketService && this.socketService.io) {
+      try {
+        this.socketService.io.to(room).emit(eventType, data);
+        console.log(`✅ Evento '${eventType}' enviado a la sala '${room}'`);
+      } catch (e) {
+        console.error(`❌ Error enviando evento a la sala '${room}':`, e && e.message ? e.message : e);
+      }
+    } else {
+      console.warn('⚠️  SocketService no disponible, no se pudo enviar evento a la sala');
+    }
+  }
+
   // Obtener estadísticas de conexiones
   getStats() {
     const stats = {};

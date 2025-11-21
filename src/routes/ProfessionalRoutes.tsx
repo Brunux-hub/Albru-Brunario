@@ -6,6 +6,7 @@ import AdminDashboard from '../pages/AdminDashboard';
 import GtrDashboard from '../pages/GtrDashboard';
 import AsesorDashboard from '../pages/AsesorDashboard';
 import ValidacionesDashboard from '../pages/ValidacionesDashboard';
+import SupervisorDashboard from '../pages/SupervisorDashboard';
 import ClearStorage from '../components/ClearStorage';
 
 // Componente para proteger rutas
@@ -80,6 +81,9 @@ const HomeRedirect: React.FC = () => {
     case 'validador':
       if (isDev) console.debug('✅ HomeRedirect - Redirigiendo a validador dashboard');
       return <Navigate to="/dashboard/validaciones" replace />;
+    case 'supervisor':
+      if (isDev) console.debug('👨‍💼 HomeRedirect - Redirigiendo a supervisor dashboard');
+      return <Navigate to="/dashboard/supervisor" replace />;
     default:
       console.warn('⚠️ Tipo de usuario no reconocido:', user.tipo);
       return (
@@ -139,6 +143,14 @@ const ProfessionalRoutes: React.FC = () => (
         element={
           <ProtectedRoute allowedRoles={['asesor']}>
             <AsesorDashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/dashboard/supervisor" 
+        element={
+          <ProtectedRoute allowedRoles={['supervisor']}>
+            <SupervisorDashboard />
           </ProtectedRoute>
         } 
       />

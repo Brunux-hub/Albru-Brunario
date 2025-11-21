@@ -234,13 +234,13 @@ app.post('/api/clientes/reasignar', async (req, res) => {
     console.log(`✅ Backend: Asesor encontrado - asesor_id: ${nuevoAsesorId}, usuario_id: ${nuevoUsuarioId}`);
 
     // Actualizar asignación en la tabla clientes si la columna existe
-    // También actualizar seguimiento_status = 'derivado' y derivado_at
+    // También actualizar seguimiento_status = 'derivado', derivado_at y fecha_asignacion
     if (colAsesor && colAsesor.length > 0) {
       await connection.query(
-        'UPDATE clientes SET asesor_asignado = ?, seguimiento_status = ?, derivado_at = NOW(), updated_at = NOW() WHERE id = ?', 
+        'UPDATE clientes SET asesor_asignado = ?, seguimiento_status = ?, derivado_at = NOW(), fecha_asignacion = NOW(), updated_at = NOW() WHERE id = ?', 
         [nuevoUsuarioId, 'derivado', clienteId]
       );
-      console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoUsuarioId}, seguimiento_status = 'derivado'`);
+      console.log(`✅ Backend: Cliente ${clienteId} actualizado con asesor_asignado = ${nuevoUsuarioId}, seguimiento_status = 'derivado', fecha_asignacion = NOW()`);
     } else {
       // Si la columna real no existe (entorno intermedio), persistimos la asignación en un JSON existente
       // para no tocar el esquema: usamos `wizard_data_json` (columna JSON) como fallback para guardar metadata de asignación.

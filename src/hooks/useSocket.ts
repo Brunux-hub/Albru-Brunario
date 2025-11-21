@@ -9,21 +9,23 @@ import { io, Socket } from 'socket.io-client';
 
 // Detecta la URL del backend dinámicamente basándose en window.location
 const getSocketURL = (): string => {
-  if (window.location.port === '5173') {
-    // Producción: usar Nginx proxy en el mismo origin
-    return window.location.origin;
+  // Preferir variable de entorno explícita (recomendada)
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL as string;
   }
-  
-  // Desarrollo (puerto 5174): conectar directamente al backend
-  // Si estamos accediendo por IP, usar esa IP para el backend
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    const protocol = window.location.protocol;
+
+  // Si la app se sirve desde una IP/hostname público, asume backend en :3001
+  if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:3001`;
+    const protocol = window.location.protocol;
+
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return `${protocol}//${hostname}:3001`;
+    }
   }
-  
-  // Fallback a variable de entorno o localhost
-  return import.meta.env.VITE_WS_URL || 'http://localhost:3001';
+
+  // Fallback a localhost
+  return 'http://localhost:3001';
 };
 
 const SOCKET_URL = getSocketURL();

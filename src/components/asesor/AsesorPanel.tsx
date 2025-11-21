@@ -140,16 +140,40 @@ const AsesorPanel: React.FC = () => {
       console.log('📋 [ASESOR FRONTEND] ================================');
     };
 
+    // Manejar CLIENT_COMPLETED (señala que el cliente fue gestionado)
+    const handleClientCompleted = (data: unknown) => {
+      console.log('📋 [ASESOR FRONTEND] Evento CLIENT_COMPLETED recibido (handler adicional)');
+      try {
+        const msg = data as Record<string, unknown>;
+        // payload puede venir como { clienteId, cliente, asesorId }
+        const clienteId = Number(msg['clienteId'] || (msg['cliente'] && (msg['cliente'] as Record<string, unknown>)['id']));
+        if (clienteId) {
+          console.log('✅ [ASESOR FRONTEND] Cliente gestionado (CLIENT_COMPLETED) - Refrescando lista', clienteId);
+          if (asesorClientesTableRef.current && asesorClientesTableRef.current.refreshClientes) {
+            asesorClientesTableRef.current.refreshClientes();
+          }
+          setNotification('Cliente gestionado y movido a GTR');
+          setShowNotification(true);
+        } else {
+          console.warn('⚠️ [ASESOR FRONTEND] clienteId inválido en CLIENT_COMPLETED');
+        }
+      } catch (e) {
+        console.error('❌ [ASESOR FRONTEND] Error procesando CLIENT_COMPLETED en asesor:', e);
+      }
+    };
+
     // Registrar listeners
     socket.on('CLIENT_REASSIGNED', handleClientReassigned);
     socket.on('HISTORIAL_UPDATED', handleHistorialUpdated);
     socket.on('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+    socket.on('CLIENT_COMPLETED', handleClientCompleted);
 
     // Cleanup
     return () => {
       socket.off('CLIENT_REASSIGNED', handleClientReassigned);
       socket.off('HISTORIAL_UPDATED', handleHistorialUpdated);
       socket.off('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
+      socket.off('CLIENT_COMPLETED', handleClientCompleted);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, isConnected]);
@@ -175,7 +199,7 @@ const AsesorPanel: React.FC = () => {
     <ThemeProvider theme={theme}>
       <Box sx={{ display: 'flex', minHeight: '100vh', background: '#f7f9fb' }}>
         <AsesorSidebar tabActual={tabActual} onTabChange={handleChangeTab} />
-        <Box sx={{ flex: 1, p: 3 }}>
+        <Box sx={{ flex: 1, p: 3, zoom: 0.85 }}>
           <Typography variant="h5" fontWeight={700} mb={3}>
             {getTitulo()}
           </Typography>
