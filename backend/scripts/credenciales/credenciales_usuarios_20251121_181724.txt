@@ -1,0 +1,16 @@
+======================================================================
+  CREDENCIALES DE USUARIOS GENERADOS
+======================================================================
+
+Nombre:     JUAN ANDRES MARTIN DEL PIERO CARDENAZ DE LOS ALTOS
+Rol:        ASESOR
+DNI:        78954561
+Email:      acardenazd@albru.pe
+Username:   acardenazd
+Contraseña: 78954561
+ID:         34
+----------------------------------------------------------------------
+
+
+Total usuarios: 1
+Generado: 2025-11-21 18:17:24

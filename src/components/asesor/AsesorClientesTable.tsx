@@ -72,6 +72,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
   const [filtroEstado, setFiltroEstado] = useState('Todos los estados');
   const [filtroGestion, setFiltroGestion] = useState('Todas las gestiones');
   const [busqueda, setBusqueda] = useState('');
+  const [searchResults, setSearchResults] = useState<Cliente[]>([]);
 
   // Mantener la referencia actualizada
   useEffect(() => {
@@ -259,6 +260,59 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
     return cumpleEstado && cumpleGestion && cumpleBusqueda;
   });
 
+  // When a search query is present (>= 3 chars) perform server-side search (global across all clients)
+  useEffect(() => {
+    let mounted = true;
+    let timer: number | undefined;
+
+    const doSearch = async (q: string) => {
+      try {
+        // limit to 50 results for table display
+        const url = `/api/clientes/search?term=${encodeURIComponent(q)}&limit=50&page=1`;
+        const resp = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
+        if (!resp.ok) return;
+        const j = await resp.json();
+        if (j && j.success && Array.isArray(j.items)) {
+          const mapped = j.items.map((cliente: any) => ({
+            id: cliente.id,
+            fecha: (() => {
+              const dateStr = (cliente.fecha || cliente.created_at || '').split('T')[0];
+              if (!dateStr) return '';
+              const [year, month, day] = dateStr.split('-');
+              return day && month && year ? `${day}/${month}/${year}` : dateStr;
+            })(),
+            nombre: cliente.nombre || '',
+            telefono: cliente.telefono || cliente.leads_original_telefono || '',
+            leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || '',
+            dni: cliente.dni || '',
+            servicio: cliente.servicio_contratado || 'Internet',
+            estado: cliente.estado || 'nuevo',
+            seguimiento_status: cliente.seguimiento_status ?? null,
+            estatus_comercial_categoria: cliente.estatus_comercial_categoria ?? null,
+            estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria ?? null,
+            asesor_asignado: cliente.asesor_asignado ?? null
+          } as Cliente));
+          if (mounted) setSearchResults(mapped);
+        }
+      } catch (e) {
+        console.warn('Error buscando clientes globalmente:', e);
+      }
+    };
+
+    if (!busqueda || busqueda.trim().length < 3) {
+      // clear search results when query is short/empty
+      setSearchResults([]);
+    } else {
+      // debounce user input
+      timer = window.setTimeout(() => doSearch(busqueda.trim()), 300);
+    }
+
+    return () => {
+      mounted = false;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [busqueda]);
+
   const handleGestionar = (cliente: Cliente) => {
     // Indicar localmente que este cliente está siendo gestionado por el asesor
     try {
@@ -412,7 +466,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
             </TableRow>
           </TableHead>
           <TableBody>
-            {clientesFiltrados.map((cliente, index) => (
+            {(busqueda && busqueda.trim().length >= 3 ? searchResults : clientesFiltrados).map((cliente, index) => (
               <TableRow key={cliente.id ?? index} hover>
                 <TableCell>{cliente.fecha}</TableCell>
                 <TableCell>{cliente.nombre}</TableCell>

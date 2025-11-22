@@ -55,19 +55,51 @@ const searchClientes = async (req, res) => {
   if (!term) return res.status(400).json({ success:false, message: 'term requerido' });
 
   const offset = (page - 1) * limit;
+  // Limpiar espacios del término de búsqueda para que coincida con números sin espacios
+  const cleanTerm = term.replace(/\s+/g, '');
   const like = `%${term}%`;
+  const cleanLike = `%${cleanTerm}%`;
   try {
+    // Usar solo columnas que sabemos que existen
+    // Buscar tanto con espacios como sin espacios (REPLACE quita espacios para matching flexible)
     const [rows] = await pool.query(
-      `SELECT id, nombre, telefono, dni, estado, ocupacion
-       FROM clientes
-       WHERE nombre LIKE ? OR dni LIKE ? OR telefono LIKE ?
-       ORDER BY created_at DESC
+      `SELECT 
+        c.id, 
+        c.nombre, 
+        c.telefono, 
+        c.leads_original_telefono,
+        c.dni, 
+        c.campana,
+        c.canal_adquisicion,
+        c.sala_asignada,
+        c.compania,
+        c.created_at,
+        c.seguimiento_status,
+        c.estatus_comercial_categoria,
+        c.estatus_comercial_subcategoria,
+        c.asesor_asignado,
+        u.nombre AS asesor_nombre
+       FROM clientes c
+       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
+       WHERE c.nombre LIKE ? 
+          OR c.dni LIKE ? 
+          OR c.telefono LIKE ? 
+          OR c.leads_original_telefono LIKE ?
+          OR REPLACE(c.telefono, ' ', '') LIKE ?
+          OR REPLACE(c.leads_original_telefono, ' ', '') LIKE ?
+       ORDER BY c.created_at DESC
        LIMIT ? OFFSET ?`,
-      [like, like, like, limit, offset]
+      [like, like, like, like, cleanLike, cleanLike, limit, offset]
     );
     const [countRows] = await pool.query(
-      `SELECT COUNT(*) as total FROM clientes WHERE nombre LIKE ? OR dni LIKE ? OR telefono LIKE ?`,
-      [like, like, like]
+      `SELECT COUNT(*) as total FROM clientes 
+       WHERE nombre LIKE ? 
+          OR dni LIKE ? 
+          OR telefono LIKE ? 
+          OR leads_original_telefono LIKE ?
+          OR REPLACE(telefono, ' ', '') LIKE ?
+          OR REPLACE(leads_original_telefono, ' ', '') LIKE ?`,
+      [like, like, like, like, cleanLike, cleanLike]
     );
     const total = countRows[0].total || 0;
     return res.json({ success:true, items: rows, page, limit, total });
@@ -1899,10 +1931,11 @@ const getCampanaStatsHoy = async (req, res) => {
   }
 };
 
-// GET /api/clientes/gestionados-mes - Obtener clientes gestionados del MES ACTUAL con categoría y subcategoría
+// GET /api/clientes/gestionados-mes - Obtener clientes creados o actualizados en el mes actual (noviembre)
 const getClientesGestionadosMes = async (req, res) => {
   try {
-    // Obtener clientes gestionados del MES ACTUAL (wizard completado)
+    // Obtener clientes de la tabla clientes que fueron creados O actualizados en noviembre 2025
+    // Incluye tanto created_at como updated_at para capturar todas las gestiones del mes
     const sql = `
       SELECT 
         c.id,
@@ -1919,28 +1952,36 @@ const getClientesGestionadosMes = async (req, res) => {
         c.fecha_wizard_completado,
         c.seguimiento_status,
         c.asesor_asignado,
-        c.created_at AS fecha_registro,
+        DATE_FORMAT(c.created_at, '%Y-%m-%d') AS fecha_registro,
+        DATE_FORMAT(c.updated_at, '%Y-%m-%d') AS fecha_actualizacion,
+        c.created_at,
+        c.updated_at,
         u.nombre AS asesor_nombre
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
-      WHERE c.wizard_completado = 1
-        AND (
-          (MONTH(c.fecha_wizard_completado) = MONTH(CURDATE()) AND YEAR(c.fecha_wizard_completado) = YEAR(CURDATE()))
-          OR (c.fecha_wizard_completado IS NULL AND MONTH(c.updated_at) = MONTH(CURDATE()) AND YEAR(c.updated_at) = YEAR(CURDATE()))
-        )
-      ORDER BY c.fecha_wizard_completado DESC, c.updated_at DESC
-      LIMIT 1000
+      WHERE (
+        (MONTH(c.created_at) = 11 AND YEAR(c.created_at) = 2025)
+        OR 
+        (MONTH(c.updated_at) = 11 AND YEAR(c.updated_at) = 2025)
+      )
+      ORDER BY 
+        CASE 
+          WHEN MONTH(c.updated_at) = 11 AND YEAR(c.updated_at) = 2025 THEN c.updated_at
+          ELSE c.created_at
+        END DESC
+      LIMIT 15000
     `;
 
     const [rows] = await pool.query(sql);
     
-    console.log(`📊 [GESTIONADOS MENSUALES] Encontrados ${rows.length} clientes gestionados del mes`);
+    console.log(`📊 [GESTIONADOS MENSUALES] Encontrados ${rows.length} clientes creados o actualizados en noviembre 2025`);
     if (rows.length > 0) {
       console.log(`📊 [GESTIONADOS MENSUALES] Primer cliente:`, {
         id: rows[0].id,
         categoria: rows[0].estatus_comercial_categoria,
         subcategoria: rows[0].estatus_comercial_subcategoria,
-        fecha_wizard: rows[0].fecha_wizard_completado
+        created_at: rows[0].fecha_registro,
+        updated_at: rows[0].fecha_actualizacion
       });
     }
     

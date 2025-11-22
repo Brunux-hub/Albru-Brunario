@@ -19,6 +19,7 @@ interface ClienteGestionado {
   fecha_wizard_completado: string;
   seguimiento_status: string;
   fecha_registro?: string;
+  fecha_actualizacion?: string;
 }
 
 // Todas las categorías disponibles
@@ -203,6 +204,8 @@ const ReportesPanel: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Lead</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>F. Registro</TableCell>
+                  <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>F. Actualización</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Campaña</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Canal</TableCell>
                   <TableCell sx={{ fontWeight: 600, bgcolor: '#f8fafc' }}>Sala</TableCell>
@@ -214,7 +217,7 @@ const ReportesPanel: React.FC = () => {
               <TableBody>
                 {clientesFiltrados.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       No hay clientes gestionados en esta categoría este mes
                     </TableCell>
                   </TableRow>
@@ -227,6 +230,24 @@ const ReportesPanel: React.FC = () => {
                             {cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono'}
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#1976d2' }}>
+                          {cliente.fecha_registro ? (() => {
+                            const dateStr = cliente.fecha_registro.split('T')[0];
+                            const [year, month, day] = dateStr.split('-');
+                            return `${day}/${month}/${year}`;
+                          })() : '-'}
+                        </Typography>
+                        {cliente.fecha_actualizacion && cliente.fecha_actualizacion !== cliente.fecha_registro && (
+                          <Typography variant="caption" sx={{ color: '#059669', display: 'block' }}>
+                            Actualizado: {(() => {
+                              const dateStr = cliente.fecha_actualizacion.split('T')[0];
+                              const [year, month, day] = dateStr.split('-');
+                              return `${day}/${month}/${year}`;
+                            })()}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>{cliente.campana || '-'}</TableCell>
                       <TableCell>{cliente.canal || '-'}</TableCell>

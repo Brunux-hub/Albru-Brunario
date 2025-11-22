@@ -45,6 +45,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [clientToReassign, setClientToReassign] = useState<Cliente | null>(null);
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Cliente[] | null>(null);
 
   React.useEffect(() => {
     if (newClient) {
@@ -82,15 +83,68 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
     filtered = sortedClients.filter(c => c.estado === statusFilter);
   }
 
-  if (query && query.trim() !== '') {
-    const q = query.toLowerCase();
-    filtered = filtered.filter(c => (
-      String(c.id).includes(q) ||
-      (c.nombre || '').toLowerCase().includes(q) ||
-      (c.asesor || '').toLowerCase().includes(q) ||
-      (c.leads_original_telefono || c.telefono || '').toLowerCase().includes(q)
-    ));
-  }
+  // Si hay una consulta de búsqueda activa (>=3 caracteres), hacemos búsqueda server-side
+  const searchActive = query && query.trim().length >= 3;
+
+  React.useEffect(() => {
+    let mounted = true;
+    let timer: number | undefined;
+
+    const doSearch = async (q: string) => {
+      try {
+        const url = `/api/clientes/search?term=${encodeURIComponent(q)}&limit=500&page=1`;
+        const resp = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
+        if (!resp.ok) {
+          console.warn('Search API returned', resp.status);
+          if (mounted) setSearchResults([]);
+          return;
+        }
+        const j = await resp.json();
+        if (mounted) {
+          if (j && j.success && Array.isArray(j.items)) {
+            const mapped = j.items.map((cliente: any) => ({
+              id: cliente.id,
+              fechaCreacion: cliente.fecha || cliente.created_at || '',
+              created_at: cliente.created_at || null,
+              leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || '',
+              nombre: cliente.nombre || '',
+              telefono: cliente.telefono || '',
+              dni: cliente.dni || '',
+              estatus_comercial_categoria: cliente.estatus_comercial_categoria || null,
+              estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria || null,
+              asesor: cliente.asesor_nombre || cliente.asesor || 'Disponible',
+              campana: cliente.campana || cliente.campania || null,
+              canal: cliente.canal_adquisicion || cliente.canal || null,
+              sala_asignada: cliente.sala_asignada || cliente.sala || null,
+              compania: cliente.compania || null,
+              seguimiento_status: cliente.seguimiento_status ?? null,
+              estado: cliente.estado || 'nuevo',
+              historial: cliente.historial || []
+            } as Cliente));
+            setSearchResults(mapped);
+          } else {
+            setSearchResults([]);
+          }
+        }
+      } catch (e) {
+        console.warn('Error buscando clientes globalmente:', e);
+        if (mounted) setSearchResults([]);
+      }
+    };
+
+    if (!searchActive) {
+      // limpiar resultados cuando la búsqueda no está activa
+      setSearchResults(null);
+    } else {
+      // debounce
+      timer = window.setTimeout(() => doSearch(query.trim()), 300);
+    }
+
+    return () => {
+      mounted = false;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [query]);
   
   const handleViewHistory = async (client: Cliente) => {
     try {
@@ -472,7 +526,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
               </TableRow>
           </TableHead>
           <TableBody>
-            {filtered.map(client => (
+            {(searchActive ? (searchResults || []) : filtered).map(client => (
               <TableRow key={client.id} sx={{ 
                 '&:hover': { 
                   backgroundColor: colors.neutral[50],
@@ -483,10 +537,18 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                   {client.created_at ? (
                     <div>
                       <div style={{ fontWeight: 600 }}>
-                        {new Date(client.created_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        {(() => {
+                          const dateStr = client.created_at.split('T')[0];
+                          const [year, month, day] = dateStr.split('-');
+                          return `${day}/${month}/${year}`;
+                        })()}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
-                        {new Date(client.created_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
+                        {(() => {
+                          const timePart = client.created_at.includes('T') ? client.created_at.split('T')[1] : client.created_at.split(' ')[1] || '00:00:00';
+                          const [hour, minute] = timePart.split(':');
+                          return `${hour}:${minute}`;
+                        })()}
                       </div>
                     </div>
                   ) : (

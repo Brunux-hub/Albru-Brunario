@@ -330,9 +330,26 @@ const GtrDashboard: React.FC = () => {
 
         if (data.success && data.clientes) {
           
+          // Helper: formatea una fecha recibida desde el backend sin convertirla a la zona local
+          const formatDateWithoutTZ = (raw?: string | null) => {
+            if (!raw) return new Date().toLocaleDateString('es-ES');
+            // Si viene en formato 'YYYY-MM-DD' o 'YYYY-MM-DD HH:MM:SS' o 'YYYY-MM-DDTHH:MM:SS'
+            const datePart = String(raw).split('T')[0].split(' ')[0];
+            const m = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (m) {
+              return `${m[3]}/${m[2]}/${m[1]}`; // DD/MM/YYYY
+            }
+            // Fallback: intentar parsear y devolver locale
+            try {
+              const d = new Date(raw as string);
+              if (!isNaN(d.getTime())) return d.toLocaleDateString('es-ES');
+            } catch (e) {}
+            return String(raw);
+          };
+
           const clientesFormateados: Cliente[] = data.clientes.map((cliente: ClienteAPI) => ({
             id: cliente.id,
-            fecha: new Date(cliente.fecha_asignacion || cliente.created_at || Date.now()).toLocaleDateString('es-ES'),
+            fecha: formatDateWithoutTZ(cliente.fecha_asignacion || cliente.created_at || null),
             // ✅ MAPEAR created_at para que se muestre en la tabla
             created_at: cliente.created_at || null,
             // Priorizar leads_original_telefono si está disponible
@@ -372,8 +389,8 @@ const GtrDashboard: React.FC = () => {
           }));
           
           setClients(clientesFormateados);
-          // Guardar en localStorage para persistencia entre sesiones
-          localStorage.setItem('gtr_clients', JSON.stringify(clientesFormateados));
+          // NOTE: Avoid storing the full clients list in localStorage (very large datasets cause quota errors)
+          // If persistence is needed, store only small metadata or rely on server-side paging/search.
         }
       } catch (error) {
         console.error('Error cargando clientes:', error);

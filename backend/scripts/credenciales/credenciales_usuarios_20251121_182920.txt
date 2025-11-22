@@ -1,0 +1,16 @@
+======================================================================
+  CREDENCIALES DE USUARIOS GENERADOS
+======================================================================
+
+Nombre:     BRYAM JHESON HERMITAÑO VEGA
+Rol:        ASESOR
+DNI:        77275364
+Email:      bhermitañov@albru.pe
+Username:   bhermitañov
+Contraseña: 77275364
+ID:         36
+----------------------------------------------------------------------
+
+
+Total usuarios: 1
+Generado: 2025-11-21 18:29:20

@@ -158,7 +158,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const initAuth = () => {
       try {
-        const storedToken = localStorage.getItem('albru_token');
+          // Remove legacy large client cache to avoid localStorage quota issues
+          if (localStorage.getItem('gtr_clients')) {
+            try {
+              console.info('Limpiando localStorage key: gtr_clients (legacy)');
+              localStorage.removeItem('gtr_clients');
+            } catch (e) {
+              console.warn('No se pudo limpiar localStorage gtr_clients:', e);
+            }
+          }
+
+          const storedToken = localStorage.getItem('albru_token');
         
         if (storedToken) {
           // Validar formato JWT (debe tener 3 partes separadas por punto)
@@ -198,7 +208,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               clearAuth();
             }
           } catch (decodeError) {
-            console.error('❌ Error decodificando token (corrupto o inválido):', decodeError);
+            // Mostrar como warning para no llenar la consola con errores no críticos
+            console.warn('❌ Error decodificando token (corrupto o inválido):', decodeError);
             clearAuth();
           }
         }

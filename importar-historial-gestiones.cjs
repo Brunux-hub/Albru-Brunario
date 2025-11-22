@@ -25,7 +25,7 @@ const DB_CONFIG = {
   database: 'albru'
 };
 
-const EXCEL_FILE = path.join(__dirname, 'aña.xlsx');
+const EXCEL_FILE = 'C:/Users/USER/Desktop/ARCHIVOS/aña2.xlsx';
 
 // ========================================
 // MAPEO DE TIPIFICACIONES
@@ -47,6 +47,10 @@ const MAPEO_TIPIFICACIONES = {
     categoria: 'Preventa completa', 
     subcategoria: 'Venta cerrada' 
   },
+  'PREVENTA COMPLETA': { 
+    categoria: 'Preventa completa', 
+    subcategoria: 'Venta cerrada' 
+  },
   
   // PREVENTA INCOMPLETA
   '6 - PREVENTA': { 
@@ -54,6 +58,10 @@ const MAPEO_TIPIFICACIONES = {
     subcategoria: 'Preventa incompleta' 
   },
   '6 - PDTE SCORE': { 
+    categoria: 'Preventa completa', 
+    subcategoria: 'Preventa pendiente de score' 
+  },
+  'PREVENTA COMPLETA-PDTE SCORE': { 
     categoria: 'Preventa completa', 
     subcategoria: 'Preventa pendiente de score' 
   },
@@ -176,6 +184,16 @@ const MAPEO_TIPIFICACIONES = {
   '0 - CORTA LLAMADA': { 
     categoria: 'Sin contacto', 
     subcategoria: 'Corta llamada' 
+  },
+  
+  // ADICIONALES SIN FORMATO
+  'NO CONTESTA': { 
+    categoria: 'Sin contacto', 
+    subcategoria: 'No contesta' 
+  },
+  '1 - NO CONTESTA': { 
+    categoria: 'Sin contacto', 
+    subcategoria: 'No contesta' 
   }
 };
 
@@ -224,6 +242,20 @@ async function importarHistorial() {
     connection = await mysql.createConnection(DB_CONFIG);
     console.log('✅ Conexión exitosa\n');
 
+    // HACER BACKUP Y VACIAR TABLA
+    console.log('📦 Creando backup de historial_gestiones...');
+    const backupNombre = `historial_gestiones_backup_${Date.now()}`;
+    await connection.query(`CREATE TABLE ${backupNombre} LIKE historial_gestiones`);
+    await connection.query(`INSERT INTO ${backupNombre} SELECT * FROM historial_gestiones`);
+    const [[{total: totalBackup}]] = await connection.query(`SELECT COUNT(*) as total FROM ${backupNombre}`);
+    console.log(`✅ Backup creado: ${backupNombre} (${totalBackup} registros)\n`);
+    
+    console.log('🗑️ Vaciando tabla historial_gestiones...');
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+    await connection.query('TRUNCATE TABLE historial_gestiones');
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    console.log('✅ Tabla vaciada\n');
+
     // 2. LEER EXCEL
     console.log('📂 Leyendo archivo Excel:', EXCEL_FILE);
     const workbook = XLSX.readFile(EXCEL_FILE);
@@ -262,14 +294,15 @@ async function importarHistorial() {
 
       const telefonoLimpio = limpiarTelefono(telefonoOriginal);
 
-      // Buscar cliente en BD
+      // Buscar cliente en BD por teléfono o DNI
       const [clientes] = await connection.query(`
-        SELECT id, nombre, leads_original_telefono
+        SELECT id, nombre, telefono
         FROM clientes 
-        WHERE REPLACE(leads_original_telefono, ' ', '') = ?
+        WHERE REPLACE(telefono, ' ', '') = ?
+           OR REPLACE(leads_original_telefono, ' ', '') = ?
            OR (dni IS NOT NULL AND dni != '' AND dni = ?)
         LIMIT 1
-      `, [telefonoLimpio, dni]);
+      `, [telefonoLimpio, telefonoLimpio, dni]);
 
       if (clientes.length === 0) {
         clientesNoEncontrados++;
