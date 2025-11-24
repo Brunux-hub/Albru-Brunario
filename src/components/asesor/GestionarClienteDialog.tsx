@@ -1519,10 +1519,15 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
             <MenuItem disabled value="">
               Elige
             </MenuItem>
-            <MenuItem value="A">A - Excelente</MenuItem>
-            <MenuItem value="B">B - Bueno</MenuItem>
-            <MenuItem value="C">C - Regular</MenuItem>
-            <MenuItem value="D">D - Bajo</MenuItem>
+            <MenuItem value="101-200">101-200</MenuItem>
+            <MenuItem value="201-300">201-300</MenuItem>
+            <MenuItem value="301-400">301-400</MenuItem>
+            <MenuItem value="401-500">401-500</MenuItem>
+            <MenuItem value="501-600">501-600</MenuItem>
+            <MenuItem value="601-700">601-700</MenuItem>
+            <MenuItem value="701-800">701-800</MenuItem>
+            <MenuItem value="801-900">801-900</MenuItem>
+            <MenuItem value="901-999">901-999</MenuItem>
           </Select>
         </FormControl>
         {errors.score && (

@@ -1,0 +1,16 @@
+======================================================================
+  CREDENCIALES DE USUARIOS GENERADOS
+======================================================================
+
+Nombre:     ELIANA CONZUELO CONCA ATENCIO
+Rol:        ASESOR
+DNI:        76660954
+Email:      econcaa@albru.pe
+Username:   econcaa
+Contraseña: 76660954
+ID:         37
+----------------------------------------------------------------------
+
+
+Total usuarios: 1
+Generado: 2025-11-22 10:53:35

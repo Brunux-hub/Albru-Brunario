@@ -1931,11 +1931,18 @@ const getCampanaStatsHoy = async (req, res) => {
   }
 };
 
-// GET /api/clientes/gestionados-mes - Obtener clientes creados o actualizados en el mes actual (noviembre)
+// GET /api/clientes/gestionados-mes - Obtener clientes GESTIONADOS (con wizard completado) en un mes
+// Opcional: aceptar query params `month` (1-12) y `year` (YYYY)
 const getClientesGestionadosMes = async (req, res) => {
   try {
-    // Obtener clientes de la tabla clientes que fueron creados O actualizados en noviembre 2025
-    // Incluye tanto created_at como updated_at para capturar todas las gestiones del mes
+    const monthParam = Number(req.query.month);
+    const yearParam = Number(req.query.year);
+    const now = new Date();
+    const month = Number.isInteger(monthParam) && monthParam >= 1 && monthParam <= 12 ? monthParam : (now.getMonth() + 1);
+    const year = Number.isInteger(yearParam) && yearParam > 0 ? yearParam : now.getFullYear();
+
+    // Obtener solo clientes GESTIONADOS (tienen categoría comercial asignada) en el mes/año indicados
+    // Filtrar SOLO por created_at en el mes (fecha de ingreso del cliente)
     const sql = `
       SELECT 
         c.id,
@@ -1959,22 +1966,18 @@ const getClientesGestionadosMes = async (req, res) => {
         u.nombre AS asesor_nombre
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
-      WHERE (
-        (MONTH(c.created_at) = 11 AND YEAR(c.created_at) = 2025)
-        OR 
-        (MONTH(c.updated_at) = 11 AND YEAR(c.updated_at) = 2025)
-      )
-      ORDER BY 
-        CASE 
-          WHEN MONTH(c.updated_at) = 11 AND YEAR(c.updated_at) = 2025 THEN c.updated_at
-          ELSE c.created_at
-        END DESC
+      WHERE c.estatus_comercial_categoria IS NOT NULL
+        AND c.estatus_comercial_categoria != ''
+        AND c.estatus_comercial_categoria != 'Seleccionar categoría'
+        AND MONTH(c.created_at) = ?
+        AND YEAR(c.created_at) = ?
+      ORDER BY c.created_at DESC
       LIMIT 15000
     `;
 
-    const [rows] = await pool.query(sql);
-    
-    console.log(`📊 [GESTIONADOS MENSUALES] Encontrados ${rows.length} clientes creados o actualizados en noviembre 2025`);
+    const [rows] = await pool.query(sql, [month, year]);
+
+    console.log(`📊 [GESTIONADOS MENSUALES] Encontrados ${rows.length} clientes gestionados en ${month}/${year}`);
     if (rows.length > 0) {
       console.log(`📊 [GESTIONADOS MENSUALES] Primer cliente:`, {
         id: rows[0].id,
@@ -1984,11 +1987,13 @@ const getClientesGestionadosMes = async (req, res) => {
         updated_at: rows[0].fecha_actualizacion
       });
     }
-    
+
     return res.json({ 
       success: true, 
       clientes: rows, 
-      total: rows.length 
+      total: rows.length,
+      month,
+      year
     });
   } catch (err) {
     console.error('Error getClientesGestionadosMes', err);
