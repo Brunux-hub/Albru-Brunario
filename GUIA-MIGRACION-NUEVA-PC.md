@@ -66,28 +66,34 @@ Si Docker no está corriendo:
 
 ## 🗄️ PASO 3: RESTAURAR BASE DE DATOS
 
-### 3.1 Copiar el Backup desde la PC Antigua
+### 3.1 El Backup Ya Está en GitHub ✅
 
-**EN LA PC ANTIGUA**:
-```powershell
-# Crear backup de la base de datos actual
-cd C:\Users\USER\Albru-Brunario
-.\backup-crm.bat
+**¡BUENAS NOTICIAS!** El backup actualizado ya está incluido en el repositorio:
 
-# Esto crea un archivo en la carpeta backups/
-# Ej: backups/backup_20251125_153000/albru_backup.sql
-```
+**Archivo**: `database/albru_backup_latest.sql`
 
-**Copiar el archivo `.sql` a la nueva PC** (USB, red, nube, etc.)
+**Datos incluidos** (actualizado: 25/11/2025 14:03):
+- ✅ **14,234 clientes** totales
+- ✅ **45 clientes** creados hoy
+- ✅ **1,466 duplicados** procesados
+- ✅ **1,512 clientes principales** con duplicados
+- ✅ **21 usuarios** del sistema
+- ✅ **17 asesores** activos
+- ✅ **Timezone Peru** configurado (-05:00)
+- ✅ **Todas las tablas** y estructura completa
 
-### 3.2 Colocar el Backup en la Nueva PC
+**Tamaño del backup**: 31.69 MB
 
-Coloca el archivo `.sql` en la carpeta `database/` del proyecto:
+### 3.2 NO Necesitas Copiar Nada Manualmente
+
+Cuando clones el repositorio, el backup ya estará en:
 ```
 Albru-Brunario/
   database/
-    albru_backup.sql   ← Tu backup aquí
+    albru_backup_latest.sql   ← Ya incluido en Git
 ```
+
+**Solo necesitas importarlo** (ver Paso 5)
 
 ---
 
@@ -130,28 +136,33 @@ docker ps
 
 ## 📊 PASO 5: IMPORTAR LA BASE DE DATOS
 
-### 5.1 Opción A: Restaurar con Script (RECOMENDADO)
+### 5.1 Importar el Backup (YA INCLUIDO EN GIT)
 
-Si colocaste el backup en `database/albru_backup.sql`:
+El backup `albru_backup_latest.sql` ya está en el repositorio, solo importarlo:
 
 ```powershell
-# Ejecutar el script de restauración
-.\restore-crm.bat
+# Importar el backup actualizado a MySQL
+docker exec -i albru-base mysql -uroot -proot_password_here -e "CREATE DATABASE IF NOT EXISTS albru;"
+docker exec -i albru-base mysql -uroot -proot_password_here albru < database/albru_backup_latest.sql
 ```
 
-El script automáticamente:
-- ✅ Detecta el archivo de backup
-- ✅ Crea la base de datos `albru` si no existe
-- ✅ Importa todos los datos
-- ✅ Configura timezone a Peru (America/Lima)
+**Esto importará**:
+- ✅ 14,234 clientes (incluye 45 de hoy)
+- ✅ 1,466 duplicados ya procesados
+- ✅ 21 usuarios y 17 asesores
+- ✅ Todas las tablas y datos actualizados
+- ✅ Timezone Peru configurado
 
-### 5.2 Opción B: Importar Manualmente
-
-Si el script no funciona, importa manualmente:
+### 5.2 Verificar Importación Exitosa
 
 ```powershell
-# Importar el backup a MySQL
-docker exec -i albru-base mysql -uroot -proot_password_here albru < database/albru_backup.sql
+# Ver resumen de registros importados
+docker exec -it albru-base mysql -uroot -proot_password_here albru -e "SELECT 'Clientes' as tabla, COUNT(*) as total FROM clientes UNION ALL SELECT 'Usuarios', COUNT(*) FROM usuarios UNION ALL SELECT 'Asesores', COUNT(*) FROM asesores;"
+
+# Deberías ver:
+# Clientes:  14234
+# Usuarios:     21
+# Asesores:     17
 ```
 
 ### 5.3 Verificar la Importación
