@@ -73,6 +73,7 @@ interface Step4Data {
 import type { Cliente } from '../../context/AppContext';
 import { ubigeoService, type Departamento, type Distrito } from '../../services/UbigeoService';
 import { CATEGORIAS, getSubcategorias } from '../../constants/estatusComercial';
+import GtrChatModal from './GtrChatModal';
 
 interface Props {
   open: boolean;
@@ -176,11 +177,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       setStep1Data({
         tipoCliente: 'nuevo', // Por defecto
         lead: cliente.telefono || '',
-        coordenadas: '',
+        coordenadas: cliente.coordenadas || '', // 🆕 Autocompletar desde GTR
         score: '',
         nombresApellidos: cliente.nombre || '',
         tipoDocumento: 'DNI',
-        numeroDocumento: cliente.dni || ''
+        numeroDocumento: cliente.dni || '' // 🆕 Autocompletar desde GTR
           ,estatus: ''
       });
     }
@@ -434,7 +435,11 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
     }
 
     if (!step1Data.numeroDocumento) {
-      newErrors.numeroDocumento = 'Invalid input: expected string, received undefined';
+      newErrors.numeroDocumento = 'El número de documento es obligatorio';
+    } else if (step1Data.tipoDocumento === 'DNI' && step1Data.numeroDocumento.length !== 8) {
+      newErrors.numeroDocumento = 'El DNI debe tener exactamente 8 dígitos';
+    } else if (step1Data.tipoDocumento === 'DNI' && !/^\d{8}$/.test(step1Data.numeroDocumento)) {
+      newErrors.numeroDocumento = 'El DNI solo debe contener números';
     }
 
     setErrors(newErrors);
@@ -1616,9 +1621,20 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
           fullWidth
           placeholder="Tu respuesta"
           value={step1Data.numeroDocumento}
-          onChange={(e) => setStep1Data({ ...step1Data, numeroDocumento: e.target.value })}
+          onChange={(e) => {
+            const value = e.target.value;
+            // Para DNI: solo números, máximo 8 dígitos
+            if (step1Data.tipoDocumento === 'DNI') {
+              if (/^\d{0,8}$/.test(value)) {
+                setStep1Data({ ...step1Data, numeroDocumento: value });
+              }
+            } else {
+              setStep1Data({ ...step1Data, numeroDocumento: value });
+            }
+          }}
           variant="outlined"
           size="small"
+          inputProps={{ maxLength: step1Data.tipoDocumento === 'DNI' ? 8 : undefined }}
           sx={{ 
             backgroundColor: '#f5f5f5',
             '& .MuiOutlinedInput-root': {
@@ -1896,6 +1912,14 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
           </Box>
         </Box>
       </Box>
+
+      {/* Chat GTR flotante - solo si hay cliente y asesorId */}
+      {cliente && cliente.id && asesorIdRef.current && typeof asesorIdRef.current === 'number' && (
+        <GtrChatModal 
+          clienteId={cliente.id} 
+          asesorId={asesorIdRef.current as number} 
+        />
+      )}
     </Dialog>
   );
 };

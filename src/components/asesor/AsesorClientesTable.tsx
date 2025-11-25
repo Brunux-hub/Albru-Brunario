@@ -240,6 +240,59 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
     };
   }, [cargarClientesAsignados]);
 
+  // WebSocket directo: Escuchar más eventos para actualización en tiempo real
+  useEffect(() => {
+    const socket = (window as any).socket;
+    if (!socket) return;
+
+    const handleClientUpdated = () => {
+      console.log('🔔 [ASESOR TABLE] Cliente actualizado, recargando...');
+      cargarClientesAsignados();
+    };
+
+    const handleClientStatusUpdated = () => {
+      console.log('🔔 [ASESOR TABLE] Estado de cliente actualizado, recargando...');
+      cargarClientesAsignados();
+    };
+
+    const handleClientReturnedToGTR = () => {
+      console.log('🔔 [ASESOR TABLE] Cliente devuelto a GTR, recargando...');
+      cargarClientesAsignados();
+    };
+
+    const handleClientLocked = (data: any) => {
+      console.log('🔒 [ASESOR TABLE] Cliente bloqueado:', data);
+      // Opcional: actualizar UI para mostrar cliente bloqueado
+      cargarClientesAsignados();
+    };
+
+    const handleClientUnlocked = (data: any) => {
+      console.log('🔓 [ASESOR TABLE] Cliente desbloqueado:', data);
+      cargarClientesAsignados();
+    };
+
+    const handleClientCompleted = () => {
+      console.log('✅ [ASESOR TABLE] Cliente completado, recargando...');
+      cargarClientesAsignados();
+    };
+
+    socket.on('CLIENT_UPDATED', handleClientUpdated);
+    socket.on('CLIENT_STATUS_UPDATED', handleClientStatusUpdated);
+    socket.on('CLIENT_RETURNED_TO_GTR', handleClientReturnedToGTR);
+    socket.on('CLIENT_LOCKED', handleClientLocked);
+    socket.on('CLIENT_UNLOCKED', handleClientUnlocked);
+    socket.on('CLIENT_COMPLETED', handleClientCompleted);
+
+    return () => {
+      socket.off('CLIENT_UPDATED', handleClientUpdated);
+      socket.off('CLIENT_STATUS_UPDATED', handleClientStatusUpdated);
+      socket.off('CLIENT_RETURNED_TO_GTR', handleClientReturnedToGTR);
+      socket.off('CLIENT_LOCKED', handleClientLocked);
+      socket.off('CLIENT_UNLOCKED', handleClientUnlocked);
+      socket.off('CLIENT_COMPLETED', handleClientCompleted);
+    };
+  }, [cargarClientesAsignados]);
+
   // Exponer funciones al componente padre
   useImperativeHandle(ref, () => ({
     refreshClientes: cargarClientesAsignados
@@ -468,7 +521,34 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
           <TableBody>
             {(busqueda && busqueda.trim().length >= 3 ? searchResults : clientesFiltrados).map((cliente, index) => (
               <TableRow key={cliente.id ?? index} hover>
-                <TableCell>{cliente.fecha}</TableCell>
+                <TableCell>
+                  {(() => {
+                    // Mostrar fecha y hora
+                    const fechaStr = cliente.fecha;
+                    if (!fechaStr) return '-';
+                    
+                    try {
+                      // Si viene en formato ISO (YYYY-MM-DD HH:MM:SS o YYYY-MM-DDTHH:MM:SS)
+                      const fecha = new Date(fechaStr);
+                      if (isNaN(fecha.getTime())) return fechaStr; // Si no es fecha válida, mostrar tal cual
+                      
+                      const dia = String(fecha.getDate()).padStart(2, '0');
+                      const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+                      const anio = fecha.getFullYear();
+                      const hora = String(fecha.getHours()).padStart(2, '0');
+                      const minuto = String(fecha.getMinutes()).padStart(2, '0');
+                      
+                      return (
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{`${dia}/${mes}/${anio}`}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{`${hora}:${minuto}`}</div>
+                        </div>
+                      );
+                    } catch {
+                      return fechaStr;
+                    }
+                  })()}
+                </TableCell>
                 <TableCell>{cliente.nombre}</TableCell>
                 <TableCell>
                   {cliente.leads_original_telefono ? (
@@ -485,14 +565,45 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
                 <TableCell>
                   {cliente.seguimiento_status ? (
                     <Chip 
-                      label={cliente.seguimiento_status} 
-                      color={
-                        cliente.seguimiento_status === 'derivado' ? 'info' :
-                        cliente.seguimiento_status === 'en_gestion' ? 'warning' :
-                        cliente.seguimiento_status === 'gestionado' ? 'success' :
-                        'default'
-                      }
+                      label={(() => {
+                        const status = String(cliente.seguimiento_status);
+                        switch(status) {
+                          case 'derivado': return 'Derivado';
+                          case 'en_gestion': return 'En Gestión';
+                          case 'gestionado': return 'Gestionado';
+                          case 'no_gestionado': return 'No Gestionado';
+                          case 'nuevo': return 'Nuevo';
+                          default: return status;
+                        }
+                      })()}
                       size="small"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        color: (() => {
+                          const status = String(cliente.seguimiento_status);
+                          switch(status) {
+                            case 'derivado': return '#2563eb';
+                            case 'en_gestion': return '#059669';
+                            case 'gestionado': return '#16a34a';
+                            case 'no_gestionado': return '#dc2626';
+                            case 'nuevo': return '#f59e0b';
+                            default: return '#374151';
+                          }
+                        })(),
+                        background: (() => {
+                          const status = String(cliente.seguimiento_status);
+                          switch(status) {
+                            case 'derivado': return '#dbeafe';
+                            case 'en_gestion': return '#d1fae5';
+                            case 'gestionado': return '#dcfce7';
+                            case 'no_gestionado': return '#fee2e2';
+                            case 'nuevo': return '#fef3c7';
+                            default: return '#f3f4f6';
+                          }
+                        })(),
+                        borderRadius: 1
+                      }}
                     />
                   ) : (
                     <span style={{ color: '#9ca3af' }}>Sin seguimiento</span>

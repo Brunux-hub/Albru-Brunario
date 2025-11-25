@@ -598,12 +598,50 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                 <TableCell>{client.sala_asignada || client.sala || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin sala</span>}</TableCell>
                 <TableCell>{client.compania || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Sin compañía</span>}</TableCell>
                 <TableCell>
-                  {/* Columna Estatus Comercial: SIEMPRE mostrar categoría/subcategoría si existe */}
+                  {/* Columna Estatus Comercial: SIEMPRE mostrar categoría/subcategoría si existe con colores */}
                   {client.estatus_comercial_categoria ? (
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{client.estatus_comercial_categoria}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <Chip 
+                        label={client.estatus_comercial_categoria}
+                        size="small"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          color: (() => {
+                            const cat = client.estatus_comercial_categoria;
+                            switch(cat) {
+                              case 'Lista negra': return '#ffffff';
+                              case 'Preventa completa': return '#059669';
+                              case 'Preventa incompleta': return '#d97706';
+                              case 'Sin facilidades': return '#d97706';
+                              case 'Retirado': return '#dc2626';
+                              case 'Rechazado': return '#b91c1c';
+                              case 'Agendado': return '#4f46e5';
+                              case 'Seguimiento': return '#2563eb';
+                              case 'Sin contacto': return '#6b7280';
+                              default: return '#374151';
+                            }
+                          })(),
+                          background: (() => {
+                            const cat = client.estatus_comercial_categoria;
+                            switch(cat) {
+                              case 'Lista negra': return '#1f2937';
+                              case 'Preventa completa': return '#d1fae5';
+                              case 'Preventa incompleta': return '#fef3c7';
+                              case 'Sin facilidades': return '#fef3c7';
+                              case 'Retirado': return '#fee2e2';
+                              case 'Rechazado': return '#fecaca';
+                              case 'Agendado': return '#e0e7ff';
+                              case 'Seguimiento': return '#dbeafe';
+                              case 'Sin contacto': return '#f3f4f6';
+                              default: return '#f3f4f6';
+                            }
+                          })(),
+                          borderRadius: 1
+                        }}
+                      />
                       {client.estatus_comercial_subcategoria && (
-                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: 2 }}>
+                        <div style={{ fontSize: '0.7rem', color: '#6b7280', fontWeight: 500, paddingLeft: 4 }}>
                           {client.estatus_comercial_subcategoria}
                         </div>
                       )}
@@ -697,9 +735,16 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                       const esPreventaCliente = Boolean(client.estatus_comercial_categoria && 
                                                 categoriasNoReasignables.includes(client.estatus_comercial_categoria));
                       
-                      // Debug: Log para verificar estado del botón
-                      if (client.id % 50 === 0) { // Log cada 50 clientes para no saturar consola
-                        console.log(`🔍 Cliente ID ${client.id}: Categoría="${client.estatus_comercial_categoria}", Deshabilitado=${esPreventaCliente}`);
+                      // Deshabilitar si es duplicado (no es el principal)
+                      const esDuplicado = Boolean(client.es_duplicado);
+                      const noSePuedeReasignar = esPreventaCliente || esDuplicado;
+                      
+                      // Determinar mensaje de tooltip
+                      let tooltipMsg = 'Reasignar cliente a otro asesor';
+                      if (esPreventaCliente) {
+                        tooltipMsg = `No se puede reasignar clientes en categoría ${client.estatus_comercial_categoria}`;
+                      } else if (esDuplicado) {
+                        tooltipMsg = 'Este es un duplicado. Solo se puede reasignar el cliente principal';
                       }
                       
                       return (
@@ -707,17 +752,17 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                           size="small" 
                           startIcon={<SwapHorizIcon />}
                           onClick={() => handleReassign(client)}
-                          disabled={esPreventaCliente}
+                          disabled={noSePuedeReasignar}
                           sx={{ 
                             textTransform: 'none',
-                            color: esPreventaCliente ? '#9ca3af' : '#fff',
-                            backgroundColor: esPreventaCliente ? '#e5e7eb' : '#111827',
+                            color: noSePuedeReasignar ? '#9ca3af' : '#fff',
+                            backgroundColor: noSePuedeReasignar ? '#e5e7eb' : '#111827',
                             fontWeight: 700,
                             borderRadius: 1,
                             px: 2,
-                            cursor: esPreventaCliente ? 'not-allowed' : 'pointer',
+                            cursor: noSePuedeReasignar ? 'not-allowed' : 'pointer',
                             '&:hover': { 
-                              backgroundColor: esPreventaCliente ? '#e5e7eb' : '#374151' 
+                              backgroundColor: noSePuedeReasignar ? '#e5e7eb' : '#374151' 
                             },
                             '&.Mui-disabled': {
                               color: '#9ca3af',
@@ -725,7 +770,7 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                               opacity: 0.7
                             }
                           }}
-                          title={esPreventaCliente ? `No se puede reasignar clientes en categoría ${client.estatus_comercial_categoria}` : 'Reasignar cliente a otro asesor'}
+                          title={tooltipMsg}
                         >
                           REASIGNAR
                         </Button>

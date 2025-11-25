@@ -25,6 +25,14 @@ interface ClienteGestion {
   wizard_completado: number;
   // Campos para sistema de duplicados
   cantidad_duplicados?: number;
+  es_duplicado?: number;
+}
+
+interface ResponseGestionesDia {
+  success: boolean;
+  clientes: ClienteGestion[];
+  totalGestiones?: number;  // Total con multiplicador desde backend
+  totalRegistros?: number;  // Total de registros únicos
 }
 
 // Todas las categorías disponibles
@@ -43,6 +51,7 @@ const CATEGORIAS = [
 
 const AsesorGestionesDia: React.FC = () => {
   const [clientes, setClientes] = useState<ClienteGestion[]>([]);
+  const [totalGestionesBackend, setTotalGestionesBackend] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>('Todos');
 
@@ -67,9 +76,11 @@ const AsesorGestionesDia: React.FC = () => {
         throw new Error('Error al cargar gestiones del día');
       }
 
-      const result = await response.json();
+      const result: ResponseGestionesDia = await response.json();
       if (result.success && result.clientes) {
         setClientes(result.clientes);
+        // Usar el total con multiplicador que viene del backend
+        setTotalGestionesBackend(result.totalGestiones || result.clientes.length);
       }
     } catch (error) {
       console.error('Error cargando gestiones del día:', error);
@@ -82,13 +93,28 @@ const AsesorGestionesDia: React.FC = () => {
     cargarGestionesDia();
   }, [cargarGestionesDia]);
 
+  // WebSocket: Escuchar cuando se completa un cliente para actualizar automáticamente
+  useEffect(() => {
+    const socket = (window as any).socket;
+    if (!socket) return;
+
+    const handleClientCompleted = (data: any) => {
+      console.log('🔔 [GESTIONES DIA] Cliente completado, recargando lista...', data);
+      cargarGestionesDia();
+    };
+
+    socket.on('CLIENT_COMPLETED', handleClientCompleted);
+
+    return () => {
+      socket.off('CLIENT_COMPLETED', handleClientCompleted);
+    };
+  }, [cargarGestionesDia]);
+
   // Calcular métricas
-  const totalGestiones = clientes.length;
+  const totalGestiones = clientes.length; // Registros únicos
   
-  // Calcular gestiones totales considerando duplicados
-  const gestionesTotales = clientes.reduce((acc, cliente) => {
-    return acc + (cliente.cantidad_duplicados || 1);
-  }, 0);
+  // Usar el total calculado por el backend (con multiplicador de duplicados)
+  const gestionesTotales = totalGestionesBackend;
   
   // Clientes que van a Preventa (categorías: "Preventa" o "Preventa completa")
   const clientesAPreventa = clientes.filter(c => 
@@ -264,7 +290,20 @@ const AsesorGestionesDia: React.FC = () => {
                         : '-'
                       }
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600, color: '#1976d2' }}>{cliente.nombre}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <span style={{ fontWeight: 600, color: '#1976d2' }}>{cliente.nombre}</span>
+                        {cliente.cantidad_duplicados && cliente.cantidad_duplicados > 1 && (
+                          <Chip 
+                            label={`×${cliente.cantidad_duplicados}`}
+                            size="small"
+                            color="warning"
+                            sx={{ fontWeight: 700, fontSize: '0.75rem', height: '22px' }}
+                            title={`Este número ingresó ${cliente.cantidad_duplicados} veces - cuenta como ${cliente.cantidad_duplicados} gestiones`}
+                          />
+                        )}
+                      </Box>
+                    </TableCell>
                     <TableCell>
                       <Chip 
                         label={cliente.estatus_comercial_categoria || 'Sin categoría'}

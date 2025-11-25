@@ -100,6 +100,7 @@ const login = async (req, res) => {
         nombre: user.nombre,
         email: user.email, 
         tipo: user.tipo,
+        tenant_id: user.tenant_id || 1,
         theme_primary: user.theme_primary,
         theme_secondary: user.theme_secondary,
         theme_background: user.theme_background,
@@ -256,7 +257,21 @@ const obtenerAsesores = async (req, res) => {
         COALESCE(a.meta_mensual, 0) as meta_mensual,
         COALESCE(a.ventas_realizadas, 0) as ventas_realizadas,
         COALESCE(a.comision_porcentaje, 0) as comision_porcentaje,
-        gtr_u.nombre as gtr_nombre
+        gtr_u.nombre as gtr_nombre,
+        (
+          SELECT COUNT(*) 
+          FROM clientes c 
+          WHERE c.asesor_asignado = u.id 
+            AND c.wizard_completado = 1 
+            AND DATE(c.fecha_wizard_completado) = CURDATE()
+        ) as clientes_gestionados_hoy,
+        (
+          SELECT COUNT(*) 
+          FROM clientes c 
+          WHERE c.asesor_asignado = u.id 
+            AND c.reasignado = 1 
+            AND DATE(c.fecha_reasignacion) = CURDATE()
+        ) as clientes_reasignados_hoy
       FROM usuarios u
       LEFT JOIN asesores a ON u.id = a.usuario_id
       LEFT JOIN gtr g ON a.gtr_asignado = g.id

@@ -186,14 +186,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const isExpired = payload.exp * 1000 < Date.now();
             
             if (!isExpired) {
+              // Validar que existan los campos CRÍTICOS (userId, tipo)
+              if (!payload.userId || !payload.tipo) {
+                console.warn('⚠️ Token válido pero falta userId o tipo, limpiando sesión');
+                clearAuth();
+                setAuthLoading(false);
+                return;
+              }
+              
               console.log('✅ Token válido encontrado, restaurando sesión');
               
+              // Construir userData con valores por defecto para campos opcionales
               const userData: User = {
                 id: payload.userId,
-                nombre: payload.nombre,
-                email: payload.email,
+                nombre: payload.nombre || localStorage.getItem('username') || 'Usuario',
+                email: payload.email || '',
                 tipo: payload.tipo,
-                tenant_id: payload.tenant_id || payload.tenantId
+                tenant_id: payload.tenant_id || payload.tenantId || 1
               };
               
               setToken(storedToken);
@@ -204,12 +213,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               localStorage.setItem('albru_user', JSON.stringify(userData));
               localStorage.setItem('userData', JSON.stringify(userData));
             } else {
-              console.log('❌ Token expirado, limpiando datos');
+              const expDate = new Date(payload.exp * 1000);
+              console.log('❌ Token expirado desde:', expDate.toLocaleString());
               clearAuth();
             }
           } catch (decodeError) {
             // Mostrar como warning para no llenar la consola con errores no críticos
-            console.warn('❌ Error decodificando token (corrupto o inválido):', decodeError);
+            console.warn('❌ Error decodificando token:', decodeError instanceof Error ? decodeError.message : 'Error desconocido');
+            console.warn('   Token (primeros 50 chars):', storedToken.substring(0, 50) + '...');
             clearAuth();
           }
         }

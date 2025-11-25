@@ -1,6 +1,13 @@
 const pool = require('../config/database');
 const webSocketService = require('../services/WebSocketService');
 
+// Helper: normalizar teléfono para detección de duplicados
+const normalizarTelefono = (telefono) => {
+  if (!telefono) return null;
+  // Eliminar espacios, guiones, +51, paréntesis, etc.
+  return telefono.replace(/[\s\-\(\)\+]/g, '').replace(/^51/, '');
+};
+
 // Helper: convertir fecha ISO/DATETIME a DATE (YYYY-MM-DD)
 const convertToDateOnly = (isoDate) => {
   if (!isoDate) return null;
@@ -130,10 +137,11 @@ const getAllClientes = async (req, res) => {
     // NO excluir clientes gestionados - GTR necesita ver el historial completo
     // Anteriormente se excluían clientes con estado='gestionado', pero ahora
     // el GTR debe poder ver todos los clientes incluyendo los ya gestionados
-    const whereClause = ''; // Sin filtro - mostrar todos los clientes
+    // 🆕 EXCLUIR DUPLICADOS - Solo mostrar registros principales
+    const whereClause = 'WHERE (c.es_duplicado = FALSE OR c.es_duplicado IS NULL)';
 
-    // Obtener total de clientes para paginación
-    const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM clientes');
+    // Obtener total de clientes para paginación (solo principales)
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM clientes WHERE (es_duplicado = FALSE OR es_duplicado IS NULL)');
 
     const sql = `
       SELECT
@@ -278,6 +286,8 @@ const getClienteById = async (req, res) => {
       `, [id]);
       
       // Formatear historial con acciones más descriptivas
+      // Para eventos antiguos que no tienen categoria/subcategoria en historial_estados,
+      // usar la categoría actual del cliente si es una gestión
       cliente.historial = historial.map(h => ({
         fecha: new Date(h.fecha).toLocaleString('es-PE', {
           day: '2-digit',
@@ -294,7 +304,10 @@ const getClienteById = async (req, res) => {
                 h.comentarios || 'Cambio de Estado',
         estadoAnterior: h.estadoAnterior,
         estadoNuevo: h.estadoNuevo,
-        comentarios: h.comentarios || ''
+        comentarios: h.comentarios || '',
+        // 🆕 Para gestiones antiguas, usar la categoría actual del cliente
+        categoria: (h.tipo === 'asesor' || h.tipo === 'wizard') ? cliente.estatus_comercial_categoria : null,
+        subcategoria: (h.tipo === 'asesor' || h.tipo === 'wizard') ? cliente.estatus_comercial_subcategoria : null
       }));
       
       console.log(`📋 Historial cargado para cliente ${id}: ${historial.length} eventos`);
@@ -386,26 +399,78 @@ const createCliente = async (req, res) => {
     // Asegurar que 'nombre' no sea NULL si la columna tiene restricción NOT NULL en la BD
     const safeNombre = nombre || telefono || '';
 
-    // Verificar duplicados solo si los campos tienen valor
-    if (dni) {
+    // 🆕 SISTEMA DE DUPLICADOS INTELIGENTE CON MULTIPLICADOR POR CAMPAÑA
+    // Normalizar teléfono para búsqueda de duplicados
+    const telefonoNormalizado = normalizarTelefono(telefono);
+    
+    // Buscar si ya existe un cliente con este teléfono (principal, no duplicado)
+    // Usar normalización para detectar variaciones como "906 604 170", "+51906604170", "906604170"
+    const [existingByPhone] = await pool.query(
+      `SELECT id, campana, cantidad_duplicados, campanas_asociadas, telefono
+       FROM clientes 
+       WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefono, ' ', ''), '+51', ''), '-', ''), '+', '') = ?
+       AND (es_duplicado = FALSE OR es_duplicado IS NULL) 
+       LIMIT 1`,
+      [telefonoNormalizado]
+    );
+
+    let esDuplicado = false;
+    let telefonoPrincipalId = null;
+    
+    if (existingByPhone.length > 0) {
+      // Ya existe un cliente principal con este teléfono
+      const clientePrincipal = existingByPhone[0];
+      esDuplicado = true;
+      telefonoPrincipalId = clientePrincipal.id;
+      
+      // Obtener todos los duplicados existentes para contar por campaña
+      const [todosLosDuplicados] = await pool.query(
+        'SELECT campana FROM clientes WHERE (id = ? OR telefono_principal_id = ?)',
+        [clientePrincipal.id, clientePrincipal.id]
+      );
+      
+      // Contar por campaña
+      const campañasMap = new Map();
+      todosLosDuplicados.forEach(dup => {
+        if (dup.campana) {
+          const count = campañasMap.get(dup.campana) || 0;
+          campañasMap.set(dup.campana, count + 1);
+        }
+      });
+      
+      // Agregar la nueva campaña
+      const campanaNueva = campana || 'SIN_CAMPAÑA';
+      const count = campañasMap.get(campanaNueva) || 0;
+      campañasMap.set(campanaNueva, count + 1);
+      
+      // Calcular total de ingresos
+      const totalIngresos = Array.from(campañasMap.values()).reduce((a, b) => a + b, 0);
+      
+      // Construir string de campañas asociadas (formato: "MASIVO×2,CAMPAÑA 08×1")
+      const campanasAsociadas = Array.from(campañasMap.entries())
+        .map(([camp, count]) => `${camp}×${count}`)
+        .join(',');
+      
+      // Actualizar el principal con el nuevo conteo
+      await pool.query(
+        'UPDATE clientes SET cantidad_duplicados = ?, campanas_asociadas = ? WHERE id = ?',
+        [totalIngresos, campanasAsociadas, clientePrincipal.id]
+      );
+      
+      console.log(`📊 Duplicado detectado: Teléfono ${telefono}`);
+      console.log(`   Principal ID: ${clientePrincipal.id}`);
+      console.log(`   Total ingresos: ${totalIngresos}`);
+      console.log(`   Campañas: ${campanasAsociadas}`);
+      console.log(`   Nuevo registro marcado como duplicado`);
+    }
+
+    // Si el DNI existe pero en otro registro, advertir pero permitir (para casos especiales)
+    if (dni && !esDuplicado) {
       const [existingByDni] = await pool.query('SELECT id FROM clientes WHERE dni = ? LIMIT 1', [dni]);
       if (existingByDni.length > 0) {
-        return res.status(409).json({ 
-          success: false, 
-          message: 'Ya existe un cliente con este DNI' 
-        });
+        console.warn(`⚠️ DNI ${dni} ya existe en otro cliente (ID: ${existingByDni[0].id}), pero permitiendo crear duplicado por teléfono diferente`);
       }
-    }
-
-    const [existingByPhone] = await pool.query('SELECT id FROM clientes WHERE telefono = ? LIMIT 1', [telefono]);
-    if (existingByPhone.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Ya existe un cliente con este teléfono' 
-      });
-    }
-
-    // Construir INSERT dinámico según columnas realmente presentes en la tabla `clientes`
+    }    // Construir INSERT dinámico según columnas realmente presentes en la tabla `clientes`
     const dbName = process.env.DB_NAME || 'albru';
     const [cols] = await pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'clientes'", [dbName]);
     const colSet = new Set(cols.map(c => c.COLUMN_NAME));
@@ -425,6 +490,7 @@ const createCliente = async (req, res) => {
       ocupacion: ocupacion || null,
       ingresos_mensuales: ingresos_mensuales || null,
       asesor_asignado: asesor_asignado || null,
+      fecha_asignacion_asesor: asesor_asignado ? new Date() : null,
       observaciones_asesor: observaciones_asesor || null,
       estado: 'nuevo',
       tipo_cliente_wizard: tipo_cliente_wizard || null,
@@ -447,7 +513,7 @@ const createCliente = async (req, res) => {
       pago_adelanto_instalacion_wizard: pago_adelanto_instalacion_wizard || null,
       wizard_completado: wizard_completado ? 1 : 0,
       fecha_wizard_completado: wizard_completado ? new Date() : null,
-      wizard_data_json: wizard_data_json ? JSON.stringify(wizard_data_json) : null,
+      wizard_data_json: wizard_data_json ? (typeof wizard_data_json === 'string' ? wizard_data_json : JSON.stringify(wizard_data_json)) : null,
       estatus_wizard: req.body && req.body.estatus_wizard ? req.body.estatus_wizard : null,
       
       // Campos de leads/back office
@@ -464,7 +530,12 @@ const createCliente = async (req, res) => {
       ultima_fecha_gestion: ultima_fecha_gestion || null,
       coordenadas: coordenadas || null,
       estatus_comercial_categoria: estatus_comercial_categoria || null,
-      estatus_comercial_subcategoria: estatus_comercial_subcategoria || null
+      estatus_comercial_subcategoria: estatus_comercial_subcategoria || null,
+      
+      // 🆕 Campos de duplicados
+      es_duplicado: esDuplicado ? 1 : 0,
+      telefono_principal_id: telefonoPrincipalId,
+      cantidad_duplicados: esDuplicado ? 0 : 1  // Si es principal, empieza en 1 (él mismo)
     };
 
     const insertCols = [];
@@ -488,6 +559,11 @@ const createCliente = async (req, res) => {
     }
 
     const insertSql = `INSERT INTO clientes (${insertCols.join(', ')}) VALUES (${insertPlaceholders.join(', ')})`;
+    
+    console.log('📝 SQL a ejecutar:', insertSql);
+    console.log('📝 Valores a insertar (primeros 10):', insertValues.slice(0, 10));
+    console.log('📝 Total de columnas:', insertCols.length);
+    
     const [result] = await pool.query(insertSql, insertValues);
 
     // Obtener el cliente recién creado
@@ -501,7 +577,10 @@ const createCliente = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error createCliente', err);
+    console.error('❌ Error createCliente:', err);
+    console.error('❌ Stack:', err.stack);
+    console.error('❌ SQL Error Code:', err.code);
+    console.error('❌ SQL Error Number:', err.errno); 
     return res.status(500).json({ 
       success: false, 
       message: 'Error interno del servidor',
@@ -658,6 +737,12 @@ const updateCliente = async (req, res) => {
     pushIfExists('ocupacion', datosActualizados.ocupacion);
     pushIfExists('ingresos_mensuales', datosActualizados.ingresos_mensuales);
     pushIfExists('asesor_asignado', datosActualizados.asesor_asignado);
+    
+    // Si cambió el asesor asignado, actualizar fecha_asignacion_asesor
+    if (asesor_asignado !== undefined && asesor_asignado !== clienteActual.asesor_asignado) {
+      pushIfExists('fecha_asignacion_asesor', new Date());
+    }
+    
     pushIfExists('observaciones_asesor', datosActualizados.observaciones_asesor);
 
     // Campos wizard
@@ -1010,6 +1095,7 @@ const getClientesByAsesor = async (req, res) => {
       estado: 'c.estado',
       observaciones_asesor: 'c.observaciones_asesor',
       created_at: 'c.created_at',
+      fecha_asignacion_asesor: 'c.fecha_asignacion_asesor',
       fecha_ultimo_contacto: 'c.fecha_ultimo_contacto',
       servicio_contratado: 'c.servicio_contratado',
       leads_original_telefono: 'c.leads_original_telefono',
@@ -1034,7 +1120,9 @@ const getClientesByAsesor = async (req, res) => {
     if (colSet.has('observaciones_asesor')) selectParts.push(`${wanted.observaciones_asesor} AS observaciones_asesor`);
     else selectParts.push(`NULL AS observaciones_asesor`);
 
-    if (colSet.has('created_at')) selectParts.push(`${wanted.created_at} AS fecha`);
+    // Priorizar fecha_asignacion_asesor, si no existe usar created_at
+    if (colSet.has('fecha_asignacion_asesor')) selectParts.push(`COALESCE(${wanted.fecha_asignacion_asesor}, ${wanted.created_at}) AS fecha`);
+    else if (colSet.has('created_at')) selectParts.push(`${wanted.created_at} AS fecha`);
     else selectParts.push(`NULL AS fecha`);
 
     if (colSet.has('fecha_ultimo_contacto')) selectParts.push(`${wanted.fecha_ultimo_contacto} AS seguimiento`);
@@ -1187,20 +1275,32 @@ const getGestionesDiaByAsesor = async (req, res) => {
         estatus_comercial_categoria,
         estatus_comercial_subcategoria,
         fecha_wizard_completado,
-        wizard_completado
+        wizard_completado,
+        cantidad_duplicados,
+        es_duplicado
        FROM clientes
        WHERE wizard_completado = 1
          AND DATE(fecha_wizard_completado) = CURDATE()
          AND asesor_asignado = ?
+         AND (es_duplicado = 0 OR es_duplicado IS NULL)
        ORDER BY fecha_wizard_completado DESC`,
       [asesorId]
     );
 
-    console.log(`📋 [GESTIONES DIA ASESOR ${asesorId}] Encontrados ${rows.length} clientes gestionados hoy`);
+    // Calcular el total real considerando el multiplicador de duplicados
+    let totalGestionesReales = 0;
+    rows.forEach(row => {
+      totalGestionesReales += row.cantidad_duplicados || 1;
+    });
+
+    console.log(`📋 [GESTIONES DIA ASESOR ${asesorId}] Encontrados ${rows.length} registros principales gestionados hoy`);
+    console.log(`📊 [GESTIONES DIA ASESOR ${asesorId}] Total con multiplicador: ${totalGestionesReales} gestiones`);
 
     return res.status(200).json({
       success: true,
-      clientes: rows
+      clientes: rows,
+      totalGestiones: totalGestionesReales,
+      totalRegistros: rows.length
     });
   } catch (err) {
     console.error('Error getGestionesDiaByAsesor:', err);
@@ -1651,7 +1751,30 @@ const reasignarCliente = async (req, res) => {
 
     const cliente = clienteRows[0];
     
-    // 🔒 VALIDACIÓN PROFESIONAL: Solo PREVENTA con VENTA CERRADA no puede ser reasignada
+    // 🔒 VALIDACIÓN 1: Solo se puede reasignar el registro PRINCIPAL, no duplicados
+    const [duplicadoCheck] = await connection.query(
+      `SELECT es_duplicado, telefono_principal_id, telefono 
+       FROM clientes 
+       WHERE id = ?`,
+      [clienteId]
+    );
+    
+    if (duplicadoCheck.length > 0 && duplicadoCheck[0].es_duplicado === 1) {
+      console.warn(`⚠️ Backend: Intento de reasignar un DUPLICADO`);
+      console.warn(`   Cliente ID: ${clienteId} (es duplicado)`);
+      console.warn(`   Teléfono: ${duplicadoCheck[0].telefono}`);
+      console.warn(`   Principal ID: ${duplicadoCheck[0].telefono_principal_id}`);
+      await connection.rollback();
+      return res.status(403).json({ 
+        success: false, 
+        message: `❌ NO SE PUEDE REASIGNAR\n\nEste registro es un duplicado. Solo se puede reasignar el registro PRINCIPAL del teléfono ${duplicadoCheck[0].telefono}.\n\nRegistro Principal ID: ${duplicadoCheck[0].telefono_principal_id}`,
+        motivo: 'ES_DUPLICADO',
+        clienteId: clienteId,
+        principalId: duplicadoCheck[0].telefono_principal_id
+      });
+    }
+    
+    // 🔒 VALIDACIÓN 2: Solo PREVENTA con VENTA CERRADA no puede ser reasignada
     const categoriaCliente = cliente.estatus_comercial_categoria;
     const subcategoriaCliente = cliente.estatus_comercial_subcategoria;
     
@@ -1709,6 +1832,7 @@ const reasignarCliente = async (req, res) => {
     const [updateResult] = await connection.query(
       `UPDATE clientes 
        SET asesor_asignado = ?, 
+           fecha_asignacion_asesor = NOW(),
            seguimiento_status = NULL, 
            opened_at = NULL, 
            wizard_completado = 0,
@@ -1848,6 +1972,7 @@ const reasignarCliente = async (req, res) => {
 const getClientesGestionadosHoy = async (req, res) => {
   try {
     // Obtener clientes gestionados del DÍA ACTUAL (wizard completado)
+    // Solo se gestionan los principales, pero contamos todos los ingresos (con duplicados)
     const sql = `
       SELECT 
         c.id,
@@ -1865,10 +1990,15 @@ const getClientesGestionadosHoy = async (req, res) => {
         c.seguimiento_status,
         c.asesor_asignado,
         c.created_at AS fecha_registro,
+        c.cantidad_duplicados,
+        c.campanas_asociadas,
+        c.es_duplicado,
         u.nombre AS asesor_nombre
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       WHERE c.wizard_completado = 1
+        AND (c.es_duplicado = FALSE OR c.es_duplicado IS NULL)
+        AND c.estatus_comercial_categoria IN ('Seguimiento', 'Preventa completa')
         AND (
           DATE(c.fecha_wizard_completado) = CURDATE()
           OR (c.fecha_wizard_completado IS NULL AND DATE(c.updated_at) = CURDATE())
@@ -1878,12 +2008,20 @@ const getClientesGestionadosHoy = async (req, res) => {
 
     const [rows] = await pool.query(sql);
     
-    console.log(`📋 [GESTIONADOS HOY] Encontrados ${rows.length} clientes gestionados del día`);
+    // Calcular total de leads contando duplicados
+    const totalGestiones = rows.length; // Gestiones únicas (solo principales)
+    const totalLeads = rows.reduce((sum, row) => {
+      return sum + (row.cantidad_duplicados || 1);
+    }, 0);
+    
+    console.log(`📋 [GESTIONADOS HOY] Encontrados ${totalGestiones} clientes gestionados (${totalLeads} leads totales con duplicados)`);
     if (rows.length > 0) {
       console.log(`📋 [GESTIONADOS HOY] Primer cliente:`, {
         id: rows[0].id,
         categoria: rows[0].estatus_comercial_categoria,
         subcategoria: rows[0].estatus_comercial_subcategoria,
+        cantidad_duplicados: rows[0].cantidad_duplicados,
+        campanas: rows[0].campanas_asociadas,
         fecha_wizard: rows[0].fecha_wizard_completado
       });
     }
@@ -1891,7 +2029,11 @@ const getClientesGestionadosHoy = async (req, res) => {
     return res.json({ 
       success: true, 
       clientes: rows, 
-      total: rows.length 
+      total: totalGestiones,
+      totalLeads: totalLeads, // Total incluyendo duplicados
+      mensaje: totalLeads > totalGestiones ? 
+        `${totalGestiones} gestiones únicas = ${totalLeads} leads totales` : 
+        null
     });
   } catch (err) {
     console.error('Error getClientesGestionadosHoy', err);

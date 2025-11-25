@@ -44,23 +44,32 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Verificación ESTRICTA: debe haber token Y usuario
+  // Verificación del token
   const hasValidToken = (() => {
     const token = localStorage.getItem('albru_token');
     if (!token) return false;
     try {
       const decoded = jwtDecode<JWTPayload>(token);
-      return decoded.exp * 1000 > Date.now();
-    } catch {
+      const isExpired = decoded.exp * 1000 <= Date.now();
+      if (isExpired && isDev) console.debug('ProtectedRoute - Token expirado');
+      return !isExpired;
+    } catch (e) {
+      if (isDev) console.debug('ProtectedRoute - Error decodificando token:', e);
       return false;
     }
   })();
 
-  // FORZAR logout si no hay token válido
+  // Redirect a login si no hay token válido o usuario
   if (!hasValidToken || !user || !isAuthenticated) {
-    if (isDev) console.debug('ProtectedRoute - FORCED logout: No valid token or user');
-    localStorage.clear();
-    sessionStorage.clear();
+    if (isDev) {
+      console.debug('ProtectedRoute - Redirect a login:', {
+        hasValidToken,
+        hasUser: !!user,
+        isAuthenticated
+      });
+    }
+    // NO limpiar localStorage aquí - solo redirect
+    // El logout explícito debe hacerse desde AppContext
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

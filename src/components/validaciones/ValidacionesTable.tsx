@@ -375,6 +375,30 @@ const ValidacionesTable: React.FC = () => {
     fetchClientes();
   }, []);
 
+  // WebSocket: Escuchar eventos de cambios en clientes para actualizar en tiempo real
+  useEffect(() => {
+    const socket = (window as any).socket;
+    if (!socket) return;
+
+    const handleClientUpdate = () => {
+      console.log('🔔 [VALIDACIONES] Cliente actualizado, recargando lista...');
+      fetchClientes();
+    };
+
+    // Escuchar eventos relevantes para validaciones
+    socket.on('CLIENT_COMPLETED', handleClientUpdate);
+    socket.on('CLIENT_UPDATED', handleClientUpdate);
+    socket.on('CLIENT_STATUS_UPDATED', handleClientUpdate);
+    socket.on('CLIENT_REASSIGNED', handleClientUpdate);
+
+    return () => {
+      socket.off('CLIENT_COMPLETED', handleClientUpdate);
+      socket.off('CLIENT_UPDATED', handleClientUpdate);
+      socket.off('CLIENT_STATUS_UPDATED', handleClientUpdate);
+      socket.off('CLIENT_REASSIGNED', handleClientUpdate);
+    };
+  }, [fetchClientes]);
+
   // Mapeo de colores más descriptivo (usar hex para consistencia)
   const getStatusColor = (estado: string) => {
     switch (estado.toLowerCase()) {

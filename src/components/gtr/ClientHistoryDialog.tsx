@@ -11,12 +11,67 @@ import {
   Divider,
   Avatar,
   TextField,
-  Chip
+  Chip,
+  FormControl,
+  Select,
+  MenuItem
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 
 import type { ClientHistoryData, Cliente } from './types';
 import { useApp } from '../../context/AppContext';
+
+// 🆕 Opciones para dropdowns
+const TIPO_BASE_OPTIONS = [
+  'BASE',
+  'CAMPAÑA 01',
+  'CAMPAÑA 02',
+  'CAMPAÑA 03',
+  'CAMPAÑA 04',
+  'CAMPAÑA 05',
+  'CAMPAÑA 06',
+  'CAMPAÑA 07',
+  'CAMPAÑA 08',
+  'CAMPAÑA 09',
+  'CAMPAÑA 10',
+  'CAMPAÑA 11',
+  'CAMPAÑA 12',
+  'CAMPAÑA 13',
+  'CAMPAÑA 14',
+  'CAMPAÑA 15',
+  'CAMPAÑA 16',
+  'CAMPAÑA 17',
+  'CAMPAÑA 18',
+  'CAMPAÑA 19',
+  'CAMPAÑA 20',
+  'FACEBOOK',
+  'GOOGLE',
+  'MASIVO',
+  'PROVINCIA 01',
+  'PROVINCIA 02',
+  'PROVINCIA 03',
+  'REFERIDOS'
+];
+
+const CANALES_OPTIONS = [
+  'MSN',
+  'WSP 1',
+  'WSP 2',
+  'WSP 3',
+  'WSP 4',
+  'WSP 5',
+  'REFERIDO'
+];
+
+const SALAS_OPTIONS = [
+  'SALA 1',
+  'SALA 2'
+];
+
+const COMPANIAS_OPTIONS = [
+  'WIN',
+  'PERÚ FIBRA'
+];
 
 interface ClientHistoryDialogProps {
   open: boolean;
@@ -61,34 +116,72 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
   const [isEditing, setIsEditing] = useState(false);
   const [historialGestiones, setHistorialGestiones] = useState<HistorialGestion[]>([]);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [clienteCompleto, setClienteCompleto] = useState<any>(null);
+  const [comentarioGtr, setComentarioGtr] = useState('');
+  const [enviandoComentario, setEnviandoComentario] = useState(false);
 
   useEffect(() => {
     if (clientData) {
-      setForm({
-        leads_original_telefono: clientData.cliente || '',
-        dni: clientData.dni || '',
-        email: clientData.email || '',
-        campana: clientData.campana || '',
-        canal: clientData.canal || '',
-        sala: '', // Se llenará desde el cliente
-        compania: '', // Se llenará desde el cliente
-        nombre: clientData.nombre || '',
-        coordenadas: '', // Se llenará desde el cliente
-        estado: clientData.estado || ''
-      });
-      // guardar snapshot para poder cancelar edición
-      setOriginalForm({
-        leads_original_telefono: clientData.cliente || '',
-        dni: clientData.dni || '',
-        email: clientData.email || '',
-        campana: clientData.campana || '',
-        canal: clientData.canal || '',
-        sala: '',
-        compania: '',
-        nombre: clientData.nombre || '',
-        coordenadas: '',
-        estado: clientData.estado || ''
-      });
+      // 🆕 Cargar datos completos del cliente desde la BD
+      if (clientData.id) {
+        fetch(`/api/clientes/${clientData.id}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.cliente) {
+              const cliente = data.cliente;
+              setClienteCompleto(cliente); // 🆕 Guardar cliente completo para enriquecer historial
+              // Actualizar form con datos reales de la BD
+              const formData = {
+                leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || clientData.cliente || '',
+                dni: cliente.dni || clientData.dni || '',
+                email: cliente.email || clientData.email || '',
+                campana: cliente.campana || clientData.campana || '',
+                canal: cliente.canal_adquisicion || cliente.canal || clientData.canal || '',
+                sala: cliente.sala_asignada || '',
+                compania: cliente.compania || '',
+                nombre: cliente.nombre || clientData.nombre || '',
+                coordenadas: cliente.coordenadas || '',
+                estado: cliente.estatus_comercial_categoria || cliente.estado || clientData.estado || ''
+              };
+              setForm(formData);
+              setOriginalForm(formData);
+            } else {
+              // Fallback a datos del clientData si no se obtiene del endpoint
+              const fallbackData = {
+                leads_original_telefono: clientData.cliente || '',
+                dni: clientData.dni || '',
+                email: clientData.email || '',
+                campana: clientData.campana || '',
+                canal: clientData.canal || '',
+                sala: '',
+                compania: '',
+                nombre: clientData.nombre || '',
+                coordenadas: '',
+                estado: clientData.estado || ''
+              };
+              setForm(fallbackData);
+              setOriginalForm(fallbackData);
+            }
+          })
+          .catch(err => {
+            console.error('Error cargando datos completos del cliente:', err);
+            // Usar datos de clientData como fallback
+            const fallbackData = {
+              leads_original_telefono: clientData.cliente || '',
+              dni: clientData.dni || '',
+              email: clientData.email || '',
+              campana: clientData.campana || '',
+              canal: clientData.canal || '',
+              sala: '',
+              compania: '',
+              nombre: clientData.nombre || '',
+              coordenadas: '',
+              estado: clientData.estado || ''
+            };
+            setForm(fallbackData);
+            setOriginalForm(fallbackData);
+          });
+      }
       setIsEditing(false);
 
       // 🆕 Cargar historial de gestiones
@@ -113,7 +206,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
 
   if (!clientData) return null;
 
-  // Filtrar duplicados del historial antiguo (mismo asesor + misma fecha/hora)
+  // Filtrar duplicados del historial antiguo y enriquecer con categoría/subcategoría
   const historialFiltrado = clientData.historial ? clientData.historial.filter((item, index, arr) => {
     // Buscar si hay otro item con el mismo asesor y fecha muy cercana (menos de 1 minuto)
     const duplicado = arr.findIndex((other, otherIndex) => {
@@ -128,6 +221,16 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
     
     // Mantener solo el primero de los duplicados
     return duplicado === -1 || duplicado > index;
+  }).map(item => {
+    // 🆕 Enriquecer gestiones antiguas con categoría/subcategoría del cliente actual
+    if ((item.accion === 'Gestión de Asesor' || item.accion === 'Completó Wizard') && clienteCompleto) {
+      return {
+        ...item,
+        categoria: item.categoria || clienteCompleto.estatus_comercial_categoria,
+        subcategoria: item.subcategoria || clienteCompleto.estatus_comercial_subcategoria
+      };
+    }
+    return item;
   }) : [];
 
   type FormKey = 'leads_original_telefono' | 'dni' | 'email' | 'campana' | 'canal' | 'sala' | 'compania' | 'nombre' | 'coordenadas' | 'estado';
@@ -142,6 +245,57 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
     // revertir al snapshot
     if (originalForm) setForm(originalForm);
     setIsEditing(false);
+  };
+
+  const handleEnviarComentario = async () => {
+    if (!comentarioGtr.trim() || !clientData?.id) return;
+
+    try {
+      setEnviandoComentario(true);
+      
+      // Obtener ID del GTR del localStorage
+      let gtrId = null;
+      try {
+        const userData = window.localStorage.getItem('albru_user') || window.localStorage.getItem('userData');
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          gtrId = parsed?.id || parsed?.usuario_id;
+        }
+      } catch (e) {
+        console.error('Error obteniendo gtrId:', e);
+      }
+
+      if (!gtrId) {
+        alert('No se pudo obtener tu ID de usuario');
+        return;
+      }
+
+      // Obtener asesor_id desde clienteCompleto si está disponible
+      const asesorId = clienteCompleto?.asesor_asignado || null;
+
+      const response = await fetch('/api/comentarios-gtr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: clientData.id,
+          gtr_id: gtrId,
+          asesor_id: asesorId,
+          mensaje: comentarioGtr.trim()
+        })
+      });
+
+      if (response.ok) {
+        setComentarioGtr('');
+        alert('✅ Comentario enviado al asesor');
+      } else {
+        alert('Error al enviar comentario');
+      }
+    } catch (error) {
+      console.error('Error enviando comentario:', error);
+      alert('Error al enviar comentario');
+    } finally {
+      setEnviandoComentario(false);
+    }
   };
 
   const handleSave = async () => {
@@ -253,19 +407,39 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">Campaña</Typography>
-              <TextField fullWidth size="small" value={form.campana} onChange={(e) => handleChange('campana', e.target.value)} disabled={!isEditing || !isGtr} />
+              <FormControl fullWidth size="small" disabled={!isEditing || !isGtr}>
+                <Select value={form.campana} onChange={(e) => handleChange('campana', e.target.value)} displayEmpty>
+                  <MenuItem value=""><em>Seleccionar</em></MenuItem>
+                  {TIPO_BASE_OPTIONS.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">Canal</Typography>
-              <TextField fullWidth size="small" value={form.canal} onChange={(e) => handleChange('canal', e.target.value)} disabled={!isEditing || !isGtr} />
+              <FormControl fullWidth size="small" disabled={!isEditing || !isGtr}>
+                <Select value={form.canal} onChange={(e) => handleChange('canal', e.target.value)} displayEmpty>
+                  <MenuItem value=""><em>Seleccionar</em></MenuItem>
+                  {CANALES_OPTIONS.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">Sala</Typography>
-              <TextField fullWidth size="small" value={form.sala} onChange={(e) => handleChange('sala', e.target.value)} disabled={!isEditing || !isGtr} />
+              <FormControl fullWidth size="small" disabled={!isEditing || !isGtr}>
+                <Select value={form.sala} onChange={(e) => handleChange('sala', e.target.value)} displayEmpty>
+                  <MenuItem value=""><em>Seleccionar</em></MenuItem>
+                  {SALAS_OPTIONS.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">Compañía</Typography>
-              <TextField fullWidth size="small" value={form.compania} onChange={(e) => handleChange('compania', e.target.value)} disabled={!isEditing || !isGtr} />
+              <FormControl fullWidth size="small" disabled={!isEditing || !isGtr}>
+                <Select value={form.compania} onChange={(e) => handleChange('compania', e.target.value)} displayEmpty>
+                  <MenuItem value=""><em>Seleccionar</em></MenuItem>
+                  {COMPANIAS_OPTIONS.map(c => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                </Select>
+              </FormControl>
             </Box>
             <Box>
               <Typography variant="caption" color="text.secondary">Estado Actual</Typography>
@@ -337,7 +511,7 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                     zIndex: 0
                   }} />
                   
-                  {/* Usar historialGestiones si existe, sino usar historial antiguo filtrado */}
+                  {/* Usar historial_gestiones si existe, sino fallback a historial_estados antiguo */}
                   {(historialGestiones.length > 0 ? historialGestiones : historialFiltrado).map((item, index) => {
                     const isGestion = 'paso' in item;
                     const paso = isGestion ? item.paso : index + 1;
@@ -608,59 +782,76 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                           {isGestion ? (
                             <>
                               {item.categoria && (
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    <strong>Categoría:</strong> {item.categoria}
-                                  </Typography>
-                                </Box>
-                              )}
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                                <strong>Categoría:</strong> {item.categoria}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {item.subcategoria && (
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                                <strong>Subcategoría:</strong> {item.subcategoria}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {item.tipo_contacto && (
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                                <strong>Tipo de contacto:</strong> {item.tipo_contacto}
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {item.resultado && (
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                              <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
+                                <strong>Resultado:</strong> {item.resultado.charAt(0).toUpperCase() + item.resultado.slice(1).replace('_', ' ')}
+                              </Typography>
+                            </Box>
+                          )}
                               
-                              {item.subcategoria && (
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    <strong>Subcategoría:</strong> {item.subcategoria}
-                                  </Typography>
-                                </Box>
-                              )}
-                              
-                              {item.tipo_contacto && (
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    <strong>Tipo de contacto:</strong> {item.tipo_contacto}
-                                  </Typography>
-                                </Box>
-                              )}
-                              
-                              {item.resultado && (
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    <strong>Resultado:</strong> {item.resultado.charAt(0).toUpperCase() + item.resultado.slice(1).replace('_', ' ')}
-                                  </Typography>
-                                </Box>
-                              )}
-                              
-                              {(item.observaciones || item.comentario) && (
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5, fontStyle: 'italic' }}>
-                                    <strong>Observación:</strong> {item.observaciones || item.comentario}
-                                  </Typography>
-                                </Box>
-                              )}
+                          {(item.observaciones || item.comentario) && (
+                            <Box sx={{ 
+                              mt: 2,
+                              p: 2,
+                              backgroundColor: '#f8fafc',
+                              borderRadius: 2,
+                              borderLeft: '3px solid #3b82f6'
+                            }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="#3b82f6">
+                                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                                </svg>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#3b82f6', fontSize: '13px' }}>
+                                  Comentario del Asesor:
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ 
+                                color: '#475569', 
+                                fontSize: '13px', 
+                                lineHeight: 1.6,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
+                              }}>
+                                {item.observaciones || item.comentario}
+                              </Typography>
+                            </Box>
+                          )}
                             </>
                           ) : (
                             <>
@@ -687,18 +878,8 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
                                 </Box>
                               )}
                               
-                              {item.seguimiento_status && (
-                                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                  <Typography variant="body2" sx={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>
-                                    <strong>Seguimiento:</strong> {item.seguimiento_status}
-                                  </Typography>
-                                </Box>
-                              )}
-                              
-                              {item.estadoNuevo && (
+                              {/* Mostrar estado solo si NO tiene categoría/subcategoría */}
+                              {item.estadoNuevo && !item.categoria && !item.subcategoria && (
                                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                                   <svg width="16" height="16" viewBox="0 0 20 20" fill="#22c55e" style={{ marginTop: '2px', flexShrink: 0 }}>
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -743,25 +924,58 @@ const ClientHistoryDialog: React.FC<ClientHistoryDialogProps> = ({ open, onClose
         )}
       </DialogContent>
       
-      <DialogActions sx={{ p: 3 }}>
-        <Button onClick={() => { setIsEditing(false); onClose(); }} variant="outlined">
-          Cerrar
-        </Button>
-        {isGtr && !isEditing && (
-          <Button onClick={handleStartEdit} variant="contained" color="secondary">
-            Editar
+      <DialogActions sx={{ p: 3, flexDirection: 'column', gap: 2, alignItems: 'stretch' }}>
+        {/* Comentario rápido GTR → Asesor */}
+        {isGtr && clienteCompleto?.asesor_asignado && (
+          <Box sx={{ width: '100%' }}>
+            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600, color: '#667eea' }}>
+              💬 Enviar mensaje al asesor
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Escribe un comentario para el asesor..."
+                value={comentarioGtr}
+                onChange={(e) => setComentarioGtr(e.target.value)}
+                sx={{ backgroundColor: 'white' }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleEnviarComentario}
+                disabled={!comentarioGtr.trim() || enviandoComentario}
+                sx={{
+                  backgroundColor: '#667eea',
+                  '&:hover': { backgroundColor: '#5568d3' },
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {enviandoComentario ? 'Enviando...' : 'Enviar'}
+              </Button>
+            </Box>
+          </Box>
+        )}
+        
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, width: '100%' }}>
+          <Button onClick={() => { setIsEditing(false); onClose(); }} variant="outlined">
+            Cerrar
           </Button>
-        )}
-        {isGtr && isEditing && (
-          <>
-            <Button onClick={handleCancelEdit} variant="outlined" color="inherit">
-              Cancelar
+          {isGtr && !isEditing && (
+            <Button onClick={handleStartEdit} variant="contained" color="secondary">
+              Editar
             </Button>
-            <Button onClick={handleSave} variant="contained" color="primary">
-              Guardar cambios
-            </Button>
-          </>
-        )}
+          )}
+          {isGtr && isEditing && (
+            <>
+              <Button onClick={handleCancelEdit} variant="outlined" color="inherit">
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} variant="contained" color="primary">
+                Guardar cambios
+              </Button>
+            </>
+          )}
+        </Box>
       </DialogActions>
     </Dialog>
   );

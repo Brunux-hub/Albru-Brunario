@@ -29,6 +29,7 @@ import {
   Schedule,
   Person
 } from '@mui/icons-material';
+import AsesorReportModal from './AsesorReportModal';
 
 interface Asesor {
   id: number;
@@ -57,14 +58,25 @@ interface GtrAsesoresTableProps {
 
 const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients = [] }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedAsesor, setSelectedAsesor] = useState<Asesor | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  
   // Las funciones de asignar/atender cliente se eliminan porque la actualización será automática por reasignación.
 
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>, asesor: Asesor) => {
     setAnchorEl(event.currentTarget);
+    setSelectedAsesor(asesor);
   };
 
   const handleMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleVerReportes = () => {
+    if (selectedAsesor) {
+      setReportModalOpen(true);
+      handleMenuClose();
+    }
   };
 
   const getEstadoColor = (estado: string) => {
@@ -195,8 +207,9 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Asesor</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Estado</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Sala</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Atendidos/Asignados</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Reasignados Hoy</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#374151', textAlign: 'center' }}>Asignados</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#374151', textAlign: 'center' }}>Gestionados Hoy</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', color: '#374151', textAlign: 'center' }}>Reasignados Hoy</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Ventas Hoy</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Meta Mensual</TableCell>
                   <TableCell sx={{ fontWeight: 'bold', color: '#374151' }}>Eficiencia</TableCell>
@@ -289,25 +302,47 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
                     
                     <TableCell>
                       <Box sx={{ textAlign: 'center' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#111827' }}>
-                          {asesor.clientesAtendidos}/{asesor.clientesAsignados}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#6b7280' }}>
-                          Atendidos/Asignados
-                        </Typography>
+                        <Chip
+                          label={asesor.clientesAsignados}
+                          size="small"
+                          sx={{
+                            backgroundColor: '#e0e7ff',
+                            color: '#4f46e5',
+                            fontWeight: 'bold',
+                            fontSize: '0.875rem',
+                            minWidth: 50
+                          }}
+                        />
                       </Box>
                     </TableCell>
 
                     <TableCell>
                       <Box sx={{ textAlign: 'center' }}>
                         <Chip
-                          label={asesor.clientesReasignados}
+                          label={asesor.clientesAtendidos || 0}
                           size="small"
                           sx={{
-                            backgroundColor: asesor.clientesReasignados > 0 ? '#3b82f6' : '#e5e7eb',
-                            color: asesor.clientesReasignados > 0 ? 'white' : '#6b7280',
+                            backgroundColor: asesor.clientesAtendidos > 0 ? '#d1fae5' : '#f3f4f6',
+                            color: asesor.clientesAtendidos > 0 ? '#059669' : '#6b7280',
                             fontWeight: 'bold',
-                            minWidth: 40
+                            fontSize: '0.875rem',
+                            minWidth: 50
+                          }}
+                        />
+                      </Box>
+                    </TableCell>
+
+                    <TableCell>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <Chip
+                          label={asesor.clientesReasignados || 0}
+                          size="small"
+                          sx={{
+                            backgroundColor: asesor.clientesReasignados > 0 ? '#fee2e2' : '#f3f4f6',
+                            color: asesor.clientesReasignados > 0 ? '#dc2626' : '#6b7280',
+                            fontWeight: 'bold',
+                            fontSize: '0.875rem',
+                            minWidth: 50
                           }}
                         />
                       </Box>
@@ -387,7 +422,7 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
                     <TableCell>
                       <IconButton
                         size="small"
-                        onClick={handleMenuClick}
+                        onClick={(e) => handleMenuClick(e, asesor)}
                         sx={{ color: '#6b7280' }}
                       >
                         <MoreVert />
@@ -410,8 +445,18 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
         <MenuItem onClick={handleMenuClose}>Ver perfil</MenuItem>
         <MenuItem onClick={handleMenuClose}>Asignar clientes</MenuItem>
         <MenuItem onClick={handleMenuClose}>Cambiar estado</MenuItem>
-        <MenuItem onClick={handleMenuClose}>Ver reportes</MenuItem>
+        <MenuItem onClick={handleVerReportes}>Ver reportes</MenuItem>
       </Menu>
+
+      {/* Modal de reportes */}
+      {selectedAsesor && (
+        <AsesorReportModal
+          open={reportModalOpen}
+          onClose={() => setReportModalOpen(false)}
+          asesorId={selectedAsesor.id}
+          asesorNombre={selectedAsesor.nombre}
+        />
+      )}
     </Box>
   );
 };

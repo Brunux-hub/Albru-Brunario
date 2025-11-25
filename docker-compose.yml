@@ -4,7 +4,7 @@ services:
     image: mysql:8.0
     container_name: albru-base
     restart: unless-stopped
-    command: --log-bin-trust-function-creators=1
+    command: --log-bin-trust-function-creators=1 --default-time-zone=-05:00
     env_file:
       - .env
     environment:
@@ -12,6 +12,7 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-albru}
       MYSQL_USER: ${DB_USER:-albru}
       MYSQL_PASSWORD: ${DB_PASSWORD:-albru_pass}
+      TZ: America/Lima
     # The DB does not need to publish a host port for normal operation inside docker-compose.
     # Removing the host port mapping avoids host port bind conflicts on Windows.
     # If you need to access MySQL from the host, use 'docker-compose exec db mysql ...' or re-add this mapping.
@@ -40,6 +41,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-albru_jwt_secret_2025}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       NODE_ENV: ${NODE_ENV:-production}
+      TZ: America/Lima
     ports:
       - "${BACKEND_PORT:-3001}:3001"
     depends_on:
@@ -56,26 +58,7 @@ services:
     env_file:
       - .env
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
-    depends_on:
-      - backend
-  # Development frontend with Vite + HMR (bind-mounts source for fast edits)
-  frontend-dev:
-    image: node:20-alpine
-    container_name: albru-frontend-dev
-    restart: unless-stopped
-    env_file:
-      - .env
-    working_dir: /app
-    volumes:
-      - ./:/app:delegated
-      - /app/node_modules
-    ports:
-      # Map to 5174 on the host to avoid conflict with the production frontend (which uses 5173->80)
-      - "5174:5173"
-    # Force dev dependencies to be installed for the dev container by setting NODE_ENV=development
-    # (the global .env sets NODE_ENV=production for other services). This installs vite and friends.
-    command: sh -c "NODE_ENV=development npm ci --silent --include=dev && npm run dev -- --host 0.0.0.0 --port 5173"
+      - "5173:80"
     depends_on:
       - backend
 

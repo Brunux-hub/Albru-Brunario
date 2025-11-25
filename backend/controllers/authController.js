@@ -47,12 +47,14 @@ class AuthService {
         [user.id]
       );
 
-      // Generar token JWT
+      // Generar token JWT con todos los campos necesarios
       const token = jwt.sign(
         { 
           userId: user.id,
+          nombre: user.nombre,
           email: user.email, 
-          tipo: user.tipo 
+          tipo: user.tipo,
+          tenant_id: user.tenant_id || 1
         },
         process.env.JWT_SECRET || 'albru_jwt_secret_key_2025_secure_production',
         { expiresIn: '24h' }

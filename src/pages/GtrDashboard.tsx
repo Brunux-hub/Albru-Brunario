@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography, CircularProgress, Alert, Button, Fab, Pagination } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import AddIcon from '@mui/icons-material/Add';
@@ -25,7 +25,7 @@ interface AsesorAPI {
   meta_mensual: string;
   ventas_realizadas: string;
   comision_porcentaje: string;
-  clientes_atendidos_hoy?: number; // Estadística del día
+  clientes_gestionados_hoy?: number; // Estadística del día (nombre en backend)
   clientes_reasignados_hoy?: number; // Estadística del día
 }
 
@@ -257,26 +257,8 @@ const GtrDashboard: React.FC = () => {
     autoConnect: true
   });
 
-  // Cargar asesores desde la API
-  useEffect(() => {
-    // Cargar metadata/features del backend para condicionales UI
-    // DESACTIVADO - endpoint no existe, usando defaults
-    // (async () => {
-    //   try {
-    //     const resp = await fetch('/api/features');
-    //     const j = await resp.json();
-    //     if (j && j.success && j.features) {
-    //       setFeatures({
-    //         hasEstatusWizard: Boolean(j.features.hasEstatusWizard),
-    //         hasHistorialEstados: Boolean(j.features.hasHistorialEstados)
-    //       });
-    //       console.log('🔎 Features backend:', j.features);
-    //     }
-    //   } catch (e) {
-    //     console.warn('No se pudo cargar /api/features, asumiendo defaults', e);
-    //   }
-    // })();
-    const fetchAsesores = async () => {
+  // Función para cargar asesores (extraída para reutilización en WebSocket)
+  const fetchAsesores = useCallback(async () => {
       try {
         setLoading(true);
         const response = await fetch('/api/asesores');
@@ -291,6 +273,8 @@ const GtrDashboard: React.FC = () => {
             telefono: String(asesor.telefono || 'Sin teléfono'),
             estado: asesor.estado === 'activo' ? 'Activo' : 'Offline',
             clientes_asignados: asesor.clientes_asignados || 0,
+            clientes_atendidos_hoy: asesor.clientes_gestionados_hoy || 0,
+            clientes_reasignados_hoy: asesor.clientes_reasignados_hoy || 0,
             meta_mensual: asesor.meta_mensual || '0.00',
             ventas_realizadas: asesor.ventas_realizadas || '0.00',
             comision_porcentaje: asesor.comision_porcentaje || '5.00'
@@ -308,10 +292,12 @@ const GtrDashboard: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchAsesores();
   }, []);
+
+  // Cargar asesores al montar el componente
+  useEffect(() => {
+    fetchAsesores();
+  }, [fetchAsesores]);
 
   // Cargar clientes desde la API
   useEffect(() => {
@@ -755,6 +741,12 @@ const GtrDashboard: React.FC = () => {
       }
     };
 
+    // Handler para recargar estadísticas de asesores cuando cambian los clientes
+    const handleReloadAsesoresStats = () => {
+      console.log('📊 [GTR] Recargando estadísticas de asesores...');
+      fetchAsesores();
+    };
+
     // Registrar todos los listeners
     socket.on('REASSIGNMENT_CONFIRMED', handleReassignmentConfirmed);
     socket.on('CLIENT_REASSIGNED', handleClientReassigned);
@@ -767,6 +759,11 @@ const GtrDashboard: React.FC = () => {
     socket.on('CLIENT_IN_GESTION', handleClientInGestion);
     socket.on('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
     socket.on('CLIENT_COMPLETED', handleClientCompleted);
+    
+    // Recargar estadísticas de asesores cuando haya cambios importantes
+    socket.on('CLIENT_REASSIGNED', handleReloadAsesoresStats);
+    socket.on('CLIENT_COMPLETED', handleReloadAsesoresStats);
+    socket.on('CLIENT_RETURNED_TO_GTR', handleReloadAsesoresStats);
 
     // Cleanup
     return () => {
@@ -781,8 +778,9 @@ const GtrDashboard: React.FC = () => {
       socket.off('CLIENT_IN_GESTION', handleClientInGestion);
       socket.off('CLIENT_MOVED_TO_GTR', handleClientMovedToGTR);
       socket.off('CLIENT_COMPLETED', handleClientCompleted);
+      // Nota: handleReloadAsesoresStats usa los mismos eventos, no necesita cleanup adicional
     };
-  }, [socket, isConnected]);
+  }, [socket, isConnected, fetchAsesores]);
 
   if (loading) {
     return (

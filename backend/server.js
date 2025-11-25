@@ -22,6 +22,10 @@ const { actualizarDatosCliente, updateEstadoAsesor } = require('./controllers/as
 const clientesRoutes = require('./routes/clientes');
 app.use('/api/clientes', clientesRoutes);
 
+// Mount comentarios GTR routes
+const comentariosRoutes = require('./routes/comentarios');
+app.use('/api/comentarios-gtr', comentariosRoutes);
+
 // Mount usuarios/auth routes
 const usuariosRoutes = require('./routes/usuarios');
 app.use('/api/auth', usuariosRoutes);
@@ -628,7 +632,16 @@ app.post('/api/auth/bypass-login', async (req, res) => {
     const { JWT_SECRET } = require('./middleware/authMiddleware');
     
     const token = jwt.sign(
-      { userId: 2, asesorId: 1, username: 'gtr_maria', role: 'gtr' },
+      { 
+        userId: 2, 
+        asesorId: 1, 
+        username: 'gtr_maria', 
+        nombre: 'María García',
+        email: 'maria.gtr@empresa.com',
+        tipo: 'gtr',
+        role: 'gtr',
+        tenant_id: 1
+      },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -642,6 +655,7 @@ app.post('/api/auth/bypass-login', async (req, res) => {
         nombre: 'María García',
         email: 'maria.gtr@empresa.com',
         username: 'gtr_maria',
+        tipo: 'gtr',
         role: 'gtr'
       }
     });
@@ -652,7 +666,16 @@ app.post('/api/auth/bypass-login', async (req, res) => {
     const { JWT_SECRET } = require('./middleware/authMiddleware');
     
     const token = jwt.sign(
-      { userId: 3, asesorId: 2, username: 'asesor_carlos', role: 'asesor' },
+      { 
+        userId: 3, 
+        asesorId: 2, 
+        username: 'asesor_carlos',
+        nombre: 'Carlos López',
+        email: 'carlos.asesor@empresa.com',
+        tipo: 'asesor',
+        role: 'asesor',
+        tenant_id: 1
+      },
       JWT_SECRET,
       { expiresIn: '24h' }
     );

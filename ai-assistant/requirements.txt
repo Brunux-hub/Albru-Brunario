@@ -1,0 +1,27 @@
+# Asistente de Código IA Local para CRM Albru
+# Modelo: Qwen2.5-Coder (alternativa: DeepSeek-Coder-V2)
+
+# Core AI
+ollama>=0.1.0
+langchain>=0.1.0
+langchain-community>=0.0.20
+
+# Utilidades
+python-dotenv>=1.0.0
+rich>=13.7.0
+typer>=0.9.0
+gitpython>=3.1.40
+watchdog>=3.0.0
+
+# Análisis de código (opcional)
+# tree-sitter>=0.20.0
+# tree-sitter-languages>=1.9.0
+
+# Base de datos
+mysql-connector-python>=8.2.0
+pymysql>=1.1.0
+
+# Web (opcional para interfaz web)
+fastapi>=0.109.0
+uvicorn>=0.27.0
+websockets>=12.0
