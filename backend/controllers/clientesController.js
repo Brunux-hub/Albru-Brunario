@@ -146,7 +146,8 @@ const getAllClientes = async (req, res) => {
     const sql = `
       SELECT
         c.*,
-        u.nombre AS asesor_nombre
+        u.nombre AS asesor_nombre,
+        COALESCE(c.contador_reasignaciones, 0) as contador_reasignaciones
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       ${whereClause}

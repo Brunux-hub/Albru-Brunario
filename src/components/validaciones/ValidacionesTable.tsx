@@ -244,6 +244,7 @@ const ValidacionesTable: React.FC = () => {
             horaCita: '',
             estatusCategoria: cliente.estatus_comercial_categoria || 'PREVENTA',
             estatusSubcategoria: cliente.estatus_comercial_subcategoria || 'PREVENTA COMPLETA',
+            contador_reasignaciones: cliente.contador_reasignaciones || 0,
             wizardData: {} // Simplificado por ahora
           }));
           
@@ -322,6 +323,7 @@ const ValidacionesTable: React.FC = () => {
             horaCita: '',
             estatusCategoria: cliente.estatus_comercial_categoria || 'PREVENTA',
             estatusSubcategoria: cliente.estatus_comercial_subcategoria || 'PREVENTA COMPLETA',
+            contador_reasignaciones: cliente.contador_reasignaciones || 0,
             // Datos completos del wizard
             wizardData: {
               // Paso 1: Información del Cliente
@@ -478,6 +480,7 @@ const ValidacionesTable: React.FC = () => {
                 <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>ID</TableCell>
                 <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>Cliente</TableCell>
                 <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>Asesor</TableCell>
+                <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>Reasignaciones</TableCell>
                 <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>Estado</TableCell>
                 <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>Estatus Comercial</TableCell>
                 <TableCell sx={{ fontWeight: 700, position: 'sticky', top: 0, zIndex: 2 }}>Plan</TableCell>
@@ -509,6 +512,28 @@ const ValidacionesTable: React.FC = () => {
                     <Typography variant="body2">
                       {cliente.asesorActual}
                     </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const contador = cliente.contador_reasignaciones || 0;
+                      const color = contador === 0 ? '#10b981' : contador <= 2 ? '#f59e0b' : '#ef4444';
+                      const bgColor = contador === 0 ? '#d1fae5' : contador <= 2 ? '#fef3c7' : '#fee2e2';
+                      const label = contador === 0 ? 'Original' : `${contador}x`;
+                      return (
+                        <Tooltip title={`Cliente reasignado ${contador} vez/veces`}>
+                          <Chip 
+                            label={label}
+                            size="small" 
+                            sx={{ 
+                              backgroundColor: bgColor, 
+                              color: color, 
+                              fontWeight: 700,
+                              minWidth: 65
+                            }} 
+                          />
+                        </Tooltip>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {(() => {

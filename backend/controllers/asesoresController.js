@@ -36,6 +36,7 @@ const getAsesores = async (req, res) => {
     `);
 
     // Obtener gestiones totales del día (contando duplicados)
+    // 🔧 FIX: Usar fecha_wizard_completado y wizard_completado=1 para consistencia con reportes
     const [gestionesTotales] = await pool.query(`
       SELECT 
         c.asesor_asignado as asesor_id,
@@ -43,7 +44,8 @@ const getAsesores = async (req, res) => {
         COALESCE(SUM(c.cantidad_duplicados), COUNT(c.id)) as gestiones_totales
       FROM clientes c
       WHERE c.asesor_asignado IS NOT NULL
-        AND DATE(c.updated_at) = DATE(CONVERT_TZ(NOW(), '+00:00', '-05:00'))
+        AND c.wizard_completado = 1
+        AND DATE(c.fecha_wizard_completado) = CURDATE()
         AND (c.es_duplicado = FALSE OR c.es_duplicado IS NULL)
       GROUP BY c.asesor_asignado
     `);
@@ -66,16 +68,32 @@ const getAsesores = async (req, res) => {
       };
     });
 
-    // Agregar estadísticas a cada asesor
-    const asesoresWithStats = rows.map(asesor => ({
-      ...asesor,
-      clientes_atendidos_hoy: statsMap[asesor.asesor_id]?.atendidos || 0,
-      clientes_reasignados_hoy: statsMap[asesor.asesor_id]?.reasignados || 0,
-      clientes_unicos_hoy: gestionesMap[asesor.asesor_id]?.clientes_unicos || 0,
-      gestiones_totales_hoy: gestionesMap[asesor.asesor_id]?.gestiones_totales || 0
-    }));
+    // 🔍 DEBUG: Log detallado de gestiones por asesor
+    console.log('📊 [GTR PANEL] Gestiones por Asesor HOY:');
+    gestionesTotales.forEach(g => {
+      console.log(`  • Asesor ID ${g.asesor_id}: ${g.gestiones_totales} gestiones, ${g.clientes_unicos} clientes únicos`);
+    });
 
-    console.log('👥 Obteniendo lista de asesores con estadísticas del día');
+    // Agregar estadísticas a cada asesor
+    const asesoresWithStats = rows.map(asesor => {
+      const gestiones = gestionesMap[asesor.asesor_id]?.gestiones_totales || 0;
+      const uniqueClientes = gestionesMap[asesor.asesor_id]?.clientes_unicos || 0;
+      
+      // Log si hay discrepancia
+      if (gestiones === 0 && asesor.clientes_asignados > 0) {
+        console.log(`⚠️ [GTR PANEL] Asesor ${asesor.nombre} (ID: ${asesor.asesor_id}) tiene ${asesor.clientes_asignados} clientes asignados pero 0 gestiones HOY`);
+      }
+      
+      return {
+        ...asesor,
+        clientes_atendidos_hoy: statsMap[asesor.asesor_id]?.atendidos || 0,
+        clientes_reasignados_hoy: statsMap[asesor.asesor_id]?.reasignados || 0,
+        clientes_unicos_hoy: uniqueClientes,
+        gestiones_totales_hoy: gestiones
+      };
+    });
+
+    console.log(`👥 [GTR PANEL] Obteniendo lista de ${asesoresWithStats.length} asesores con estadísticas del día`);
     res.status(200).json({ 
       success: true,
       asesores: asesoresWithStats,
