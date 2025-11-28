@@ -96,8 +96,12 @@ docker-compose logs db
 # 3. Buscar el backup más reciente
 ls -la backups/
 
-# 4. Restaurar el backup (reemplazar YYYYMMDD_HHMMSS con la fecha real)
-docker exec -i albru-base mysql -u root -p"root_password_here" albru < backups/backup_YYYYMMDD_HHMMSS.sql
+# 4. Restaurar el backup (usar el backup más reciente disponible)
+# Ejemplo con el backup del 28/11/2025:
+docker exec -i albru-base mysql -u root -p"root_password_here" albru < backups/backup_20251128_141317.sql
+
+# O usar el backup que esté disponible en la carpeta backups/
+# Verificar backups disponibles: ls backups/
 
 # 5. Verificar que se restauró correctamente
 docker exec albru-base mysql -u root -p"root_password_here" -e "USE albru; SELECT COUNT(*) as total_clientes FROM clientes; SELECT COUNT(*) as total_usuarios FROM usuarios;"
