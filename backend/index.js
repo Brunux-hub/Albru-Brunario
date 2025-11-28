@@ -103,15 +103,21 @@ async function initializeServices() {
     console.log('🔄 Conectando a Redis...');
     await redisService.connect();
 
-    // 2. Inicializar Socket.io
+    // 2. Inicializar Socket.io (REAL - no wrapper)
     console.log('🔄 Inicializando Socket.io...');
     socketService.initialize(server);
+    console.log('✅ Socket.io inicializado correctamente');
 
-    // 3. Sincronizar sesiones (crash recovery)
+    // 3. Inicializar WebSocketService (LEGACY wrapper)
+    console.log('🔄 Inicializando WebSocketService (wrapper legacy)...');
+    const webSocketService = require('./services/WebSocketService');
+    webSocketService.initialize(server);
+
+    // 4. Sincronizar sesiones (crash recovery)
     console.log('🔄 Sincronizando sesiones...');
     await sessionService.syncSessions();
 
-    // 4. Iniciar worker de seguimiento
+    // 5. Iniciar worker de seguimiento
     console.log('🔄 Iniciando worker de seguimiento...');
     const seguimientoWorker = require('./services/seguimientoWorker');
     seguimientoWorker.start();

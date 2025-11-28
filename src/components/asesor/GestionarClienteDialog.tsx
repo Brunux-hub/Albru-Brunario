@@ -166,13 +166,10 @@ const GestionarClienteDialog: React.FC<Props> = ({ open, onClose, cliente, onSav
       // Cargar datos existentes del cliente si los hay
       clienteIdRef.current = cliente.id;
       
-      // PRE-CARGAR categoría y subcategoría si ya existen
-      if (cliente.estatus_comercial_categoria) {
-        setEstatusCategoria(cliente.estatus_comercial_categoria);
-      }
-      if (cliente.estatus_comercial_subcategoria) {
-        setEstatusSubcategoria(cliente.estatus_comercial_subcategoria);
-      }
+      // PARA ASESORES: No pre-cargar categoría existente, siempre empezar como "nuevo"
+      // Esto permite que los asesores gestionen el cliente sin sesgo de categorización anterior
+      setEstatusCategoria('');
+      setEstatusSubcategoria('');
       
       setStep1Data({
         tipoCliente: 'nuevo', // Por defecto

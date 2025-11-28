@@ -40,24 +40,27 @@ COMMENT 'Contador de reasignaciones. Mayor valor = más prioridad para NO reasig
 -- Eliminar trigger si existe
 DROP TRIGGER IF EXISTS actualizar_contador_reasignaciones;
 
--- Crear trigger que incrementa contador cuando cambia asesor_id
+-- Nota (importante): El trigger original ejecutaba un `UPDATE clientes` dentro de
+-- de un `AFTER UPDATE ON clientes`. MySQL no permite actualizar la misma tabla
+-- desde un trigger AFTER/ROW que fue invocado por la sentencia que actualiza
+-- dicha tabla (error 1442). Para evitar ese problema, usamos un trigger
+-- `BEFORE UPDATE` que modifica directamente `NEW.contador_reasignaciones`.
+
 DELIMITER $$
 
 CREATE TRIGGER actualizar_contador_reasignaciones
-AFTER UPDATE ON clientes
+BEFORE UPDATE ON clientes
 FOR EACH ROW
 BEGIN
-    -- Si el asesor_asignado cambió (reasignación)
-    IF OLD.asesor_asignado IS NOT NULL 
-       AND NEW.asesor_asignado IS NOT NULL 
-       AND OLD.asesor_asignado != NEW.asesor_asignado 
+    -- Si el asesor asignado cambió (reasignación válida)
+    IF OLD.asesor_asignado IS NOT NULL
+       AND NEW.asesor_asignado IS NOT NULL
+       AND OLD.asesor_asignado != NEW.asesor_asignado
        AND NEW.asesor_asignado > 0 THEN
-        
-        -- Incrementar contador
-        UPDATE clientes 
-        SET contador_reasignaciones = contador_reasignaciones + 1
-        WHERE id = NEW.id;
-        
+
+        -- Incrementar el contador directamente en NEW para evitar UPDATE sobre la misma tabla
+        SET NEW.contador_reasignaciones = COALESCE(OLD.contador_reasignaciones, 0) + 1;
+
     END IF;
 END$$
 

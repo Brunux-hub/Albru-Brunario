@@ -11,7 +11,6 @@ import {
   Paper,
   Button,
   Chip,
-  TextField,
   MenuItem,
   Select,
   FormControl,
@@ -71,8 +70,6 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [filtroEstado, setFiltroEstado] = useState('Todos los estados');
   const [filtroGestion, setFiltroGestion] = useState('Todas las gestiones');
-  const [busqueda, setBusqueda] = useState('');
-  const [searchResults, setSearchResults] = useState<Cliente[]>([]);
 
   // Mantener la referencia actualizada
   useEffect(() => {
@@ -302,69 +299,12 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
   const clientesFiltrados = clientes.filter(cliente => {
     const cumpleEstado = filtroEstado === 'Todos los estados' || cliente.estado === filtroEstado;
     const cumpleGestion = filtroGestion === 'Todas las gestiones' || cliente.gestion === filtroGestion;
-    const nombreSafe = (cliente.nombre || '').toString();
-    const telefonoSafe = (cliente.telefono || '').toString();
-    const dniSafe = (cliente.dni || '').toString();
-    const cumpleBusqueda = busqueda === '' || 
-      nombreSafe.toLowerCase().includes(busqueda.toLowerCase()) ||
-      telefonoSafe.includes(busqueda) ||
-      dniSafe.includes(busqueda);
     
-    return cumpleEstado && cumpleGestion && cumpleBusqueda;
+    return cumpleEstado && cumpleGestion;
   });
 
   // When a search query is present (>= 3 chars) perform server-side search (global across all clients)
-  useEffect(() => {
-    let mounted = true;
-    let timer: number | undefined;
-
-    const doSearch = async (q: string) => {
-      try {
-        // limit to 50 results for table display
-        const url = `/api/clientes/search?term=${encodeURIComponent(q)}&limit=50&page=1`;
-        const resp = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
-        if (!resp.ok) return;
-        const j = await resp.json();
-        if (j && j.success && Array.isArray(j.items)) {
-          const mapped = j.items.map((cliente: any) => ({
-            id: cliente.id,
-            fecha: (() => {
-              const dateStr = (cliente.fecha || cliente.created_at || '').split('T')[0];
-              if (!dateStr) return '';
-              const [year, month, day] = dateStr.split('-');
-              return day && month && year ? `${day}/${month}/${year}` : dateStr;
-            })(),
-            nombre: cliente.nombre || '',
-            telefono: cliente.telefono || cliente.leads_original_telefono || '',
-            leads_original_telefono: cliente.leads_original_telefono || cliente.telefono || '',
-            dni: cliente.dni || '',
-            servicio: cliente.servicio_contratado || 'Internet',
-            estado: cliente.estado || 'nuevo',
-            seguimiento_status: cliente.seguimiento_status ?? null,
-            estatus_comercial_categoria: cliente.estatus_comercial_categoria ?? null,
-            estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria ?? null,
-            asesor_asignado: cliente.asesor_asignado ?? null
-          } as Cliente));
-          if (mounted) setSearchResults(mapped);
-        }
-      } catch (e) {
-        console.warn('Error buscando clientes globalmente:', e);
-      }
-    };
-
-    if (!busqueda || busqueda.trim().length < 3) {
-      // clear search results when query is short/empty
-      setSearchResults([]);
-    } else {
-      // debounce user input
-      timer = window.setTimeout(() => doSearch(busqueda.trim()), 300);
-    }
-
-    return () => {
-      mounted = false;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [busqueda]);
+  // Búsqueda global removida por seguridad - los asesores solo ven sus clientes asignados
 
   const handleGestionar = (cliente: Cliente) => {
     // Indicar localmente que este cliente está siendo gestionado por el asesor
@@ -460,19 +400,28 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
     setClienteSeleccionado(null);
   };
 
+  // Función para manejar cuando se actualiza un cliente
+  const handleClienteUpdated = async (clienteActualizado: Cliente) => {
+    try {
+      // Primero actualizar el cliente en el contexto
+      if (typeof actualizarCliente === 'function') {
+        actualizarCliente(clienteActualizado);
+      }
+      
+      // Luego recargar la lista completa para asegurar que esté actualizada
+      await cargarClientesAsignados();
+      
+      console.log('✅ Cliente actualizado y lista recargada');
+    } catch (error) {
+      console.error('❌ Error actualizando cliente:', error);
+    }
+  };
+
   // Sistema de notificaciones removido - usar toast o similar cuando sea necesario
 
   return (
     <Box>      
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-        <TextField 
-          label="Buscar por nombre, teléfono o DNI..." 
-          variant="outlined" 
-          size="small" 
-          sx={{ width: 350 }}
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <FormControl size="small" sx={{ minWidth: 160 }}>
             <InputLabel>Estado</InputLabel>
@@ -519,7 +468,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
             </TableRow>
           </TableHead>
           <TableBody>
-            {(busqueda && busqueda.trim().length >= 3 ? searchResults : clientesFiltrados).map((cliente, index) => (
+            {clientesFiltrados.map((cliente, index) => (
               <TableRow key={cliente.id ?? index} hover>
                 <TableCell>
                   {(() => {
@@ -628,7 +577,7 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
         open={dialogOpen}
         cliente={clienteSeleccionado}
         onClose={handleCloseDialog}
-        onSave={actualizarCliente}
+        onSave={handleClienteUpdated}
       />
 
       {/* Sistema de notificaciones removido */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { API_BASE } from '../../config/backend';
 import {
   Box,
@@ -56,6 +56,7 @@ interface Cliente {
   horaCita: string;
   estatusCategoria?: string;
   estatusSubcategoria?: string;
+  contador_reasignaciones?: number;
   // Datos completos del wizard
   wizardData?: {
     // Paso 1
@@ -112,6 +113,7 @@ interface ClienteApi {
   fecha_asignacion_validador?: string | null;
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  contador_reasignaciones?: number | null;
   // Campos del wizard - Paso 1
   tipo_cliente_wizard?: string | null;
   lead_score?: string | null;
@@ -263,25 +265,24 @@ const ValidacionesTable: React.FC = () => {
     }
   };
 
-  // Cargar clientes reales desde la API
-  useEffect(() => {
-    const fetchClientes = async () => {
-      try {
-        setLoading(true);
-        const base = API_BASE || 'http://localhost:3001';
-        const token = localStorage.getItem('token');
-        
-        // Usar endpoint de validadores autenticado
-        const url = `${base}/api/validadores/mis-clientes`;
-        console.log('🔍 Validaciones: Fetching from:', url);
-        
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        const data = await response.json();
+  // Función para cargar clientes desde la API (movida fuera del useEffect para poder reutilizarla)
+  const fetchClientes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const base = API_BASE || 'http://localhost:3001';
+      const token = localStorage.getItem('token');
+      
+      // Usar endpoint de validadores autenticado
+      const url = `${base}/api/validadores/mis-clientes`;
+      console.log('🔍 Validaciones: Fetching from:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
         
         console.log('📊 Validaciones: Response:', {
           success: data.success,
@@ -372,10 +373,12 @@ const ValidacionesTable: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchClientes();
   }, []);
+
+  // Cargar clientes al montar el componente
+  useEffect(() => {
+    fetchClientes();
+  }, [fetchClientes]);
 
   // WebSocket: Escuchar eventos de cambios en clientes para actualizar en tiempo real
   useEffect(() => {

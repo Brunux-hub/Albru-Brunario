@@ -708,7 +708,11 @@ if (process.env.NODE_ENV === 'production') {
 const http = require('http');
 const server = http.createServer(app);
 
-// Inicializar WebSocket
+// Inicializar Socket.io (NUEVO SISTEMA)
+const socketService = require('./services/SocketService');
+socketService.initialize(server);
+
+// Inicializar WebSocketService (LEGACY - ahora solo wrapper)
 const webSocketService = require('./services/WebSocketService');
 webSocketService.initialize(server);
 

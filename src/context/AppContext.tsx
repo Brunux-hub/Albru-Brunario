@@ -52,6 +52,8 @@ export interface Cliente {
   es_duplicado?: boolean;
   cantidad_duplicados?: number;
   telefono_principal_id?: number | null;
+  // Contador de reasignaciones
+  contador_reasignaciones?: number;
 }
 
 interface AppContextType {
@@ -158,17 +160,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const initAuth = () => {
       try {
-          // Remove legacy large client cache to avoid localStorage quota issues
-          if (localStorage.getItem('gtr_clients')) {
-            try {
-              console.info('Limpiando localStorage key: gtr_clients (legacy)');
-              localStorage.removeItem('gtr_clients');
-            } catch (e) {
-              console.warn('No se pudo limpiar localStorage gtr_clients:', e);
-            }
+        // Remove legacy large client cache to avoid localStorage quota issues
+        if (localStorage.getItem('gtr_clients')) {
+          try {
+            console.info('🧹 Limpiando cache legacy: gtr_clients');
+            localStorage.removeItem('gtr_clients');
+          } catch (e) {
+            console.warn('No se pudo limpiar localStorage gtr_clients:', e);
           }
+        }
 
-          const storedToken = localStorage.getItem('albru_token');
+        // Intentar obtener token desde múltiples ubicaciones para compatibilidad
+        let storedToken = localStorage.getItem('albru_token') || localStorage.getItem('token');
         
         if (storedToken) {
           // Validar formato JWT (debe tener 3 partes separadas por punto)
@@ -183,7 +186,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           try {
             // Verificar si el token no está expirado
             const payload = JSON.parse(atob(parts[1]));
-            const isExpired = payload.exp * 1000 < Date.now();
+            const now = Date.now();
+            const tokenExp = payload.exp * 1000;
+            const isExpired = tokenExp < now;
+            
+            // Dar margen de 5 minutos para evitar logout por milisegundos de diferencia
+            const isNearExpiry = tokenExp < (now + 5 * 60 * 1000);
             
             if (!isExpired) {
               // Validar que existan los campos CRÍTICOS (userId, tipo)
@@ -194,7 +202,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 return;
               }
               
-              console.log('✅ Token válido encontrado, restaurando sesión');
+              if (isNearExpiry) {
+                console.warn('⏰ Token próximo a expirar en menos de 5 minutos');
+              }
+              
+              console.log('✅ Token válido encontrado, restaurando sesión para:', payload.tipo);
               
               // Construir userData con valores por defecto para campos opcionales
               const userData: User = {
@@ -208,10 +220,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               setToken(storedToken);
               setUser(userData);
               
-              // Guardar también en formato legacy para compatibilidad
+              // Asegurar que todos los formatos de compatibilidad estén sincronizados
+              localStorage.setItem('albru_token', storedToken);
               localStorage.setItem('token', storedToken);
               localStorage.setItem('albru_user', JSON.stringify(userData));
               localStorage.setItem('userData', JSON.stringify(userData));
+              
+              console.log('🔄 Datos de autenticación sincronizados en localStorage');
             } else {
               const expDate = new Date(payload.exp * 1000);
               console.log('❌ Token expirado desde:', expDate.toLocaleString());
@@ -223,6 +238,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             console.warn('   Token (primeros 50 chars):', storedToken.substring(0, 50) + '...');
             clearAuth();
           }
+        } else {
+          console.info('ℹ️ No se encontró token en localStorage');
         }
       } catch (error) {
         console.error('❌ Error inicializando autenticación:', error);
@@ -232,7 +249,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
 
-    initAuth();
+    // Dar un pequeño delay para asegurar que localStorage esté completamente disponible
+    const timeoutId = setTimeout(initAuth, 10);
+    
+    return () => clearTimeout(timeoutId);
   }, [clearAuth]);
 
   // ----------------------------------------------------------------------------

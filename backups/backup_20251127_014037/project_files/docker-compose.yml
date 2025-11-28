@@ -1,0 +1,85 @@
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    container_name: albru-base
+    restart: unless-stopped
+    command: --log-bin-trust-function-creators=1 --default-time-zone=-05:00
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-albru}
+      MYSQL_USER: ${DB_USER:-albru}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-albru_pass}
+      TZ: America/Lima
+    # The DB does not need to publish a host port for normal operation inside docker-compose.
+    # Removing the host port mapping avoids host port bind conflicts on Windows.
+    # If you need to access MySQL from the host, use 'docker-compose exec db mysql ...' or re-add this mapping.
+    ports:
+      - "3308:3306"  # Temporal para importación
+    volumes:
+      - db_data:/var/lib/mysql
+      # Import SQL on first run: map nueva estructura SQL file to container's init directory
+      - ./src/database/albru_nueva_estructura.sql:/docker-entrypoint-initdb.d/albru_nueva_estructura.sql:ro
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: albru-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: ${BACKEND_PORT:-3001}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-albru}
+      DB_PASSWORD: ${DB_PASSWORD:-albru_pass}
+      DB_NAME: ${DB_NAME:-albru}
+      JWT_SECRET: ${JWT_SECRET:-albru_jwt_secret_2025}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      NODE_ENV: ${NODE_ENV:-production}
+      TZ: America/Lima
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: albru-frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  adminer:
+    image: adminer
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+
+  redis:
+    image: redis:7-alpine
+    container_name: albru-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_albru_2025}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  db_data:
+  redis_data:

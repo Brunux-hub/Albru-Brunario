@@ -521,6 +521,14 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                   color: colors.text.primary, 
                   background: colors.neutral[100],
                   borderBottom: `2px solid ${colors.neutral[300]}`,
+                  py: 2,
+                  textAlign: 'center'
+                }}>Reasignaciones</TableCell>
+                <TableCell sx={{ 
+                  fontWeight: typography.fontWeight.bold, 
+                  color: colors.text.primary, 
+                  background: colors.neutral[100],
+                  borderBottom: `2px solid ${colors.neutral[300]}`,
                   py: 2
                 }}>Acciones</TableCell>
               </TableRow>
@@ -710,6 +718,50 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                   ) : (
                     <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>-</span>
                   )}
+                </TableCell>
+                <TableCell sx={{ textAlign: 'center' }}>
+                  {/* Columna Reasignaciones: mostrar contador con colores según la cantidad */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Chip
+                      label={client.contador_reasignaciones || 0}
+                      size="small"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        minWidth: '40px',
+                        color: (() => {
+                          const count = client.contador_reasignaciones || 0;
+                          if (count >= 5) return '#ffffff';
+                          if (count >= 3) return '#dc2626';
+                          if (count >= 1) return '#d97706';
+                          return '#374151';
+                        })(),
+                        background: (() => {
+                          const count = client.contador_reasignaciones || 0;
+                          if (count >= 5) return '#dc2626'; // Rojo intenso para 5+
+                          if (count >= 3) return '#fee2e2'; // Rojo suave para 3-4
+                          if (count >= 1) return '#fef3c7'; // Amarillo para 1-2
+                          return '#f3f4f6'; // Gris para 0
+                        })(),
+                        borderRadius: 1,
+                        border: (() => {
+                          const count = client.contador_reasignaciones || 0;
+                          if (count >= 5) return '2px solid #dc2626';
+                          if (count >= 3) return '1px solid #f87171';
+                          if (count >= 1) return '1px solid #fbbf24';
+                          return '1px solid #d1d5db';
+                        })()
+                      }}
+                      icon={
+                        <span style={{ fontSize: '0.7rem' }}>
+                          {(client.contador_reasignaciones || 0) >= 5 ? '🚨' : 
+                           (client.contador_reasignaciones || 0) >= 3 ? '⚠️' : 
+                           (client.contador_reasignaciones || 0) >= 1 ? '🔄' : '📝'}
+                        </span>
+                      }
+                      title={`Cliente reasignado ${client.contador_reasignaciones || 0} ${(client.contador_reasignaciones || 0) === 1 ? 'vez' : 'veces'}`}
+                    />
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 1 }}>

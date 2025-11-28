@@ -1839,6 +1839,7 @@ const reasignarCliente = async (req, res) => {
            wizard_completado = 0,
            fecha_wizard_completado = NULL,
            derivado_at = NOW(), 
+           contador_reasignaciones = COALESCE(contador_reasignaciones, 0) + 1,
            updated_at = NOW() 
        WHERE id = ?`, 
       [nuevoUsuarioId, clienteId]

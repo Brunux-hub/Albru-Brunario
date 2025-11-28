@@ -76,6 +76,8 @@ export interface Cliente {
   es_duplicado?: boolean;
   cantidad_duplicados?: number;
   telefono_principal_id?: number | null;
+  // Contador de reasignaciones
+  contador_reasignaciones?: number;
 }
 
 // Tipos compartidos para componentes GTR

@@ -16,31 +16,58 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
 }) => {
   const { isAuthenticated, user, loading } = useAuth();
   const isDev = import.meta.env.MODE === 'development';
+  const currentPath = window.location.pathname;
 
-  if (isDev) console.debug('🔐 ProtectedRoute - Auth:', isAuthenticated, 'User:', user?.tipo, 'Loading:', loading);
+  // Debugging adicional para GTR
+  if (isDev && currentPath.includes('/gtr')) {
+    console.debug('🎯 GTR ProtectedRoute Check:', {
+      path: currentPath,
+      isAuthenticated,
+      userType: user?.tipo,
+      loading,
+      localStorage: {
+        albru_token: localStorage.getItem('albru_token') ? 'exists' : 'missing',
+        token: localStorage.getItem('token') ? 'exists' : 'missing',
+        userData: localStorage.getItem('userData') ? 'exists' : 'missing',
+        albru_user: localStorage.getItem('albru_user') ? 'exists' : 'missing'
+      }
+    });
+  }
   
-    if (loading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <p className="text-gray-600 mt-2">Verificando autenticación...</p>
+          {isDev && <p className="text-xs text-gray-400 mt-1">Path: {currentPath}</p>}
         </div>
       </div>
     );
   }
   
   if (!isAuthenticated) {
-    if (isDev) console.debug('❌ ProtectedRoute - No autenticado, redirigiendo a login');
+    console.warn('🚫 ProtectedRoute - No autenticado en:', currentPath);
+    if (isDev) {
+      console.debug('❌ Detalles de auth fallida:', {
+        isAuthenticated,
+        user,
+        hasToken: !!localStorage.getItem('albru_token'),
+        hasLegacyToken: !!localStorage.getItem('token')
+      });
+    }
     return <Navigate to="/login" replace />;
   }
   
   if (allowedRoles && user && !allowedRoles.includes(user.tipo)) {
-    if (isDev) console.debug('❌ ProtectedRoute - Rol no autorizado:', user.tipo);
+    console.warn('🚫 ProtectedRoute - Rol no autorizado:', user.tipo, 'requerido:', allowedRoles);
     return <Navigate to="/login" replace />;
   }
 
-  if (isDev) console.debug('✅ ProtectedRoute - Acceso autorizado');
+  if (isDev && currentPath.includes('/gtr')) {
+    console.log('✅ GTR ProtectedRoute - Acceso autorizado para:', user?.tipo);
+  }
+  
   return <>{children}</>;
 };
 

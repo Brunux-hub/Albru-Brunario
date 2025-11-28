@@ -1,0 +1,42 @@
+================================================================================
+REPORTE DE BACKUP Y DIAGNÓSTICO - ALBRU BRUNARIO CRM
+================================================================================
+
+Fecha: 2025-11-27 01:41:10
+Directorio: C:\Users\USER\Albru-Brunario\backups\backup_20251127_014037
+
+RESUMEN:
+  • Éxitos: 6
+  • Advertencias: 1
+  • Errores: 0
+
+ÉXITOS:
+  ✓ Estructura de directorios creada
+  ✓ Conectado a MySQL Server
+  ✓ Dump SQL generado correctamente
+  ✓ Datos exportados a JSON
+  ✓ Archivos del proyecto copiados
+  ✓ Backup empaquetado correctamente
+
+ADVERTENCIAS:
+  ⚠ Archivo no encontrado: README.md
+
+================================================================================
+VERIFICACIONES DETALLADAS:
+================================================================================
+
+dump_sql: {'existe': True, 'tamaño_mb': 16.23, 'metodo': 'python'}
+json_clientes: {'existe': True, 'registros': 14324}
+json_usuarios: {'existe': True, 'registros': 21}
+json_asesores: {'existe': True, 'registros': 17}
+json_gtr: {'existe': True, 'registros': 1}
+json_historial_estados: {'existe': True, 'registros': 3644}
+json_historial_gestiones: {'existe': True, 'registros': 66584}
+json_asesor_stats_daily: {'existe': True, 'registros': 3}
+json_cliente_locks: {'existe': True, 'registros': 1888}
+paquete_zip: {'existe': True, 'tamaño_mb': 2.87, 'ruta': 'C:\\Users\\USER\\Albru-Brunario\\backups\\backup_completo_20251127_014037.zip'}
+estructura_bd: OK
+integridad_datos: CON_ADVERTENCIAS
+json_frontend: OK
+estructura_proyecto: OK
+configuracion: OK

@@ -51,9 +51,9 @@ PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
 # Configuración de BD desde .env o valores por defecto
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
-    'port': int(os.getenv('DB_PORT', 3306)),
+    'port': int(os.getenv('DB_PORT', 3308)),
     'user': os.getenv('DB_USER', 'albru'),
-    'password': os.getenv('DB_PASSWORD', 'albru_pass'),
+    'password': os.getenv('DB_PASSWORD', 'albru12345'),
     'database': os.getenv('DB_NAME', 'albru'),
     'charset': 'utf8mb4',
     'collation': 'utf8mb4_unicode_ci'

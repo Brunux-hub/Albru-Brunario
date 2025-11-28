@@ -10,8 +10,10 @@ class WebSocketService {
 
   // Inicializar servidor WebSocket (LEGACY - mantener para compatibilidad)
   initialize(server) {
-    console.log('⚠️  WebSocketService.initialize() llamado (LEGACY - usando SocketService)');
-    // Ya no inicializamos ws nativo, Socket.io maneja todo
+    console.log('⚠️  WebSocketService.initialize() llamado (LEGACY wrapper)');
+    console.log('✅ WebSocketService: Delegando a SocketService real');
+    // SocketService debe ser inicializado ANTES de este wrapper
+    // Este método mantiene compatibilidad con código legacy
   }
 
   // LEGACY METHODS - Mantenidos para compatibilidad pero ahora usan SocketService
