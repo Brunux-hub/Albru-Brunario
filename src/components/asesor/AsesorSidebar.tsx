@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Avatar, List, ListItemIcon, ListItemText, Divider, Chip, ListItemButton, Button } from '@mui/material';
+import { Box, Typography, Avatar, List, ListItemIcon, ListItemText, ListItemButton, Button } from '@mui/material';
 import GroupIcon from '@mui/icons-material/Group';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HistoryIcon from '@mui/icons-material/History';
@@ -26,41 +26,133 @@ const AsesorSidebar: React.FC<AsesorSidebarProps> = ({ tabActual = 0, onTabChang
 
   return (
     <Box sx={{ 
-      width: 260, 
-      bgcolor: '#111827', 
-      color: '#fff', 
+      width: 240, 
+      bgcolor: 'white', 
+      borderRight: '1px solid #e5e7eb',
       minHeight: '100vh', 
-      p: 2,
+      p: 3,
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Avatar sx={{ bgcolor: '#6366f1', mr: 2 }}>{iniciales}</Avatar>
+      {/* Logo/Header */}
+      <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ 
+          width: 40, 
+          height: 40, 
+          borderRadius: '50%', 
+          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontWeight: 700,
+          fontSize: '1.25rem'
+        }}>
+          A
+        </Box>
         <Box>
-          <Typography fontWeight={700}>{nombreAsesor}</Typography>
-          <Typography variant="caption" color="#cbd5e1">Asesor Comercial</Typography>
+          <Typography sx={{ fontWeight: 700, color: '#111827', fontSize: '1.125rem' }}>Panel Asesor</Typography>
         </Box>
       </Box>
-      <List>
-        <ListItemButton selected={tabActual === 0} onClick={() => onTabChange?.(0)}>
-          <ListItemIcon sx={{ color: '#fff' }}><GroupIcon /></ListItemIcon>
-          <ListItemText primary="Mis Clientes" />
+
+      {/* User Info */}
+      <Box sx={{ 
+        mb: 3, 
+        p: 2, 
+        bgcolor: '#f9fafb', 
+        borderRadius: 2,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5
+      }}>
+        <Avatar sx={{ 
+          bgcolor: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          width: 44,
+          height: 44,
+          fontWeight: 600
+        }}>{iniciales}</Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 600, color: '#111827', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {nombreAsesor}
+          </Typography>
+          <Typography variant="caption" sx={{ color: '#6b7280', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <FiberManualRecordIcon sx={{ fontSize: '0.5rem', color: '#22c55e' }} />
+            En línea
+          </Typography>
+        </Box>
+      </Box>
+
+      {/* Navigation */}
+      <List sx={{ px: 0 }}>
+        <ListItemButton 
+          selected={tabActual === 0} 
+          onClick={() => onTabChange?.(0)}
+          sx={{
+            borderRadius: '10px',
+            mb: 0.5,
+            '&.Mui-selected': {
+              bgcolor: '#eff6ff',
+              '& .MuiListItemIcon-root': { color: '#3b82f6' },
+              '& .MuiListItemText-primary': { color: '#3b82f6', fontWeight: 600 }
+            },
+            '&:hover': {
+              bgcolor: '#f3f4f6'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 40, color: '#6b7280' }}><GroupIcon /></ListItemIcon>
+          <ListItemText 
+            primary="Mis Clientes" 
+            primaryTypographyProps={{ fontSize: '0.875rem' }}
+          />
         </ListItemButton>
-        <ListItemButton selected={tabActual === 1} onClick={() => onTabChange?.(1)}>
-          <ListItemIcon sx={{ color: '#fff' }}><AssignmentIcon /></ListItemIcon>
-          <ListItemText primary="Gestiones del Día" />
+        <ListItemButton 
+          selected={tabActual === 1} 
+          onClick={() => onTabChange?.(1)}
+          sx={{
+            borderRadius: '10px',
+            mb: 0.5,
+            '&.Mui-selected': {
+              bgcolor: '#eff6ff',
+              '& .MuiListItemIcon-root': { color: '#3b82f6' },
+              '& .MuiListItemText-primary': { color: '#3b82f6', fontWeight: 600 }
+            },
+            '&:hover': {
+              bgcolor: '#f3f4f6'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 40, color: '#6b7280' }}><AssignmentIcon /></ListItemIcon>
+          <ListItemText 
+            primary="Gestiones del Día" 
+            primaryTypographyProps={{ fontSize: '0.875rem' }}
+          />
         </ListItemButton>
-        <ListItemButton selected={tabActual === 2} onClick={() => onTabChange?.(2)}>
-          <ListItemIcon sx={{ color: '#fff' }}><HistoryIcon /></ListItemIcon>
-          <ListItemText primary="Mi Historial" />
+        <ListItemButton 
+          selected={tabActual === 2} 
+          onClick={() => onTabChange?.(2)}
+          sx={{
+            borderRadius: '10px',
+            mb: 0.5,
+            '&.Mui-selected': {
+              bgcolor: '#eff6ff',
+              '& .MuiListItemIcon-root': { color: '#3b82f6' },
+              '& .MuiListItemText-primary': { color: '#3b82f6', fontWeight: 600 }
+            },
+            '&:hover': {
+              bgcolor: '#f3f4f6'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ minWidth: 40, color: '#6b7280' }}><HistoryIcon /></ListItemIcon>
+          <ListItemText 
+            primary="Mi Historial" 
+            primaryTypographyProps={{ fontSize: '0.875rem' }}
+          />
         </ListItemButton>
       </List>
-      <Divider sx={{ my: 2, bgcolor: '#334155' }} />
-      <Box sx={{ mt: 2 }}>
-        <Typography variant="caption" color="#cbd5e1">Estado de Conexión</Typography>
-        <Chip icon={<FiberManualRecordIcon sx={{ color: '#22c55e' }} />} label="Conectado" size="small" sx={{ bgcolor: '#1e293b', color: '#22c55e', mt: 1 }} />
-      </Box>
       
+      {/* Logout Button */}
       <Box sx={{ mt: 'auto', pt: 3 }}>
         <Button
           fullWidth
@@ -69,7 +161,12 @@ const AsesorSidebar: React.FC<AsesorSidebarProps> = ({ tabActual = 0, onTabChang
           onClick={handleCerrarSesion}
           sx={{
             color: '#ef4444',
-            borderColor: '#ef4444',
+            borderColor: '#fee2e2',
+            bgcolor: '#fef2f2',
+            borderRadius: '10px',
+            py: 1,
+            textTransform: 'none',
+            fontWeight: 500,
             '&:hover': {
               bgcolor: '#ef4444',
               color: '#fff',

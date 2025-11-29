@@ -128,66 +128,122 @@ const GtrAsesoresTable: React.FC<GtrAsesoresTableProps> = ({ asesores, clients =
     <Box sx={{ width: '100%' }}>
       {/* Resumen de Asesores */}
   <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 3, mb: 3 }}>
-        <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: 3,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'all 0.3s',
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              transform: 'translateY(-4px)'
+            }
+          }}
+        >
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {asesores.filter(a => a.estado === 'Activo').length}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 600, mb: 1 }}>
                   Asesores Activos
                 </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#111827' }}>
+                  {asesores.filter(a => a.estado === 'Activo').length}
+                </Typography>
               </Box>
-              <CheckCircle sx={{ fontSize: 40, opacity: 0.8 }} />
+              <Box sx={{ bgcolor: '#a78bfa', p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircle sx={{ fontSize: 32, color: 'white' }} />
+              </Box>
             </Box>
           </CardContent>
         </Card>
         
-        <Card sx={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: 3,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'all 0.3s',
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              transform: 'translateY(-4px)'
+            }
+          }}
+        >
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {asesores.reduce((sum, a) => sum + a.ventasHoy, 0)}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 600, mb: 1 }}>
                   Ventas Hoy
                 </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#111827' }}>
+                  {asesores.reduce((sum, a) => sum + a.ventasHoy, 0)}
+                </Typography>
               </Box>
-              <TrendingUp sx={{ fontSize: 40, opacity: 0.8 }} />
+              <Box sx={{ bgcolor: '#fb7185', p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <TrendingUp sx={{ fontSize: 32, color: 'white' }} />
+              </Box>
             </Box>
           </CardContent>
         </Card>
         
-        <Card sx={{ background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', color: 'white' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: 3,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'all 0.3s',
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              transform: 'translateY(-4px)'
+            }
+          }}
+        >
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {asesores.reduce((sum, a) => sum + a.clientesAsignados, 0)}
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 600, mb: 1 }}>
                   Total Asignados
                 </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#111827' }}>
+                  {asesores.reduce((sum, a) => sum + a.clientesAsignados, 0)}
+                </Typography>
               </Box>
-              <Assignment sx={{ fontSize: 40, opacity: 0.8 }} />
+              <Box sx={{ bgcolor: '#22d3ee', p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Assignment sx={{ fontSize: 32, color: 'white' }} />
+              </Box>
             </Box>
           </CardContent>
         </Card>
         
-        <Card sx={{ background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', color: 'white' }}>
+        <Card 
+          sx={{ 
+            bgcolor: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: 3,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            transition: 'all 0.3s',
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              transform: 'translateY(-4px)'
+            }
+          }}
+        >
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box>
-                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {Math.round(asesores.reduce((sum, a) => sum + a.eficiencia, 0) / asesores.length)}%
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                <Typography variant="body2" sx={{ color: '#6b7280', fontWeight: 600, mb: 1 }}>
                   Eficiencia Promedio
                 </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 700, color: '#111827' }}>
+                  {Math.round(asesores.reduce((sum, a) => sum + a.eficiencia, 0) / asesores.length)}%
+                </Typography>
               </Box>
-              <TrendingUp sx={{ fontSize: 40, opacity: 0.8 }} />
+              <Box sx={{ bgcolor: '#fbbf24', p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <TrendingUp sx={{ fontSize: 32, color: 'white' }} />
+              </Box>
             </Box>
           </CardContent>
         </Card>

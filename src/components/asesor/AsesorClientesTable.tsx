@@ -65,6 +65,8 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
     es_duplicado?: boolean;
     cantidad_duplicados?: number;
     telefono_principal_id?: number | null;
+    // Campo contador de reasignaciones
+    contador_reasignaciones?: number;
   };
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
@@ -141,6 +143,8 @@ const AsesorClientesTable = forwardRef<AsesorClientesTableRef, AsesorClientesTab
             // Campos de estatus comercial del wizard
             estatus_comercial_categoria: cliente.estatus_comercial_categoria ?? null,
             estatus_comercial_subcategoria: cliente.estatus_comercial_subcategoria ?? null,
+            // Campo contador de reasignaciones
+            contador_reasignaciones: cliente.contador_reasignaciones ?? 0,
           };
           try {
             if (typeof agregarClienteRef.current === 'function') {

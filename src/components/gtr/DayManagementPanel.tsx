@@ -1,10 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, CircularProgress, Fade, Grow } from '@mui/material';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, CircularProgress, Fade } from '@mui/material';
 import { getBackendUrl } from '../../utils/getBackendUrl';
-import { AnimatedCard } from '../common/AnimatedCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { getSeguimientoStatus, formatSeguimientoText } from '../common/statusHelpers';
 import { colors, typography } from '../../theme/designTokens';
@@ -28,12 +24,10 @@ interface ClienteGestionado {
   fecha_registro?: string;
 }
 
-// Todas las categorías disponibles
+// Todas las categorías disponibles (sin "Seleccionar categoría" y "Preventa")
 const CATEGORIAS = [
-  'Seleccionar categoría',
   'Lista negra',
   'Preventa completa',
-  'Preventa',
   'Sin facilidades',
   'Retirado',
   'Rechazado',
@@ -41,6 +35,18 @@ const CATEGORIAS = [
   'Seguimiento',
   'Sin contacto'
 ];
+
+// Colores pasteles para cada categoría
+const CATEGORIA_COLORS: Record<string, { bg: string, border: string, text: string, hover: string }> = {
+  'Lista negra': { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', hover: '#fecaca' },
+  'Preventa completa': { bg: '#dcfce7', border: '#86efac', text: '#16a34a', hover: '#bbf7d0' },
+  'Sin facilidades': { bg: '#fef3c7', border: '#fcd34d', text: '#ca8a04', hover: '#fde68a' },
+  'Retirado': { bg: '#e0e7ff', border: '#a5b4fc', text: '#4f46e5', hover: '#c7d2fe' },
+  'Rechazado': { bg: '#ffe4e6', border: '#fda4af', text: '#e11d48', hover: '#fecdd3' },
+  'Agendado': { bg: '#ddd6fe', border: '#c4b5fd', text: '#7c3aed', hover: '#e9d5ff' },
+  'Seguimiento': { bg: '#dbeafe', border: '#93c5fd', text: '#2563eb', hover: '#bfdbfe' },
+  'Sin contacto': { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', hover: '#e5e7eb' }
+};
 
 const DayManagementPanel: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -96,15 +102,6 @@ const DayManagementPanel: React.FC = () => {
 
   // Calcular métricas
   const totalGestiones = clientesGestionadosHoy.length;
-  
-  // Clientes que van a Preventa (categorías: "Preventa" o "Preventa completa")
-  const clientesAPreventa = clientesGestionadosHoy.filter(c => 
-    c.estatus_comercial_categoria === 'Preventa' || 
-    c.estatus_comercial_categoria === 'Preventa completa'
-  ).length;
-  
-  // Clientes que se quedan en GTR (todos los que NO van a preventa)
-  const clientesEnGTR = totalGestiones - clientesAPreventa;
 
   // Contar por categoría
   const contarPorCategoria = (categoria: string): number => {
@@ -116,10 +113,11 @@ const DayManagementPanel: React.FC = () => {
     ? clientesGestionadosHoy 
     : clientesGestionadosHoy.filter(c => c.estatus_comercial_categoria === categoriaSeleccionada);
 
-  // Componente de botón de categoría
+  // Componente de botón de categoría con colores pasteles
   const CategoriaButton: React.FC<{ categoria: string }> = ({ categoria }) => {
     const count = contarPorCategoria(categoria);
     const isActive = categoriaSeleccionada === categoria;
+    const colors = CATEGORIA_COLORS[categoria] || { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', hover: '#e5e7eb' };
     
     return (
       <Paper 
@@ -127,25 +125,26 @@ const DayManagementPanel: React.FC = () => {
           p: 2, 
           textAlign: 'center',
           cursor: 'pointer',
-          border: isActive ? '2px solid #1976d2' : '1px solid #e0e0e0',
-          bgcolor: isActive ? '#e3f2fd' : 'white',
+          border: isActive ? `2px solid ${colors.border}` : `1px solid ${colors.border}`,
+          bgcolor: isActive ? colors.bg : '#ffffff',
           transition: 'all 0.2s',
+          boxShadow: isActive ? `0 4px 12px ${colors.border}40` : '0 1px 3px rgba(0,0,0,0.1)',
           '&:hover': {
-            bgcolor: isActive ? '#e3f2fd' : '#f5f5f5',
+            bgcolor: colors.hover,
             transform: 'translateY(-2px)',
-            boxShadow: 2
+            boxShadow: `0 4px 12px ${colors.border}60`
           }
         }}
         onClick={() => setCategoriaSeleccionada(categoria)}
       >
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+        <Typography variant="body2" sx={{ mb: 0.5, color: colors.text, fontWeight: 600, fontSize: '0.75rem' }}>
           {categoria}
         </Typography>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: isActive ? '#1976d2' : 'text.primary' }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: colors.text }}>
           {count}
         </Typography>
         {isActive && (
-          <Typography variant="caption" sx={{ color: '#1976d2', fontWeight: 600 }}>
+          <Typography variant="caption" sx={{ color: colors.text, fontWeight: 600 }}>
             ✓ Activo
           </Typography>
         )}
@@ -173,103 +172,24 @@ const DayManagementPanel: React.FC = () => {
         </Box>
       ) : (
         <>
-          {/* 3 Cards superiores mejoradas con animación */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 3, mb: 4 }}>
-            <Grow in timeout={400}>
-              <AnimatedCard delay={0} sx={{ 
-                p: 3, 
-                textAlign: 'center', 
-                background: `linear-gradient(135deg, ${colors.secondary[50]} 0%, ${colors.secondary[100]} 100%)`,
-                border: `1px solid ${colors.secondary[200]}`,
-              }}>
-                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                  <AssignmentTurnedInIcon sx={{ fontSize: 32, color: colors.secondary[600] }} />
-                </Box>
-                <Typography variant="caption" sx={{ 
-                  color: colors.secondary[700], 
-                  fontWeight: typography.fontWeight.semibold,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Gestiones hoy
-                </Typography>
-                <Typography variant="h2" sx={{ 
-                  fontWeight: typography.fontWeight.extrabold, 
-                  color: colors.secondary[700],
-                  mt: 1 
-                }}>
-                  {totalGestiones}
-                </Typography>
-              </AnimatedCard>
-            </Grow>
-
-            <Grow in timeout={400} style={{ transformOrigin: '0 0 0' }}>
-              <AnimatedCard delay={100} sx={{ 
-                p: 3, 
-                textAlign: 'center', 
-                background: `linear-gradient(135deg, ${colors.warning[50]} 0%, ${colors.warning[100]} 100%)`,
-                border: `1px solid ${colors.warning[200]}`,
-              }}>
-                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                  <TrendingUpIcon sx={{ fontSize: 32, color: colors.warning[600] }} />
-                </Box>
-                <Typography variant="caption" sx={{ 
-                  color: colors.warning[700], 
-                  fontWeight: typography.fontWeight.semibold,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Registrados en GTR
-                </Typography>
-                <Typography variant="h2" sx={{ 
-                  fontWeight: typography.fontWeight.extrabold, 
-                  color: colors.warning[700],
-                  mt: 1 
-                }}>
-                  {clientesEnGTR}
-                </Typography>
-              </AnimatedCard>
-            </Grow>
-
-            <Grow in timeout={400} style={{ transformOrigin: '0 0 0' }}>
-              <AnimatedCard delay={200} sx={{ 
-                p: 3, 
-                textAlign: 'center', 
-                background: `linear-gradient(135deg, ${colors.primary[50]} 0%, ${colors.primary[100]} 100%)`,
-                border: `1px solid ${colors.primary[200]}`,
-              }}>
-                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-                  <CheckCircleIcon sx={{ fontSize: 32, color: colors.primary[600] }} />
-                </Box>
-                <Typography variant="caption" sx={{ 
-                  color: colors.primary[700], 
-                  fontWeight: typography.fontWeight.semibold,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  A Preventa
-                </Typography>
-                <Typography variant="h2" sx={{ 
-                  fontWeight: typography.fontWeight.extrabold, 
-                  color: colors.primary[700],
-                  mt: 1 
-                }}>
-                  {clientesAPreventa}
-                </Typography>
-              </AnimatedCard>
-            </Grow>
-          </Box>
-
           {/* LEADS DEL DÍA x ASESOR */}
-          <AnimatedCard delay={300} sx={{ mb: 4 }}>
+          <Box sx={{ 
+            bgcolor: 'white', 
+            borderRadius: 3, 
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #e5e7eb',
+            overflow: 'hidden',
+            mb: 4
+          }}>
             <Box sx={{ 
-              p: 3, 
-              borderBottom: `1px solid ${colors.neutral[200]}`,
-              background: `linear-gradient(to right, ${colors.primary[500]}, ${colors.primary[600]})`
+              p: 2.5, 
+              borderBottom: '1px solid #e5e7eb',
+              bgcolor: '#f9fafb'
             }}>
               <Typography variant="h6" sx={{ 
-                fontWeight: typography.fontWeight.bold,
-                color: 'white'
+                fontWeight: 700,
+                color: '#111827',
+                fontSize: '1.125rem'
               }}>
                 LEADS DEL DÍA x ASESOR
               </Typography>
@@ -277,31 +197,31 @@ const DayManagementPanel: React.FC = () => {
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: colors.primary[50] }}>
+                  <TableRow sx={{ backgroundColor: '#f9fafb' }}>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.primary[700],
-                      borderBottom: `2px solid ${colors.primary[200]}`,
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
                       py: 2,
-                      fontSize: typography.fontSize.base
+                      fontSize: '0.875rem'
                     }}>
                       ASESOR
                     </TableCell>
                     <TableCell align="center" sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.primary[700],
-                      borderBottom: `2px solid ${colors.primary[200]}`,
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
                       py: 2,
-                      fontSize: typography.fontSize.base
+                      fontSize: '0.875rem'
                     }}>
                       TOTAL
                     </TableCell>
                     <TableCell align="center" sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.primary[700],
-                      borderBottom: `2px solid ${colors.primary[200]}`,
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
                       py: 2,
-                      fontSize: typography.fontSize.base
+                      fontSize: '0.875rem'
                     }}>
                       PREVENTAS
                     </TableCell>
@@ -341,38 +261,38 @@ const DayManagementPanel: React.FC = () => {
                       );
                     }
 
-                    return asesorArray.map((asesor, index) => (
+                    return asesorArray.map((asesor) => (
                       <TableRow 
                         key={asesor.nombre}
                         sx={{
                           '&:hover': { 
-                            backgroundColor: colors.primary[50],
+                            backgroundColor: '#f9fafb',
                             transition: 'background-color 0.2s ease'
                           },
-                          backgroundColor: index % 2 === 0 ? 'white' : colors.neutral[50]
+                          borderBottom: '1px solid #e5e7eb'
                         }}
                       >
                         <TableCell sx={{ 
-                          py: 2.5,
-                          fontWeight: typography.fontWeight.semibold,
-                          color: colors.text.primary,
-                          fontSize: typography.fontSize.sm
+                          py: 2,
+                          fontWeight: 600,
+                          color: '#111827',
+                          fontSize: '0.875rem'
                         }}>
                           {asesor.nombre}
                         </TableCell>
                         <TableCell align="center" sx={{ 
-                          py: 2.5,
-                          fontWeight: typography.fontWeight.bold,
-                          color: colors.secondary[600],
-                          fontSize: typography.fontSize.lg
+                          py: 2,
+                          fontWeight: 700,
+                          color: '#3b82f6',
+                          fontSize: '1.125rem'
                         }}>
                           {asesor.total}
                         </TableCell>
                         <TableCell align="center" sx={{ 
-                          py: 2.5,
-                          fontWeight: typography.fontWeight.bold,
-                          color: asesor.preventas > 0 ? colors.primary[600] : colors.text.disabled,
-                          fontSize: typography.fontSize.lg
+                          py: 2,
+                          fontWeight: 700,
+                          color: asesor.preventas > 0 ? '#10b981' : '#9ca3af',
+                          fontSize: '1.125rem'
                         }}>
                           {asesor.preventas}
                         </TableCell>
@@ -382,18 +302,26 @@ const DayManagementPanel: React.FC = () => {
                 </TableBody>
               </Table>
             </Box>
-          </AnimatedCard>
+          </Box>
 
           {/* GESTIÓN x CAMPAÑA */}
-          <AnimatedCard delay={350} sx={{ mb: 4 }}>
+          <Box sx={{ 
+            bgcolor: 'white', 
+            borderRadius: 3, 
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #e5e7eb',
+            overflow: 'hidden',
+            mb: 4
+          }}>
             <Box sx={{ 
-              p: 3, 
-              borderBottom: `1px solid ${colors.neutral[200]}`,
-              background: `linear-gradient(to right, ${colors.secondary[600]}, ${colors.secondary[700]})`
+              p: 2.5, 
+              borderBottom: '1px solid #e5e7eb',
+              bgcolor: '#f9fafb'
             }}>
               <Typography variant="h6" sx={{ 
-                fontWeight: typography.fontWeight.bold,
-                color: 'white'
+                fontWeight: 700,
+                color: '#111827',
+                fontSize: '1.125rem'
               }}>
                 GESTIÓN x CAMPAÑA
               </Typography>
@@ -465,21 +393,23 @@ const DayManagementPanel: React.FC = () => {
                 return (
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: colors.secondary[50] }}>
+                      <TableRow sx={{ backgroundColor: '#f9fafb' }}>
                         <TableCell sx={{ 
-                          fontWeight: typography.fontWeight.bold,
-                          color: colors.secondary[800],
-                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          fontWeight: 700,
+                          color: '#374151',
+                          borderBottom: '1px solid #e5e7eb',
                           py: 2,
-                          minWidth: 200
+                          minWidth: 200,
+                          fontSize: '0.875rem'
                         }}>
                           TIPIFICACIÓN
                         </TableCell>
                         <TableCell align="center" sx={{ 
-                          fontWeight: typography.fontWeight.bold,
-                          color: colors.secondary[800],
-                          borderBottom: `2px solid ${colors.secondary[200]}`,
-                          py: 2
+                          fontWeight: 700,
+                          color: '#374151',
+                          borderBottom: '1px solid #e5e7eb',
+                          py: 2,
+                          fontSize: '0.875rem'
                         }}>
                           TOTAL
                         </TableCell>
@@ -489,24 +419,25 @@ const DayManagementPanel: React.FC = () => {
                             colSpan={2}
                             align="center"
                             sx={{ 
-                              fontWeight: typography.fontWeight.bold,
-                              color: colors.secondary[800],
-                              borderBottom: `2px solid ${colors.secondary[200]}`,
+                              fontWeight: 700,
+                              color: '#374151',
+                              borderBottom: '1px solid #e5e7eb',
                               py: 2,
-                              borderLeft: `1px solid ${colors.neutral[300]}`
+                              borderLeft: '1px solid #e5e7eb',
+                              fontSize: '0.875rem'
                             }}
                           >
                             {campana.toUpperCase()}
                           </TableCell>
                         ))}
                       </TableRow>
-                      <TableRow sx={{ backgroundColor: colors.secondary[100] }}>
+                      <TableRow sx={{ backgroundColor: '#f3f4f6' }}>
                         <TableCell sx={{ 
-                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          borderBottom: '1px solid #e5e7eb',
                           py: 1
                         }}></TableCell>
                         <TableCell sx={{ 
-                          borderBottom: `2px solid ${colors.secondary[200]}`,
+                          borderBottom: '1px solid #e5e7eb',
                           py: 1
                         }}></TableCell>
                         {campanas.map(campana => (
@@ -515,11 +446,11 @@ const DayManagementPanel: React.FC = () => {
                               key={`${campana}-count`}
                               align="center"
                               sx={{ 
-                                fontWeight: typography.fontWeight.semibold,
-                                fontSize: typography.fontSize.xs,
-                                color: colors.secondary[700],
-                                borderBottom: `2px solid ${colors.secondary[200]}`,
-                                borderLeft: `1px solid ${colors.neutral[300]}`,
+                                fontWeight: 600,
+                                fontSize: '0.75rem',
+                                color: '#6b7280',
+                                borderBottom: '1px solid #e5e7eb',
+                                borderLeft: '1px solid #e5e7eb',
                                 py: 1
                               }}
                             >
@@ -529,10 +460,10 @@ const DayManagementPanel: React.FC = () => {
                               key={`${campana}-pct`}
                               align="center"
                               sx={{ 
-                                fontWeight: typography.fontWeight.semibold,
-                                fontSize: typography.fontSize.xs,
-                                color: colors.secondary[700],
-                                borderBottom: `2px solid ${colors.secondary[200]}`,
+                                fontWeight: 600,
+                                fontSize: '0.75rem',
+                                color: '#6b7280',
+                                borderBottom: '1px solid #e5e7eb',
                                 py: 1
                               }}
                             >
@@ -543,18 +474,18 @@ const DayManagementPanel: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {datosPorCategoria.map((dato, index) => (
+                      {datosPorCategoria.map((dato) => (
                         <TableRow 
                           key={dato.categoria}
                           sx={{
-                            backgroundColor: index % 2 === 0 ? 'white' : colors.neutral[50],
-                            '&:hover': { backgroundColor: colors.neutral[100] }
+                            '&:hover': { backgroundColor: '#f9fafb' },
+                            borderBottom: '1px solid #e5e7eb'
                           }}
                         >
                           <TableCell sx={{ 
                             py: 2,
-                            fontWeight: typography.fontWeight.semibold,
-                            fontSize: typography.fontSize.sm,
+                            fontWeight: 600,
+                            fontSize: '0.875rem',
                             backgroundColor: getCategoriaColor(dato.categoria),
                             color: getCategoriaTextColor(dato.categoria)
                           }}>
@@ -562,9 +493,9 @@ const DayManagementPanel: React.FC = () => {
                           </TableCell>
                           <TableCell align="center" sx={{ 
                             py: 2,
-                            fontWeight: typography.fontWeight.bold,
-                            fontSize: typography.fontSize.base,
-                            color: colors.text.primary
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            color: '#111827'
                           }}>
                             {dato.totalCategoria}
                           </TableCell>
@@ -577,10 +508,10 @@ const DayManagementPanel: React.FC = () => {
                                   align="center"
                                   sx={{ 
                                     py: 2,
-                                    fontWeight: typography.fontWeight.semibold,
-                                    fontSize: typography.fontSize.sm,
-                                    borderLeft: `1px solid ${colors.neutral[300]}`,
-                                    color: data.count > 0 ? colors.text.primary : colors.text.disabled
+                                    fontWeight: 600,
+                                    fontSize: '0.875rem',
+                                    borderLeft: '1px solid #e5e7eb',
+                                    color: data.count > 0 ? '#111827' : '#9ca3af'
                                   }}
                                 >
                                   {data.count}
@@ -590,9 +521,9 @@ const DayManagementPanel: React.FC = () => {
                                   align="center"
                                   sx={{ 
                                     py: 2,
-                                    fontWeight: typography.fontWeight.bold,
-                                    fontSize: typography.fontSize.sm,
-                                    color: parseFloat(data.porcentaje) > 0 ? colors.primary[600] : colors.text.disabled
+                                    fontWeight: 700,
+                                    fontSize: '0.875rem',
+                                    color: parseFloat(data.porcentaje) > 0 ? '#3b82f6' : '#9ca3af'
                                   }}
                                 >
                                   {data.porcentaje}%
@@ -607,11 +538,11 @@ const DayManagementPanel: React.FC = () => {
                 );
               })()}
             </Box>
-          </AnimatedCard>
+          </Box>
 
           {/* Desglose por Categoría Comercial */}
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 700, color: '#111827', fontSize: '1.125rem' }}>
               Desglose por Categoría Comercial (Click para filtrar)
             </Typography>
             
@@ -653,15 +584,22 @@ const DayManagementPanel: React.FC = () => {
           </Box>
 
           {/* Tabla de Clientes Gestionados Filtrados */}
-          <AnimatedCard delay={300} sx={{ overflow: 'hidden' }}>
+          <Box sx={{ 
+            bgcolor: 'white', 
+            borderRadius: 3, 
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #e5e7eb',
+            overflow: 'hidden'
+          }}>
             <Box sx={{ 
-              p: 3, 
-              borderBottom: `1px solid ${colors.neutral[200]}`,
-              background: `linear-gradient(to right, ${colors.background.paper}, ${colors.neutral[50]})`
+              p: 2.5, 
+              borderBottom: '1px solid #e5e7eb',
+              bgcolor: '#f9fafb'
             }}>
               <Typography variant="h6" sx={{ 
-                fontWeight: typography.fontWeight.bold,
-                color: colors.text.primary
+                fontWeight: 700,
+                color: '#111827',
+                fontSize: '1.125rem'
               }}>
                 Clientes Gestionados - {categoriaSeleccionada} ({clientesFiltrados.length})
               </Typography>
@@ -669,54 +607,62 @@ const DayManagementPanel: React.FC = () => {
             <Box sx={{ overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: colors.neutral[50] }}>
+                  <TableRow sx={{ backgroundColor: '#f9fafb' }}>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Lead</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Campaña</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Canal</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Sala</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Categoría</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Subcategoría</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Asesor</TableCell>
                     <TableCell sx={{ 
-                      fontWeight: typography.fontWeight.bold, 
-                      color: colors.text.primary,
-                      borderBottom: `2px solid ${colors.neutral[300]}`,
-                      py: 2
+                      fontWeight: 700, 
+                      color: '#374151',
+                      borderBottom: '1px solid #e5e7eb',
+                      py: 2,
+                      fontSize: '0.875rem'
                     }}>Seguimiento</TableCell>
                   </TableRow>
                 </TableHead>
@@ -730,44 +676,40 @@ const DayManagementPanel: React.FC = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    clientesFiltrados.map((cliente, index) => (
+                    clientesFiltrados.map((cliente) => (
                       <TableRow 
                         key={cliente.id} 
                         sx={{
                           '&:hover': { 
-                            backgroundColor: colors.neutral[50],
+                            backgroundColor: '#f9fafb',
                             transition: 'background-color 0.2s ease'
                           },
-                          animation: `fadeIn 0.3s ease ${index * 50}ms both`,
-                          '@keyframes fadeIn': {
-                            from: { opacity: 0, transform: 'translateX(-10px)' },
-                            to: { opacity: 1, transform: 'translateX(0)' }
-                          }
+                          borderBottom: '1px solid #e5e7eb'
                         }}
                       >
                         <TableCell sx={{ py: 2 }}>
                           <Typography sx={{ 
-                            fontWeight: typography.fontWeight.semibold, 
-                            color: colors.primary[600],
-                            fontSize: typography.fontSize.sm
+                            fontWeight: 600, 
+                            color: '#3b82f6',
+                            fontSize: '0.875rem'
                           }}>
                             {cliente.leads_original_telefono || cliente.telefono || 'Sin teléfono'}
                           </Typography>
                         </TableCell>
-                        <TableCell sx={{ py: 2, color: colors.text.secondary }}>{cliente.campana || '-'}</TableCell>
-                        <TableCell sx={{ py: 2, color: colors.text.secondary }}>{cliente.canal || '-'}</TableCell>
-                        <TableCell sx={{ py: 2, color: colors.text.secondary }}>{cliente.sala_asignada || '-'}</TableCell>
+                        <TableCell sx={{ py: 2, color: '#6b7280', fontSize: '0.875rem' }}>{cliente.campana || '-'}</TableCell>
+                        <TableCell sx={{ py: 2, color: '#6b7280', fontSize: '0.875rem' }}>{cliente.canal || '-'}</TableCell>
+                        <TableCell sx={{ py: 2, color: '#6b7280', fontSize: '0.875rem' }}>{cliente.sala_asignada || '-'}</TableCell>
                         <TableCell sx={{ py: 2 }}>
                           {cliente.estatus_comercial_categoria ? (
                             <Typography sx={{ 
-                              fontWeight: typography.fontWeight.semibold, 
-                              fontSize: typography.fontSize.sm,
-                              color: colors.text.primary
+                              fontWeight: 600, 
+                              fontSize: '0.875rem',
+                              color: '#111827'
                             }}>
                               {cliente.estatus_comercial_categoria}
                             </Typography>
                           ) : (
-                            <Typography sx={{ color: colors.text.disabled, fontStyle: 'italic', fontSize: typography.fontSize.sm }}>
+                            <Typography sx={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '0.875rem' }}>
                               Sin categoría
                             </Typography>
                           )}
@@ -775,17 +717,17 @@ const DayManagementPanel: React.FC = () => {
                         <TableCell sx={{ py: 2 }}>
                           {cliente.estatus_comercial_subcategoria ? (
                             <Typography sx={{ 
-                              fontSize: typography.fontSize.sm, 
-                              color: colors.text.secondary,
-                              fontWeight: typography.fontWeight.medium
+                              fontSize: '0.875rem', 
+                              color: '#6b7280',
+                              fontWeight: 500
                             }}>
                               {cliente.estatus_comercial_subcategoria}
                             </Typography>
                           ) : (
-                            <Typography sx={{ color: colors.text.disabled }}>-</Typography>
+                            <Typography sx={{ color: '#9ca3af' }}>-</Typography>
                           )}
                         </TableCell>
-                        <TableCell sx={{ py: 2, color: colors.text.secondary }}>{cliente.asesor_nombre || 'Disponible'}</TableCell>
+                        <TableCell sx={{ py: 2, color: '#6b7280', fontSize: '0.875rem' }}>{cliente.asesor_nombre || 'Disponible'}</TableCell>
                         <TableCell sx={{ py: 2 }}>
                           <StatusBadge
                             status={getSeguimientoStatus(cliente.seguimiento_status || 'gestionado')}
@@ -799,7 +741,7 @@ const DayManagementPanel: React.FC = () => {
                 </TableBody>
               </Table>
             </Box>
-          </AnimatedCard>
+          </Box>
         </>
       )}
     </Box>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Typography, CircularProgress, Alert, Button, Fab, Pagination } from '@mui/material';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import AddIcon from '@mui/icons-material/Add';
+import AddIcon from '@mui/icons-material/Add';  
 import GtrSidebar from '../components/gtr/GtrSidebar';
 import { useSocket } from '../hooks/useSocket';
 
@@ -27,6 +27,7 @@ interface AsesorAPI {
   comision_porcentaje: string;
   clientes_gestionados_hoy?: number; // Estadística del día (nombre en backend)
   clientes_reasignados_hoy?: number; // Estadística del día
+  clientes_atendidos_hoy?: number; // Clientes atendidos en el día
 }
 
 interface ClienteAPI {
@@ -72,12 +73,20 @@ interface ClienteAPI {
   // Campos de estatus comercial (del wizard)
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  fecha_wizard_completado?: string | null;
   // Campo de estado calculado por el backend
   estado?: string | null;
   // Campos del sistema de duplicados
   es_duplicado?: boolean;
   cantidad_duplicados?: number;
   telefono_principal_id?: number | null;
+  // Campo del contador de reasignaciones
+  contador_reasignaciones?: number;
+  // Campo multiplicador del día (cuántas veces apareció este teléfono hoy)
+  multiplicador_dia?: number;
+  // Campos adicionales para estadísticas diarias
+  fechaCreacion?: string;
+  fecha_gestion?: string;
 }
 
 const GtrDashboard: React.FC = () => {
@@ -123,6 +132,13 @@ const GtrDashboard: React.FC = () => {
   // const [validadores, setValidadores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Estado para las estadísticas del día (cards superiores)
+  const [statsDelDia, setStatsDelDia] = useState({
+    ingresadosHoy: 0,
+    gestionadosHoy: 0,
+    preventaHoy: 0
+  });
   
   // Estados para paginación local (de clientes filtrados)
   const [localPage, setLocalPage] = useState(1);
@@ -299,6 +315,48 @@ const GtrDashboard: React.FC = () => {
     fetchAsesores();
   }, [fetchAsesores]);
 
+  // Cargar estadísticas del día para los cards superiores
+  useEffect(() => {
+    const fetchStatsDelDia = async () => {
+      try {
+        // Obtener gestiones del día desde el mismo endpoint que usa DayManagementPanel
+        const response = await fetch('/api/clientes/gestionados-hoy');
+        const data = await response.json();
+        
+        if (data.success && data.clientes) {
+          const hoy = new Date().toISOString().split('T')[0];
+          
+          // Gestionados Hoy: todos los que tienen wizard_completado hoy
+          const gestionadosHoy = data.clientes.length;
+          
+          // Ingresados Hoy: filtrar por created_at de hoy desde clients
+          const ingresadosHoy = clients.filter((c: Cliente) => {
+            const fechaCreacion = c.created_at?.split('T')[0];
+            return fechaCreacion === hoy;
+          }).length;
+          
+          // Preventa Hoy: los que tienen categoría 'Preventa completa' y fecha wizard hoy
+          const preventaHoy = data.clientes.filter((c: ClienteAPI) => {
+            return c.estatus_comercial_categoria?.toLowerCase() === 'preventa completa';
+          }).length;
+          
+          setStatsDelDia({
+            ingresadosHoy,
+            gestionadosHoy,
+            preventaHoy
+          });
+        }
+      } catch (error) {
+        console.error('Error cargando estadísticas del día:', error);
+      }
+    };
+
+    fetchStatsDelDia();
+    // Recargar cada 30 segundos para mantener actualizado
+    const interval = setInterval(fetchStatsDelDia, 30000);
+    return () => clearInterval(interval);
+  }, [clients]);
+
   // Cargar clientes desde la API
   useEffect(() => {
     const fetchClientes = async () => {
@@ -371,7 +429,11 @@ const GtrDashboard: React.FC = () => {
             // ✅ DUPLICADOS: Mapear campos del sistema de duplicados
             es_duplicado: cliente.es_duplicado || false,
             cantidad_duplicados: cliente.cantidad_duplicados || 1,
-            telefono_principal_id: cliente.telefono_principal_id || null
+            telefono_principal_id: cliente.telefono_principal_id || null,
+            // ✅ REASIGNACIONES: Mapear contador de reasignaciones
+            contador_reasignaciones: cliente.contador_reasignaciones || 0,
+            // ✅ MULTIPLICADOR: Mapear cuántas veces apareció este teléfono hoy
+            multiplicador_dia: cliente.multiplicador_dia || 1
           }));
           
           setClients(clientesFormateados);
@@ -804,7 +866,7 @@ const GtrDashboard: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f8fafc' }}>
       <GtrSidebar
         onSelect={setSection}
         selected={section}
@@ -812,30 +874,25 @@ const GtrDashboard: React.FC = () => {
       
       <Box sx={{ 
         flex: 1, 
-        p: { xs: 2, sm: 3 }, 
-        marginLeft: { xs: 0, md: '220px' }, // Responsivo para móviles
+        marginLeft: { xs: 0, md: '240px' },
         minHeight: '100vh',
-        width: { xs: '100%', md: 'calc(100% - 220px)' },
+        width: { xs: '100%', md: 'calc(100% - 240px)' },
+        transition: 'margin-left 0.3s ease',
         boxSizing: 'border-box'
       }}>
         {/* Header móvil */}
         <Box sx={{ 
           display: { xs: 'block', md: 'none' }, 
-          mb: 2
+          bgcolor: 'white',
+          borderBottom: '1px solid #e5e7eb',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          p: 2
         }}>
-          <Box sx={{ 
-            p: 2,
-            bgcolor: '#1e293b',
-            color: 'white',
-            borderRadius: 2,
-            mx: -2,
-            mt: -2,
-            mb: 2
-          }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              GTR Panel - {section}
-            </Typography>
-          </Box>
+          <Typography variant="h6" sx={{ fontWeight: 600, color: '#111827', mb: 2 }}>
+            {section}
+          </Typography>
           
           {/* Navegación móvil */}
           <Box sx={{ 
@@ -843,9 +900,13 @@ const GtrDashboard: React.FC = () => {
             gap: 1, 
             overflowX: 'auto',
             pb: 1,
-            '&::-webkit-scrollbar': { display: 'none' }
+            '&::-webkit-scrollbar': { height: '4px' },
+            '&::-webkit-scrollbar-thumb': { 
+              bgcolor: '#cbd5e1',
+              borderRadius: '4px'
+            }
           }}>
-            {['Clientes', 'Asesores', 'Gestión del día', 'Reportes', 'Configuración'].map((item) => (
+            {['Dashboard', 'Clientes', 'Asesores', 'Gestión del día', 'Reportes'].map((item) => (
               <Button
                 key={item}
                 variant={section === item ? 'contained' : 'outlined'}
@@ -854,13 +915,21 @@ const GtrDashboard: React.FC = () => {
                 sx={{
                   minWidth: 'auto',
                   whiteSpace: 'nowrap',
-                  px: 2,
+                  px: 2.5,
                   py: 1,
-                  backgroundColor: section === item ? '#3b82f6' : 'transparent',
-                  borderColor: '#3b82f6',
-                  color: section === item ? 'white' : '#3b82f6',
+                  borderRadius: '8px',
+                  backgroundColor: section === item ? '#3b82f6' : 'white',
+                  borderColor: section === item ? '#3b82f6' : '#e5e7eb',
+                  color: section === item ? 'white' : '#6b7280',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  transition: 'all 0.2s',
                   '&:hover': {
-                    backgroundColor: section === item ? '#2563eb' : '#f3f4f6',
+                    backgroundColor: section === item ? '#2563eb' : '#f9fafb',
+                    borderColor: section === item ? '#2563eb' : '#d1d5db',
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                   }
                 }}
               >
@@ -870,73 +939,166 @@ const GtrDashboard: React.FC = () => {
           </Box>
         </Box>
 
-        <Typography variant="h4" sx={{ 
-          mb: 3, 
-          fontWeight: 600,
-          fontSize: { xs: '1.75rem', md: '2.125rem' },
-          color: '#1f2937',
-          display: { xs: 'none', md: 'block' }
-        }}>
-          Panel GTR
-        </Typography>
-        
-        {/* Estadísticas básicas */}
+        {/* Contenedor principal con padding responsivo */}
         <Box sx={{ 
-          display: 'grid', 
-          gridTemplateColumns: { 
-            xs: 'repeat(1, 1fr)', 
-            sm: 'repeat(2, 1fr)', 
-            md: 'repeat(3, 1fr)' 
-          }, 
-          gap: 2, 
-          mb: 3 
+          p: { xs: 2, sm: 3, md: 4 },
+          maxWidth: '1600px',
+          mx: 'auto',
+          animation: 'fadeIn 0.3s ease-in',
+          '@keyframes fadeIn': {
+            from: { opacity: 0, transform: 'translateY(10px)' },
+            to: { opacity: 1, transform: 'translateY(0)' }
+          }
         }}>
+          {/* Header del panel */}
           <Box sx={{ 
-            bgcolor: 'white', 
-            p: 3, 
-            borderRadius: 2, 
-            boxShadow: 2,
-            textAlign: 'center',
-            border: '1px solid #e3f2fd'
+            mb: 4,
+            display: { xs: 'none', md: 'block' }
           }}>
-            <Typography variant="h4" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>
-              {asesores.length}
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700,
+              fontSize: { xs: '1.5rem', md: '1.875rem' },
+              color: '#111827',
+              mb: 1
+            }}>
+              Gestión de Clientes
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Total Asesores
+            <Typography variant="body2" sx={{ 
+              color: '#6b7280',
+              fontSize: '0.875rem'
+            }}>
+              Administra y visualiza todos los clientes registrados
             </Typography>
           </Box>
+        
+          {/* 📊 Estadísticas del día */}
           <Box sx={{ 
-            bgcolor: 'white', 
-            p: 3, 
-            borderRadius: 2, 
-            boxShadow: 2,
-            textAlign: 'center',
-            border: '1px solid #e8f5e8'
+            display: 'grid', 
+            gridTemplateColumns: { 
+              xs: 'repeat(1, 1fr)', 
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)'
+            }, 
+            gap: { xs: 2, sm: 2.5, md: 3 }, 
+            mb: 4 
           }}>
-            <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold', mb: 1 }}>
-              {clients.length}
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Total Clientes
-            </Typography>
+            {/* Ingresados Hoy */}
+            <Box sx={{ 
+              bgcolor: 'white', 
+              p: { xs: 2, md: 2.5 }, 
+              borderRadius: 3, 
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              border: '1px solid #e5e7eb',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transform: 'translateY(-4px)'
+              }
+            }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 500, mb: 1 }}>
+                    Ingresados Hoy
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#111827', mb: 0.5, fontSize: '2rem' }}>
+                    {statsDelDia.ingresadosHoy}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600, fontSize: '0.75rem' }}>
+                    Nuevos leads del día
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  bgcolor: '#3b82f6', 
+                  borderRadius: 2, 
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Box component="span" sx={{ fontSize: '1.5rem' }}>📥</Box>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Gestionados Hoy */}
+            <Box sx={{ 
+              bgcolor: 'white', 
+              p: { xs: 2, md: 2.5 }, 
+              borderRadius: 3, 
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              border: '1px solid #e5e7eb',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transform: 'translateY(-4px)'
+              }
+            }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 500, mb: 1 }}>
+                    Gestionados Hoy
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#111827', mb: 0.5, fontSize: '2rem' }}>
+                    {statsDelDia.gestionadosHoy}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#10b981', fontWeight: 600, fontSize: '0.75rem' }}>
+                    Leads atendidos hoy
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  bgcolor: '#3b82f6', 
+                  borderRadius: 2, 
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Box component="span" sx={{ fontSize: '1.5rem' }}>✓</Box>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* A Preventa */}
+            <Box sx={{ 
+              bgcolor: 'white', 
+              p: { xs: 2, md: 2.5 }, 
+              borderRadius: 3, 
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              border: '1px solid #e5e7eb',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                transform: 'translateY(-4px)'
+              }
+            }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 500, mb: 1 }}>
+                    A Preventa
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#111827', mb: 0.5, fontSize: '2rem' }}>
+                    {statsDelDia.preventaHoy}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: '#f59e0b', fontWeight: 600, fontSize: '0.75rem' }}>
+                    Preventa completa
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  bgcolor: '#f59e0b', 
+                  borderRadius: 2, 
+                  width: 48,
+                  height: 48,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Box component="span" sx={{ fontSize: '1.5rem' }}>🎯</Box>
+                </Box>
+              </Box>
+            </Box>
           </Box>
-          <Box sx={{ 
-            bgcolor: 'white', 
-            p: 3, 
-            borderRadius: 2, 
-            boxShadow: 2,
-            textAlign: 'center',
-            border: '1px solid #fff3e0'
-          }}>
-            <Typography variant="h4" color="warning.main" sx={{ fontWeight: 'bold', mb: 1 }}>
-              {clients.filter(c => c.estado === 'nuevo').length}
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-              Clientes Nuevos
-            </Typography>
-          </Box>
-        </Box>
         
         {section === 'Clientes' && (
           <>
@@ -981,7 +1143,7 @@ const GtrDashboard: React.FC = () => {
               <Pagination 
                 count={totalPages}
                 page={localPage}
-                onChange={(_event, page) => setLocalPage(page)}
+                onChange={(_event: React.ChangeEvent<unknown>, page: number) => setLocalPage(page)}
                 color="primary"
                 size="large"
                 showFirstButton
@@ -1005,11 +1167,11 @@ const GtrDashboard: React.FC = () => {
 
           {section === 'Asesores' && (
           <GtrAsesoresTable 
-            asesores={asesores.map(asesor => ({
+            asesores={asesores.map((asesor: AsesorAPI) => ({
               id: asesor.asesor_id || asesor.usuario_id || 0,
               nombre: asesor.nombre || 'Sin nombre',
               email: asesor.email || '',
-              telefono: asesor.telefono || '',
+              telefono: String(asesor.telefono || ''),
               estado: (asesor.estado || 'Offline') as 'Activo' | 'Ocupado' | 'Descanso' | 'Offline',
               clientesAsignados: asesor.clientes_asignados || 0,
               clientesAtendidos: asesor.clientes_atendidos_hoy || 0,
@@ -1029,7 +1191,7 @@ const GtrDashboard: React.FC = () => {
       <AddClientDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onSave={async (data) => {
+        onSave={async (data: any) => {
           try {
             console.log('Guardando nuevo lead:', data);
             
@@ -1073,7 +1235,7 @@ const GtrDashboard: React.FC = () => {
               console.log('✅ Cliente creado exitosamente:', result.cliente);
               
               // Agregar el nuevo cliente al estado local
-              setClients(prevClients => [result.cliente, ...prevClients]);
+              setClients((prevClients: Cliente[]) => [result.cliente, ...prevClients]);
               
               // Cerrar el diálogo
               setDialogOpen(false);
@@ -1131,6 +1293,7 @@ const GtrDashboard: React.FC = () => {
         availableSalas={uniqueSalas}
         availableCompanias={uniqueCompanias}
       />
+      </Box>
     </Box>
   );
 };

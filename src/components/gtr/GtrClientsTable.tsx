@@ -720,46 +720,46 @@ const GtrClientsTable: React.FC<GtrClientsTableProps> = ({ statusFilter, newClie
                   )}
                 </TableCell>
                 <TableCell sx={{ textAlign: 'center' }}>
-                  {/* Columna Reasignaciones: mostrar contador con colores según la cantidad */}
+                  {/* Columna Multiplicador: mostrar cuántas veces apareció este teléfono hoy */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Chip
-                      label={client.contador_reasignaciones || 0}
+                      label={client.multiplicador_dia || 1}
                       size="small"
                       sx={{
                         fontWeight: 700,
                         fontSize: '0.75rem',
                         minWidth: '40px',
                         color: (() => {
-                          const count = client.contador_reasignaciones || 0;
+                          const count = client.multiplicador_dia || 1;
                           if (count >= 5) return '#ffffff';
                           if (count >= 3) return '#dc2626';
-                          if (count >= 1) return '#d97706';
+                          if (count >= 2) return '#d97706';
                           return '#374151';
                         })(),
                         background: (() => {
-                          const count = client.contador_reasignaciones || 0;
+                          const count = client.multiplicador_dia || 1;
                           if (count >= 5) return '#dc2626'; // Rojo intenso para 5+
                           if (count >= 3) return '#fee2e2'; // Rojo suave para 3-4
-                          if (count >= 1) return '#fef3c7'; // Amarillo para 1-2
-                          return '#f3f4f6'; // Gris para 0
+                          if (count >= 2) return '#fef3c7'; // Amarillo para 2+
+                          return '#f3f4f6'; // Gris para 1
                         })(),
                         borderRadius: 1,
                         border: (() => {
-                          const count = client.contador_reasignaciones || 0;
+                          const count = client.multiplicador_dia || 1;
                           if (count >= 5) return '2px solid #dc2626';
                           if (count >= 3) return '1px solid #f87171';
-                          if (count >= 1) return '1px solid #fbbf24';
+                          if (count >= 2) return '1px solid #fbbf24';
                           return '1px solid #d1d5db';
                         })()
                       }}
                       icon={
                         <span style={{ fontSize: '0.7rem' }}>
-                          {(client.contador_reasignaciones || 0) >= 5 ? '🚨' : 
-                           (client.contador_reasignaciones || 0) >= 3 ? '⚠️' : 
-                           (client.contador_reasignaciones || 0) >= 1 ? '🔄' : '📝'}
+                          {(client.multiplicador_dia || 1) >= 5 ? '🚨' : 
+                           (client.multiplicador_dia || 1) >= 3 ? '⚠️' : 
+                           (client.multiplicador_dia || 1) >= 2 ? '🔄' : '📝'}
                         </span>
                       }
-                      title={`Cliente reasignado ${client.contador_reasignaciones || 0} ${(client.contador_reasignaciones || 0) === 1 ? 'vez' : 'veces'}`}
+                      title={`Teléfono repetido ${client.multiplicador_dia || 1} ${(client.multiplicador_dia || 1) === 1 ? 'vez' : 'veces'} hoy`}
                     />
                   </div>
                 </TableCell>

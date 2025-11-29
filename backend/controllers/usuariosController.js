@@ -107,7 +107,7 @@ const login = async (req, res) => {
         brand_name: user.brand_name
       },
       JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     res.json({

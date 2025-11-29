@@ -32,7 +32,7 @@ const config = {
   // Configuración de JWT
   jwt: {
     secret: process.env.JWT_SECRET || 'default_jwt_secret_change_in_production',
-    expiresIn: process.env.JWT_EXPIRES_IN || '1d',
+    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
     issuer: process.env.JWT_ISSUER || 'albru-backend',
     audience: process.env.JWT_AUDIENCE || 'albru-frontend'

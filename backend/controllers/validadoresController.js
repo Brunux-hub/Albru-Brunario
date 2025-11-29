@@ -22,16 +22,17 @@ const getClientesValidador = async (req, res) => {
 
     console.log(`📋 [VALIDADORES] Obteniendo clientes para validador ${userId}`);
 
-    // Obtener clientes asignados al validador con estado PREVENTA COMPLETA
+    // Obtener clientes asignados al validador con estado PREVENTA COMPLETA y wizard completado
     const [clientes] = await pool.query(`
       SELECT 
         c.id,
         c.nombre,
         c.telefono,
         c.email,
-        c.dni_nombre_titular,
-        c.tipo_plan,
-        c.precio_plan,
+        c.correo_electronico,
+        c.dni,
+        c.direccion,
+        c.distrito,
         c.estatus_comercial_categoria,
         c.estatus_comercial_subcategoria,
         c.campana,
@@ -39,11 +40,41 @@ const getClientesValidador = async (req, res) => {
         c.fecha_asignacion_validador,
         c.created_at,
         c.asesor_asignado,
-        u.nombre as asesor_nombre
+        c.contador_reasignaciones,
+        c.wizard_completado,
+        c.fecha_wizard_completado,
+        c.observaciones_asesor,
+        u.nombre as asesor_nombre,
+        -- Paso 1: Información del Cliente
+        c.tipo_cliente_wizard,
+        c.lead_score,
+        c.coordenadas,
+        c.tipo_documento,
+        -- Paso 2: Datos Personales y Referencias
+        c.fecha_nacimiento,
+        c.lugar_nacimiento,
+        c.telefono_registro,
+        c.dni_nombre_titular,
+        c.parentesco_titular,
+        c.telefono_referencia_wizard,
+        c.telefono_grabacion_wizard,
+        c.departamento,
+        c.direccion_completa,
+        c.numero_piso_wizard,
+        -- Paso 3: Plan y Servicios
+        c.tipo_plan,
+        c.servicio_contratado,
+        c.velocidad_contratada,
+        c.precio_plan,
+        -- Paso 4: Adicionales
+        c.dispositivos_adicionales_wizard,
+        c.plataforma_digital_wizard,
+        c.pago_adelanto_instalacion_wizard
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id
       WHERE c.validador_asignado = ?
-        AND c.estatus_comercial_subcategoria = 'PREVENTA COMPLETA'
+        AND c.estatus_comercial_categoria = 'Preventa completa'
+        AND c.wizard_completado = 1
       ORDER BY c.fecha_asignacion_validador DESC
     `, [userId]);
 
@@ -93,7 +124,7 @@ const getEstadisticasValidador = async (req, res) => {
     // Obtener estadísticas adicionales de clientes
     const [clientesStats] = await pool.query(`
       SELECT
-        COUNT(CASE WHEN estatus_comercial_subcategoria = 'PREVENTA COMPLETA' THEN 1 END) as pendientes,
+        COUNT(CASE WHEN estatus_comercial_categoria = 'Preventa completa' AND wizard_completado = 1 THEN 1 END) as pendientes,
         COUNT(CASE WHEN estatus_comercial_subcategoria = 'VENTAS' THEN 1 END) as aprobados,
         COUNT(CASE WHEN estatus_comercial_subcategoria = 'RECHAZADO' THEN 1 END) as rechazados
       FROM clientes
@@ -216,7 +247,8 @@ const getValidadores = async (req, res) => {
       FROM usuarios u
       LEFT JOIN user_themes ut ON u.id = ut.usuario_id
       LEFT JOIN clientes c ON u.id = c.validador_asignado 
-        AND c.estatus_comercial_subcategoria = 'PREVENTA COMPLETA'
+        AND c.estatus_comercial_categoria = 'Preventa completa'
+        AND c.wizard_completado = 1
       WHERE u.tipo = 'validador' AND u.estado = 'activo'
       GROUP BY u.id
       ORDER BY u.nombre ASC

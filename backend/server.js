@@ -643,7 +643,7 @@ app.post('/api/auth/bypass-login', async (req, res) => {
         tenant_id: 1
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
     
     return res.json({
@@ -677,7 +677,7 @@ app.post('/api/auth/bypass-login', async (req, res) => {
         tenant_id: 1
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
     
     return res.json({

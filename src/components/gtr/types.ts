@@ -66,6 +66,7 @@ export interface Cliente {
   seguimiento_status?: string | null;
   estatus_comercial_categoria?: string | null;
   estatus_comercial_subcategoria?: string | null;
+  fecha_wizard_completado?: string | null;
   // Campos para tracking de gestiones
   asesor_asignado?: number | null;
   ultima_fecha_gestion?: string | null;
@@ -78,6 +79,10 @@ export interface Cliente {
   telefono_principal_id?: number | null;
   // Contador de reasignaciones
   contador_reasignaciones?: number;
+  // Multiplicador: cuántas veces apareció este teléfono hoy
+  multiplicador_dia?: number;
+  // Fecha de gestión para estadísticas diarias
+  fecha_gestion?: string;
 }
 
 // Tipos compartidos para componentes GTR

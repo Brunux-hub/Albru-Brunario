@@ -57,7 +57,7 @@ class AuthService {
           tenant_id: user.tenant_id || 1
         },
         process.env.JWT_SECRET || 'albru_jwt_secret_key_2025_secure_production',
-        { expiresIn: '24h' }
+        { expiresIn: '7d' }
       );
 
       // Preparar respuesta completa

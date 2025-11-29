@@ -28,6 +28,7 @@ const usuariosRoutes = require('./routes/usuarios');
 const userRoutes = require('./routes/user');
 const authRoutes = require('./routes/auth');
 const sessionsRoutes = require('./routes/sessions'); // Nueva ruta de sesiones
+const validadoresRoutes = require('./routes/validadores'); // Rutas de validadores
 const pool = require('./config/database');
 
 // Middleware para parsear el cuerpo de las peticiones como JSON
@@ -76,6 +77,7 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionsRoutes); // Rutas de sesiones
+app.use('/api/validadores', validadoresRoutes); // Rutas de validadores
 
 // Ruta raíz
 app.get('/', (req, res) => {

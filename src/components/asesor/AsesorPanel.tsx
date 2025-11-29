@@ -197,12 +197,22 @@ const AsesorPanel: React.FC = () => {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ display: 'flex', minHeight: '100vh', background: '#f7f9fb' }}>
+      <Box sx={{ display: 'flex', minHeight: '100vh', background: '#f9fafb' }}>
         <AsesorSidebar tabActual={tabActual} onTabChange={handleChangeTab} />
-        <Box sx={{ flex: 1, p: 3, zoom: 0.85 }}>
-          <Typography variant="h5" fontWeight={700} mb={3}>
-            {getTitulo()}
-          </Typography>
+        <Box sx={{ flex: 1, p: { xs: 2, sm: 3, md: 4 }, zoom: 0.85 }}>
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700,
+              fontSize: { xs: '1.5rem', md: '1.875rem' },
+              color: '#111827',
+              mb: 1
+            }}>
+              {getTitulo()}
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#6b7280', fontSize: '0.875rem' }}>
+              Gestiona y visualiza tus clientes asignados
+            </Typography>
+          </Box>
 
           {tabActual === 0 && (
             <>

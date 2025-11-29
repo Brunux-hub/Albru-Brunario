@@ -85,6 +85,13 @@ const searchClientes = async (req, res) => {
         c.estatus_comercial_categoria,
         c.estatus_comercial_subcategoria,
         c.asesor_asignado,
+        COALESCE(c.contador_reasignaciones_hoy, 0) as contador_reasignaciones,
+        COALESCE(c.contador_reasignaciones, 0) as contador_reasignaciones_total,
+        c.fecha_ultima_reasignacion,
+        (SELECT COUNT(*) 
+         FROM clientes c2 
+         WHERE c2.telefono = c.telefono 
+         AND DATE(c2.created_at) = DATE(c.created_at)) as multiplicador_dia,
         u.nombre AS asesor_nombre
        FROM clientes c
        LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
@@ -137,17 +144,22 @@ const getAllClientes = async (req, res) => {
     // NO excluir clientes gestionados - GTR necesita ver el historial completo
     // Anteriormente se excluían clientes con estado='gestionado', pero ahora
     // el GTR debe poder ver todos los clientes incluyendo los ya gestionados
-    // 🆕 EXCLUIR DUPLICADOS - Solo mostrar registros principales
-    const whereClause = 'WHERE (c.es_duplicado = FALSE OR c.es_duplicado IS NULL)';
+    // 🆕 INCLUIR TODOS - Mostrar todos los registros incluyendo duplicados
+    const whereClause = 'WHERE 1=1';
 
-    // Obtener total de clientes para paginación (solo principales)
-    const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM clientes WHERE (es_duplicado = FALSE OR es_duplicado IS NULL)');
+    // Obtener total de clientes para paginación (incluir duplicados)
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM clientes WHERE 1=1');
 
     const sql = `
       SELECT
         c.*,
         u.nombre AS asesor_nombre,
-        COALESCE(c.contador_reasignaciones, 0) as contador_reasignaciones
+        COALESCE(c.contador_reasignaciones_hoy, 0) as contador_reasignaciones,
+        COALESCE(c.contador_reasignaciones, 0) as contador_reasignaciones_total,
+        (SELECT COUNT(*) 
+         FROM clientes c2 
+         WHERE c2.telefono = c.telefono 
+         AND DATE(c2.created_at) = DATE(c.created_at)) as multiplicador_dia
       FROM clientes c
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       ${whereClause}
@@ -1155,6 +1167,15 @@ const getClientesByAsesor = async (req, res) => {
     if (colSet.has('estatus_comercial_subcategoria')) selectParts.push(`${wanted.estatus_comercial_subcategoria} AS estatus_comercial_subcategoria`);
     else selectParts.push(`NULL AS estatus_comercial_subcategoria`);
 
+    // Agregar contador de reasignaciones (mostrar el diario, pero incluir también el total)
+    if (colSet.has('contador_reasignaciones_hoy')) selectParts.push(`COALESCE(c.contador_reasignaciones_hoy, 0) AS contador_reasignaciones`);
+    else if (colSet.has('contador_reasignaciones')) selectParts.push(`COALESCE(c.contador_reasignaciones, 0) AS contador_reasignaciones`);
+    else selectParts.push(`0 AS contador_reasignaciones`);
+    
+    // Agregar contador total y fecha
+    if (colSet.has('contador_reasignaciones')) selectParts.push(`COALESCE(c.contador_reasignaciones, 0) AS contador_reasignaciones_total`);
+    if (colSet.has('fecha_ultima_reasignacion')) selectParts.push(`c.fecha_ultima_reasignacion AS fecha_ultima_reasignacion`);
+
     const selectClause = selectParts.join(',\n        ');
 
     // FILTRAR: Mostrar solo clientes que NO han completado el wizard
@@ -1820,7 +1841,7 @@ const reasignarCliente = async (req, res) => {
     const nuevoUsuarioId = nuevoAsesorData[0].usuario_id;
 
     // 🔄 REINICIAR SEGUIMIENTO: Actualizar cliente y resetear estado de seguimiento para nuevo ciclo de gestión
-    // - seguimiento_status: NULL (disponible para nueva gestión)
+    // - seguimiento_status: 'derivado' (marcar como derivado para el nuevo asesor)
     // - opened_at: NULL (resetear apertura)
     // - wizard_completado: 0 (resetear wizard para permitir nueva gestión)
     // - fecha_wizard_completado: NULL (limpiar fecha de completado)
@@ -1834,7 +1855,7 @@ const reasignarCliente = async (req, res) => {
       `UPDATE clientes 
        SET asesor_asignado = ?, 
            fecha_asignacion_asesor = NOW(),
-           seguimiento_status = NULL, 
+           seguimiento_status = 'derivado', 
            opened_at = NULL, 
            wizard_completado = 0,
            fecha_wizard_completado = NULL,
@@ -2000,7 +2021,6 @@ const getClientesGestionadosHoy = async (req, res) => {
       LEFT JOIN usuarios u ON c.asesor_asignado = u.id AND u.tipo = 'asesor'
       WHERE c.wizard_completado = 1
         AND (c.es_duplicado = FALSE OR c.es_duplicado IS NULL)
-        AND c.estatus_comercial_categoria IN ('Seguimiento', 'Preventa completa')
         AND (
           DATE(c.fecha_wizard_completado) = CURDATE()
           OR (c.fecha_wizard_completado IS NULL AND DATE(c.updated_at) = CURDATE())

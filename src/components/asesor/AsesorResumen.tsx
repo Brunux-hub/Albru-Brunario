@@ -1,9 +1,5 @@
 import React from 'react';
-import { Card, CardContent, Typography, Box } from '@mui/material';
-import GroupIcon from '@mui/icons-material/Group';
-import CallIcon from '@mui/icons-material/Call';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import { Typography, Box } from '@mui/material';
 import type { Cliente } from '../../context/AppContext';
 
 interface AsesorResumenProps {
@@ -31,23 +27,88 @@ const AsesorResumen: React.FC<AsesorResumenProps> = ({ clientes }) => {
   ).length;
 
   const resumen = [
-    { icon: <GroupIcon color="primary" />, label: 'Clientes asignados', value: clientesAsignados },
-    { icon: <CallIcon color="success" />, label: 'Contactados hoy', value: contactadosHoy },
-    { icon: <EmojiEventsIcon color="secondary" />, label: 'Ventas realizadas', value: ventasRealizadas },
-    { icon: <AccessTimeIcon color="warning" />, label: 'En seguimiento', value: enSeguimiento },
+    { 
+      icon: '👥', 
+      label: 'Clientes asignados', 
+      value: clientesAsignados,
+      bgColor: 'white',
+      iconBg: '#a78bfa',
+      textColor: '#111827',
+      labelColor: '#6b7280'
+    },
+    { 
+      icon: '📞', 
+      label: 'Contactados hoy', 
+      value: contactadosHoy,
+      bgColor: 'white',
+      iconBg: '#fb7185',
+      textColor: '#111827',
+      labelColor: '#6b7280'
+    },
+    { 
+      icon: '🏆', 
+      label: 'Ventas realizadas', 
+      value: ventasRealizadas,
+      bgColor: 'white',
+      iconBg: '#fbbf24',
+      textColor: '#111827',
+      labelColor: '#6b7280'
+    },
+    { 
+      icon: '⏰', 
+      label: 'En seguimiento', 
+      value: enSeguimiento,
+      bgColor: 'white',
+      iconBg: '#22d3ee',
+      textColor: '#111827',
+      labelColor: '#6b7280'
+    },
   ];
 
   return (
-    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+    <Box sx={{ 
+      display: 'grid',
+      gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
+      gap: { xs: 2, sm: 2.5, md: 3 }
+    }}>
       {resumen.map((item, idx) => (
-        <Box key={idx} sx={{ flex: '1 1 200px', minWidth: 200, maxWidth: 300 }}>
-          <Card sx={{ display: 'flex', alignItems: 'center', p: 1 }}>
-            <Box sx={{ mr: 2 }}>{item.icon}</Box>
-            <CardContent sx={{ p: 1 }}>
-              <Typography variant="h6" fontWeight={700}>{item.value}</Typography>
-              <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-            </CardContent>
-          </Card>
+        <Box 
+          key={idx} 
+          sx={{ 
+            bgcolor: item.bgColor,
+            borderRadius: 3,
+            p: { xs: 2, md: 2.5 },
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #e5e7eb',
+            transition: 'all 0.3s ease',
+            '&:hover': {
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              transform: 'translateY(-4px)'
+            }
+          }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" sx={{ color: item.labelColor, fontSize: '0.875rem', fontWeight: 500, mb: 1 }}>
+                {item.label}
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700, color: item.textColor, mb: 0.5, fontSize: '2rem' }}>
+                {item.value}
+              </Typography>
+            </Box>
+            <Box sx={{ 
+              bgcolor: item.iconBg, 
+              borderRadius: 2, 
+              width: 48,
+              height: 48,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.5rem'
+            }}>
+              {item.icon}
+            </Box>
+          </Box>
         </Box>
       ))}
     </Box>
